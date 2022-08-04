@@ -27,7 +27,7 @@ namespace CustomNetworkLib
             protected Socket ServerSocket;
            
             
-            ConcurrentDictionary<Guid,IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+            public ConcurrentDictionary<Guid,IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
             public AsyncTcpServer(int port = 20008)
             {
                 ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);

@@ -26,6 +26,8 @@ namespace ConsoleTest
         //static AutoResetEvent are = new AutoResetEvent (false);
         static int totMsgCl = 0;
         static int totMsgsw = 0;
+        private static ByteProtocolTcpServer server;
+
         static void Main(string[] args)
         {
             TcpTest();
@@ -186,61 +188,69 @@ namespace ConsoleTest
         //----------TCP ----------------------------------------------------------------
         private static void TcpTest()
         {
-            ByteProtocolTcpServer server = new ByteProtocolTcpServer(2008);
-            ByteProtocolTcpClient client = new ByteProtocolTcpClient();
-            ByteProtocolTcpClient client2 = new ByteProtocolTcpClient();
-            ByteProtocolTcpClient client3 = new ByteProtocolTcpClient();
-            ByteProtocolTcpClient client4 = new ByteProtocolTcpClient();
-            client.ConnectAsync("127.0.0.1", 2008);
-            client2.ConnectAsync("127.0.0.1", 2008);
-            client3.ConnectAsync("127.0.0.1", 2008);
-            client4.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
-            client.OnConnected += OncOn;
+             server = new ByteProtocolTcpServer(2008);
+            List<ByteProtocolTcpClient> clients = new List<ByteProtocolTcpClient>();
+            
+
+            int clAmount = 5;
+            bool V2 = false;
+            for (int i = 0; i < clAmount; i++)
+            {
+                var client = new ByteProtocolTcpClient();
+                client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
+                Console.WriteLine(server.Sessions.Count);
+
+                client.OnBytesRecieved += clientMsgRec;
+                client.V2 = V2;
+                clients.Add(client);
+            }
             //client.SendAsync(new byte[123]);
 
-            server.OnBytesRecieved += OnMsgRecieved;
-            client.OnBytesRecieved += clientMsgRec;
-            client2.OnBytesRecieved += clientMsgRec;
-            client3.OnBytesRecieved += clientMsgRec;
-            client4.OnBytesRecieved += clientMsgRec;
-
+            server.OnBytesRecieved += SWOnMsgRecieved;
+            server.V2 = V2;
+            Console.ReadLine();
+            Console.WriteLine(server.Sessions.Count);
             Console.ReadLine();
 
-            var msg = new byte[5000];
+            var msg = new byte[500];
             for (int i = 0; i < msg.Length; i++)
             {
                 msg[i] = 11;
             }
             var t1 = new Thread(() =>
              {
-            for (int i = 0; i < 200000; i++)
+                 for (int i = 0; i < 200000; i++)
             {
-                client.SendAsync(msg);
-                client2.SendAsync(msg);
-                client3.SendAsync(msg);
-                client4.SendAsync(msg);
-            }
+                     foreach (var client in clients)
+                     {
+                         client.SendAsync(msg);
+                     }
+                 }
 
-            client.SendAsync(new byte[502]);
-            client2.SendAsync(new byte[502]);
-            client3.SendAsync(new byte[502]);
-            client4.SendAsync(new byte[502]);
+                 foreach (var client in clients)
+                 {
+                     client.SendAsync(new byte[502]);
+                 }
 
              });
             t1.Start();
             sw2.Start();
 
-            var t2 = new Thread(() =>
-             {
+            var t2 = new Thread(() =>{
             for (int i = 0; i < 200000; i++)
             {
                 server.BroadcastByteMsg(msg);
             }
             server.BroadcastByteMsg(new byte[502]);
               });
-              t2.Start();
+           //   t2.Start();
             sw.Start();
 
+            t1.Join();
+            Console.WriteLine(sw2.ElapsedMilliseconds);
+
+           // t2.Join();
+            Console.WriteLine("2-- "+sw2.ElapsedMilliseconds);
 
             Console.ReadLine();
             Console.WriteLine(totMsgsw);
@@ -259,7 +269,7 @@ namespace ConsoleTest
                 server.BroadcastByteMsg(new byte[500]);
 
             }
-            server.BroadcastByteMsg(new byte[501]);
+            server.BroadcastByteMsg(new byte[502]);
 
         }
 
@@ -285,13 +295,13 @@ namespace ConsoleTest
             Interlocked.Increment(ref totMsgCl);
         }
 
-        private static void OnMsgRecieved(Guid arg1, byte[] arg2)
+        private static void SWOnMsgRecieved(Guid arg1, byte[] arg2)
         {
             
             //Console.WriteLine(arg2.Length);
-            if (arg2.Length < 50000000)
+            if (arg2.Length < 5000)
             {
-
+               // throw new Exception();
             }
             if (arg2.Length == 502)
             {
@@ -299,9 +309,10 @@ namespace ConsoleTest
                 //Console.WriteLine("Server REc: " + arg2.Length);
                 Console.WriteLine("Time: " +sw2.ElapsedMilliseconds);
                 Console.WriteLine("tot msg sw: " + totMsgsw);
-                sw2.Reset();
+                //sw2.Reset();
                 return;
             }
+            server.SendBytesToClient(arg1, arg2);
             ///* cq.Enqueue*/Task.Run(() => {
             //for (int i = 0; i < arg2.Length; i++)
             //{

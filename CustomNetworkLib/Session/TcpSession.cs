@@ -11,40 +11,43 @@ namespace CustomNetworkLib
 {
     public class TcpSession : IAsyncSession
     {
-        protected byte[] sendBuffer = new byte[12000000];
-        protected byte[] recieveBuffer = new byte[12800000];
+        protected byte[] sendBuffer;
+        protected byte[] recieveBuffer;
 
         protected SocketAsyncEventArgs ClientSendEventArg;
         protected SocketAsyncEventArgs ClientRecieveEventArg;
-        protected SocketAsyncEventArgs sessionEventArg;
-
+        protected Socket sessionSocket;
         protected ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
 
-        public event EventHandler<byte[]> OnBytesRecieved;
+        public virtual event EventHandler<byte[]> OnBytesRecieved;
         public Guid SessionId;
 
-        private int maxMem=100000000;
+        private int maxMem=1000000000;
         private int currMem=0;
 
         public TcpSession(SocketAsyncEventArgs acceptedArg, Guid sessionId)
         {
-            sendBuffer = new byte[12800000];
+
+            sessionSocket = acceptedArg.AcceptSocket;
             ConfigureSendArgs(acceptedArg);
             ConfigureRecieveArgs(acceptedArg);
 
             StartRecieving();
+            //ThreadPool.SetMinThreads(2000, 2000);
+            
         }
 
         protected virtual void ConfigureSendArgs(SocketAsyncEventArgs acceptedArg)
         {
-            this.sessionEventArg = acceptedArg;
             var sendArg = new SocketAsyncEventArgs();
             sendArg.Completed += Sent;
 
-            var token = new UserToken(acceptedArg.AcceptSocket);
+            var token = new UserToken();
             token.Guid = Guid.NewGuid();
+
             sendArg.UserToken = token;
-            sendArg.AcceptSocket = acceptedArg.AcceptSocket;
+            sendBuffer = new byte[12800000];
+
             sendArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
             ClientSendEventArg = sendArg;
             
@@ -55,17 +58,19 @@ namespace CustomNetworkLib
             var recieveArg = new SocketAsyncEventArgs();
             recieveArg.Completed += BytesRecieved;
 
-            var token = new UserToken(acceptedArg.AcceptSocket);
+            var token = new UserToken();
             token.Guid = Guid.NewGuid();
-            recieveArg.UserToken = new UserToken(acceptedArg.AcceptSocket);
-            recieveArg.AcceptSocket = acceptedArg.AcceptSocket;
+            
+            recieveArg.UserToken = new UserToken();
+            recieveBuffer = new byte[12800000];
+
             ClientRecieveEventArg = recieveArg;
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
         }
 
         protected virtual void StartRecieving()
         {
-            sessionEventArg.AcceptSocket.ReceiveAsync(ClientRecieveEventArg);
+            sessionSocket.ReceiveAsync(ClientRecieveEventArg);
         }
 
         protected virtual void BytesRecieved(object sender, SocketAsyncEventArgs e)
@@ -85,7 +90,7 @@ namespace CustomNetworkLib
             HandleRecieveComplete(e.Buffer,e.Offset,e.BytesTransferred);
 
             e.SetBuffer(0, e.Buffer.Length);
-            if (!sessionEventArg.AcceptSocket.ReceiveAsync(e))
+            if (!sessionSocket.ReceiveAsync(e))
             {
                 BytesRecieved(null, e);
             }
@@ -93,9 +98,9 @@ namespace CustomNetworkLib
 
         protected virtual void HandleRecieveComplete(byte[] buffer,int offset,int count)
         {
-            byte[] message = new byte[count+offset];
-            Buffer.BlockCopy(buffer, 0, message, 0, count+offset);
-            OnBytesRecieved?.Invoke(null,message);
+            byte[] message = new byte[count];
+            Buffer.BlockCopy(buffer, offset, message, 0, count);
+            OnBytesRecieved?.Invoke(null, message);
         }
       
         // TODO
@@ -127,8 +132,22 @@ namespace CustomNetworkLib
         protected virtual void Send(byte[] bytes) 
         {
             Buffer.BlockCopy(bytes, 0, sendBuffer, 0, bytes.Length);
-            ClientSendEventArg.SetBuffer(0, bytes.Length);
-            if (!sessionEventArg.AcceptSocket.SendAsync(ClientSendEventArg))
+            SendBuffer(bytes,0,bytes.Length);
+
+            //List<ArraySegment<byte>> segments =  new List<ArraySegment<byte>>();
+            //segments.Add(new ArraySegment<byte>(bytes));
+            //ClientSendEventArg.BufferList= segments;
+        }
+
+        protected virtual void SendBuffer(byte[] bytes, int offset,int count)
+        {
+            //List<ArraySegment<byte>> segments = new List<ArraySegment<byte>>();
+            //segments.Add(new ArraySegment<byte>(bytes));
+            //ClientSendEventArg.SetBuffer(null,0,0);
+            //ClientSendEventArg.BufferList = segments;
+
+            ClientSendEventArg.SetBuffer(offset, count);
+            if (!sessionSocket.SendAsync(ClientSendEventArg))
             {
                 Sent(null, ClientSendEventArg);
             }
@@ -144,10 +163,8 @@ namespace CustomNetworkLib
 
             else if (e.BytesTransferred<e.Count)
             {
-                var token = (UserToken)e.UserToken;
-                // isnt it minus
                 e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
-                if (!token.ClientSocket.SendAsync(e))
+                if (!sessionSocket.SendAsync(e))
                 {
                     Sent(null, e);
                 }
@@ -156,16 +173,12 @@ namespace CustomNetworkLib
             
             if (SendQueue.TryDequeue(out var bytes))
             {
-                if (currMem > 100096000)
-                    throw new Exception();
                 Interlocked.Add(ref currMem, -bytes.Length);
-
                 Send(bytes);
             }
             else
             {
                 ((UserToken)e.UserToken).OperationCompleted();
-
             }
 
         }

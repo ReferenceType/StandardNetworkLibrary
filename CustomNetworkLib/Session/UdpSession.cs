@@ -25,7 +25,7 @@ namespace CustomNetworkLib.Session.Interface
             RecieveEventArg = new SocketAsyncEventArgs();
             RecieveEventArg.Completed += Recieved;
             RecieveEventArg.SetBuffer(new byte[64000], 0, 64000);
-            RecieveEventArg.UserToken = new UserToken(e.AcceptSocket);
+            RecieveEventArg.UserToken = new UserToken();
             RecieveEventArg.AcceptSocket = e.AcceptSocket;
             RecieveEventArg.RemoteEndPoint = remoteEndPoint;
 
@@ -38,7 +38,7 @@ namespace CustomNetworkLib.Session.Interface
 
             clientSocketSendArgs = new SocketAsyncEventArgs();
             clientSocketSendArgs.SetBuffer(new byte[64000], 0, 64000);
-            clientSocketSendArgs.UserToken = new UserToken(e.ConnectSocket);
+            clientSocketSendArgs.UserToken = new UserToken();
             clientSocketSendArgs.AcceptSocket = e.AcceptSocket;
             clientSocketSendArgs.RemoteEndPoint = remoteEndPoint;
             clientSocketSendArgs.Completed += Sent;

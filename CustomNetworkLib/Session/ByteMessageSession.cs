@@ -8,8 +8,10 @@ namespace CustomNetworkLib
 {
     internal class ByteMessageSession : TcpSession
     {
+       
         public ByteMessageSession(SocketAsyncEventArgs acceptedArg,Guid sessionId) : base(acceptedArg,sessionId)
         {
+            
         }
 
         protected override void ConfigureRecieveArgs(SocketAsyncEventArgs acceptedArg)
@@ -17,13 +19,14 @@ namespace CustomNetworkLib
             var recieveArg = new SocketAsyncEventArgs();
             recieveArg.Completed += RecievedHeader;
 
-            recieveArg.UserToken = new UserToken(acceptedArg.AcceptSocket);
-            recieveArg.AcceptSocket = acceptedArg.AcceptSocket;
+            recieveBuffer = new byte[12800000];
+            recieveArg.UserToken = new UserToken();
+
             ClientRecieveEventArg = recieveArg;
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, 4);
         }
 
-
+      
         #region Recieve
         private void RecievedHeader(object sender, SocketAsyncEventArgs e)
         {
@@ -41,7 +44,7 @@ namespace CustomNetworkLib
             else if (e.BytesTransferred + e.Offset < 4)
             {
                 e.SetBuffer(e.BytesTransferred, 4 - e.BytesTransferred);
-                if (!e.AcceptSocket.ReceiveAsync(e))
+                if (!sessionSocket.ReceiveAsync(e))
                 {
                     RecievedHeader(null, e);
                 }
@@ -61,8 +64,10 @@ namespace CustomNetworkLib
             e.Completed -= RecievedHeader;
             e.Completed += RecievedBody;
 
-            if (!e.AcceptSocket.ReceiveAsync(e))
+            if (!sessionSocket.ReceiveAsync(e))
+            {
                 RecievedBody(null, e);
+            }
 
         }
 
@@ -83,7 +88,7 @@ namespace CustomNetworkLib
             {
                 // count decreasing
                 e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
-                if (!e.AcceptSocket.ReceiveAsync(e))
+                if (!sessionSocket.ReceiveAsync(e))
                 {
                     RecievedBody(null, e);
                 }
@@ -95,7 +100,7 @@ namespace CustomNetworkLib
 
             e.Completed -= RecievedBody;
             e.Completed += RecievedHeader;
-            if (!e.AcceptSocket.ReceiveAsync(e))
+            if (!sessionSocket.ReceiveAsync(e))
             {
                 RecievedHeader(null, e);
             }
@@ -111,12 +116,12 @@ namespace CustomNetworkLib
                 sendBuffer[i] = byteFrame[i];
             }
             Buffer.BlockCopy(bytes, 0, sendBuffer, 4, bytes.Length);
-
-            ClientSendEventArg.SetBuffer(0, bytes.Length + 4);
-            if (!sessionEventArg.AcceptSocket.SendAsync(ClientSendEventArg))
-            {
-                Sent(null, ClientSendEventArg);
-            }
+            SendBuffer(bytes,0,bytes.Length+4);
+            //ClientSendEventArg.SetBuffer(0, bytes.Length + 4);
+            //if (!sessionSocket.SendAsync(ClientSendEventArg))
+            //{
+            //    Sent(null, ClientSendEventArg);
+            //}
         }
 
     }

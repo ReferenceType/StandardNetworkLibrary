@@ -31,6 +31,7 @@ namespace CustomNetworkLib
         protected IAsyncSession session;
 
         #region Configuration
+        //256000
         public int SocketSendBufferSize = 256000;
         public int SocketRecieveBufferSize = 256000;
 

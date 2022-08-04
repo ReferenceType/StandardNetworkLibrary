@@ -10,15 +10,15 @@ namespace CustomNetworkLib
 {
     class UserToken
     {
-        public Socket ClientSocket { get; }
+        //public Socket ClientSocket { get; }
         public AutoResetEvent OperationPending = new AutoResetEvent(true);
         public SemaphoreSlim OperationSemaphore = new SemaphoreSlim(1,1);
         public bool recursing;
         public Guid Guid;
 
-        public UserToken(Socket clientSocket)
+        public UserToken()
         {
-            this.ClientSocket = clientSocket;
+            //this.ClientSocket = clientSocket;
         }
 
         public void WaitOperationCompletion()

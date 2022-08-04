@@ -10,19 +10,22 @@ namespace CustomNetworkLib
 {
     public class ByteProtocolTcpServer : AsyncTcpServer
     {
-        
+        public bool V2 = false;
         public ByteProtocolTcpServer(int port): base(port)
         {}
 
         protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            return new ByteMessageSession(e,sessionId);
+            if(V2)
+                return new ByteMessageSessionV2(e,sessionId);
+            else
+                return new ByteMessageSession(e,sessionId);
+            // new ByteMessageSession(e,sessionId);
         }
 
         public void SendByteMessage(Guid clientGuid, byte[] rawByteMsg)
         {
-            byte[] framedMessage = BufferManager.AddByteFrame(rawByteMsg);
-            SendBytesToClient(clientGuid, framedMessage);
+            SendBytesToClient(clientGuid, rawByteMsg);
         }
 
         public void BroadcastByteMsg(byte[] rawByteMsg)

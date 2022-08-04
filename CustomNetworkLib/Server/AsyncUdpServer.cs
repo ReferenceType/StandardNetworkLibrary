@@ -141,7 +141,7 @@ namespace NetworkSystem
             // Send args
             var sendArg = new SocketAsyncEventArgs();
             sendArg.Completed += Sent;
-            sendArg.UserToken = new UserToken(e.AcceptSocket);
+            sendArg.UserToken = new UserToken();
             sendArg.AcceptSocket = e.AcceptSocket;
             sendArg.SetBuffer(new byte[64000], 0, 64000);
             sendArg.RemoteEndPoint = e.RemoteEndPoint;
@@ -152,7 +152,7 @@ namespace NetworkSystem
             //// Send args
             var recdArg = new SocketAsyncEventArgs();
             recdArg.Completed += RecievedFromRegisteredClient;
-            recdArg.UserToken = new UserToken(e.AcceptSocket);
+            recdArg.UserToken = new UserToken();
             recdArg.AcceptSocket = e.AcceptSocket;
             recdArg.SetBuffer(new byte[64000], 0, 64000);
             recdArg.RemoteEndPoint = e.RemoteEndPoint;

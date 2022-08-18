@@ -14,11 +14,12 @@ namespace CustomNetworkLib
         public int CurrentMsgBufferPos;
         public int CurrentHeaderBufferPos;
         public int ExpectedMsgLenght;
-
+        private int originalCapacity;
        
         public MessageBuffer(int capacity, int currentWriteIndex = 0)
         {
             this.messageBuffer = new byte[capacity];
+            originalCapacity=capacity;
             CurrentMsgBufferPos = currentWriteIndex;
         }
       
@@ -36,11 +37,11 @@ namespace CustomNetworkLib
             Array.Resize(ref messageBuffer, size + messageBuffer.Length);
         }
 
-        public void AppendHeaderChunk(byte[] headerPart,int count)
+        public void AppendHeaderChunk(byte[] headerPart,int offset,int count)
         {
             for (int i = 0; i < count; i++)
             {
-                AppendHeaderByte(headerPart[i]);
+                AppendHeaderByte(headerPart[i+offset]);
             }
         }
 
@@ -63,6 +64,7 @@ namespace CustomNetworkLib
         {
             byte[] bytes = new byte[ExpectedMsgLenght];
             Buffer.BlockCopy(messageBuffer, 0,bytes, 0,ExpectedMsgLenght);
+
             return bytes;
         }
 
@@ -71,6 +73,11 @@ namespace CustomNetworkLib
            CurrentHeaderBufferPos = 0;
            CurrentMsgBufferPos= 0;
            ExpectedMsgLenght = 0;
+            if (messageBuffer.Length > originalCapacity)
+            {
+                this.messageBuffer = new byte[originalCapacity];
+                GC.Collect();
+            }
         }
     }
     internal class ByteMessageManager
@@ -119,31 +126,32 @@ namespace CustomNetworkLib
 
         private void HandleHeader(byte[] incomingBytes, int offset, int count)
         {
-            if (count >= currentExpectedByteLenght)
+            if (count-offset >= currentExpectedByteLenght)
             {
-                messageBuffer.AppendHeaderChunk(incomingBytes, currentExpectedByteLenght);
+                messageBuffer.AppendHeaderChunk(incomingBytes, 0,currentExpectedByteLenght);
 
                 // perfect msg
                 if (count - currentExpectedByteLenght == messageBuffer.ExpectedMsgLenght)
                 {
-                    MessageReady(incomingBytes, MessageBuffer.HeaderLenght, messageBuffer.ExpectedMsgLenght);
+                    MessageReady(incomingBytes, currentExpectedByteLenght, messageBuffer.ExpectedMsgLenght);
                     messageBuffer.Reset();
                 }
                 // multiple msgs or partial incomplete msg.
                 else
                 {
+                    offset += currentExpectedByteLenght;
+                    //count -= currentExpectedByteLenght;
+
                     currentState = OperationState.AwaitingMsgBody;
                     currentExpectedByteLenght = messageBuffer.ExpectedMsgLenght;
-                    offset += MessageBuffer.HeaderLenght;
-                    count -= MessageBuffer.HeaderLenght;
                     HandleBody(incomingBytes, offset, count);
                 }
             }
             // Fragmented header. we will get on next call,
             else
             {
-                messageBuffer.AppendHeaderChunk(incomingBytes, count);
-                currentExpectedByteLenght = MessageBuffer.HeaderLenght - count;
+                messageBuffer.AppendHeaderChunk(incomingBytes,0, count);
+                currentExpectedByteLenght = MessageBuffer.HeaderLenght - (count-offset);
             }
            
         }
@@ -152,7 +160,7 @@ namespace CustomNetworkLib
         private void HandleBody(byte[] incomingBytes, int offset, int count)
         {
             // overflown message
-            while (count >= currentExpectedByteLenght)
+            while (count-offset >= currentExpectedByteLenght)
             {
                 // nothing from prev call
                 if (messageBuffer.CurrentMsgBufferPos == 0)
@@ -169,49 +177,46 @@ namespace CustomNetworkLib
                 }
 
                 offset += currentExpectedByteLenght;
-                count -= currentExpectedByteLenght;
+                //count -= currentExpectedByteLenght;
                 // can read byte frame.
-                if (count >= MessageBuffer.HeaderLenght)
+                if (count -offset>= MessageBuffer.HeaderLenght)
                 {
                     currentExpectedByteLenght = BufferManager.ReadByteFrame(incomingBytes, offset);
                     offset += MessageBuffer.HeaderLenght;
-                    count -= MessageBuffer.HeaderLenght;
+                    //count -= MessageBuffer.HeaderLenght;
                 }
+                //if (count < 4)
+                //{ }
                 // incomplete byte frame
                 else
                 {
-                    messageBuffer.AppendMessageChunk(incomingBytes, offset, count);
+                    messageBuffer.AppendHeaderChunk(incomingBytes, offset, count-offset);
                     currentState = OperationState.AwaitingMsgHeader;
-                    currentExpectedByteLenght = MessageBuffer.HeaderLenght - count;
+                    currentExpectedByteLenght = MessageBuffer.HeaderLenght - (count-offset);
 
                     return;
                 }
             }
 
             // incomplete msg,
-            if (count < currentExpectedByteLenght)
+            if (count-offset < currentExpectedByteLenght)
             {
-                messageBuffer.AppendMessageChunk(incomingBytes, offset, count);
-                currentExpectedByteLenght = currentExpectedByteLenght - count;
+                messageBuffer.AppendMessageChunk(incomingBytes, offset, count-offset);
+                currentExpectedByteLenght = currentExpectedByteLenght - (count-offset);
 
             }
-            //// perfect size
-            //else
-            //{
-            //    MessageReady(incomingBytes, offset, count);
-            //    messageBuffer.Reset();
-
-            //    currentExpectedByteLenght = MessageBuffer.HeaderLenght;
-            //    currentState = OperationState.AwaitingMsgHeader;
-            //}
+           
         }
         private void MessageReady(MessageBuffer buffer)
         {
             //var byteMsg = buffer.GetMessageBytes();
-            OnMessageReady?.Invoke(buffer.messageBuffer, 0, buffer.CurrentMsgBufferPos);
+            //OnMessageReady?.Invoke(buffer.messageBuffer, 0, buffer.CurrentMsgBufferPos);
+            MessageReady(buffer.messageBuffer, 0, buffer.CurrentMsgBufferPos);
         }
-        private void MessageReady(byte[] byteMsg, int offset,int count)
+        private void MessageReady(byte[] byteMsg, int offset, int count)
         {
+            if (count != 5) 
+            { }
             OnMessageReady?.Invoke(byteMsg, offset, count);
         }
     }

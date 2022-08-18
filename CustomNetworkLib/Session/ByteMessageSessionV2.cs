@@ -27,14 +27,24 @@ namespace CustomNetworkLib
 
         protected override void Send(byte[] bytes)
         {
+            if (bytes.Length + 4 > sendBuffer.Length)
+            {
+                sendBuffer = new byte[bytes.Length + 4];
+                //ClientSendEventArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
+                //GC.Collect();
+
+            }
+
             byte[] byteFrame = BitConverter.GetBytes(bytes.Length);
             for (int i = 0; i < 4; i++)
             {
                 sendBuffer[i] = byteFrame[i];
             }
+
+   
             Buffer.BlockCopy(bytes, 0, sendBuffer, 4, bytes.Length);
 
-            ClientSendEventArg.SetBuffer(0, bytes.Length + 4);
+            ClientSendEventArg.SetBuffer(sendBuffer,0,bytes.Length+4);
             if (!sessionSocket.SendAsync(ClientSendEventArg))
             {
                 Sent(null, ClientSendEventArg);

@@ -9,6 +9,21 @@ using System.Threading.Tasks;
 
 namespace CustomNetworkLib
 {
+    public class Pair<T,U> where T:class where U:class
+    {
+        public T Item1;
+        public U Item2;
+        public Pair(T item1, U item2)
+        {
+            Item1 = item1;
+            Item2 = item2;
+        }
+        public void Release()
+        {
+            Item1 = null;
+            Item2 = null;
+        }
+    }
     public class TcpSession : IAsyncSession
     {
         protected byte[] sendBuffer;
@@ -17,13 +32,18 @@ namespace CustomNetworkLib
         protected SocketAsyncEventArgs ClientSendEventArg;
         protected SocketAsyncEventArgs ClientRecieveEventArg;
         protected Socket sessionSocket;
-        protected ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
+        protected ConcurrentQueue<Pair<byte[], byte[]>> SendQueue = new ConcurrentQueue<Pair<byte[], byte[]>>();
 
         public virtual event EventHandler<byte[]> OnBytesRecieved;
         public Guid SessionId;
-
-        private int maxMem=1000000000;
+        private int sendBufferSize = 128000;
+        private int recieveBufferSize = 128000;
+        private int maxMem=128000;
         private int currMem=0;
+        int offset=0;
+        int count=0;
+        private readonly object locker = new object();
+
 
         public TcpSession(SocketAsyncEventArgs acceptedArg, Guid sessionId)
         {
@@ -46,7 +66,7 @@ namespace CustomNetworkLib
             token.Guid = Guid.NewGuid();
 
             sendArg.UserToken = token;
-            sendBuffer = new byte[12800000];
+            sendBuffer = new byte[sendBufferSize];
 
             sendArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
             ClientSendEventArg = sendArg;
@@ -62,7 +82,7 @@ namespace CustomNetworkLib
             token.Guid = Guid.NewGuid();
             
             recieveArg.UserToken = new UserToken();
-            recieveBuffer = new byte[12800000];
+            recieveBuffer = new byte[recieveBufferSize];
 
             ClientRecieveEventArg = recieveArg;
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
@@ -110,22 +130,29 @@ namespace CustomNetworkLib
 
         public void SendAsync(byte[] bytes)
         {
-            SendOrEnqueue(bytes);
+            SendOrEnqueue(ref bytes);
         }
 
        
-        protected virtual void SendOrEnqueue(byte[] bytes)
+        protected virtual void SendOrEnqueue(ref byte[] bytes)
         {
             var token = (UserToken)ClientSendEventArg.UserToken;
             if (Volatile.Read(ref currMem) < maxMem &&token.OperationSemaphore.CurrentCount < 1)
             {
                 
                 Interlocked.Add(ref currMem,bytes.Length);
-                SendQueue.Enqueue(bytes);
+                byte[] byteFrame = BitConverter.GetBytes(bytes.Length);
+                Interlocked.Add(ref currMem, byteFrame.Length);
+                
+                //SendQueue.Enqueue(byteFrame);
+                //SendQueue.Enqueue(bytes);
+                
+                SendQueue.Enqueue(new Pair<byte[], byte[]>(byteFrame, bytes));
                 return;
             }
 
-            token.OperationSemaphore.Wait();
+            //token.OperationSemaphore.Wait();
+            token.WaitOperationCompletion();
             Send(bytes);
         }
 
@@ -146,7 +173,8 @@ namespace CustomNetworkLib
             //ClientSendEventArg.SetBuffer(null,0,0);
             //ClientSendEventArg.BufferList = segments;
 
-            ClientSendEventArg.SetBuffer(offset, count);
+            //ClientSendEventArg.SetBuffer(offset, count);
+            ClientSendEventArg.SetBuffer(sendBuffer, 0, count);
             if (!sessionSocket.SendAsync(ClientSendEventArg))
             {
                 Sent(null, ClientSendEventArg);
@@ -170,12 +198,49 @@ namespace CustomNetworkLib
                 }
                 return;
             }
-            
-            if (SendQueue.TryDequeue(out var bytes))
+             if (sendBuffer.Length > sendBufferSize)
             {
-                Interlocked.Add(ref currMem, -bytes.Length);
-                Send(bytes);
+                sendBuffer = new byte[sendBufferSize];
+                e.SetBuffer(sendBuffer, 0, sendBufferSize);
             }
+            offset = 0;
+            while(SendQueue.TryPeek(out var bytes))
+            {
+                
+                if(offset==0 && bytes.Item1.Length + bytes.Item2.Length > sendBuffer.Length)
+                {
+                    sendBuffer=new byte[bytes.Item1.Length + bytes.Item2.Length];
+                    e.SetBuffer(sendBuffer,0,sendBuffer.Length);
+                    //GC.Collect();
+
+                }
+
+                if (bytes.Item1.Length + bytes.Item2.Length > sendBuffer.Length - offset)
+                    break;
+
+                SendQueue.TryDequeue(out bytes);
+                Interlocked.Add(ref currMem, -(bytes.Item1.Length+bytes.Item2.Length));
+
+                Buffer.BlockCopy(bytes.Item1, 0, sendBuffer, offset, bytes.Item1.Length);
+                offset += bytes.Item1.Length;
+                Buffer.BlockCopy(bytes.Item2, 0, sendBuffer, offset, bytes.Item2.Length);
+
+                offset+=bytes.Item2.Length;
+                bytes.Release();
+
+               
+            }
+            if (offset != 0)
+            {
+               // GC.Collect();
+                e.SetBuffer(sendBuffer, 0, offset);
+                //e.SetBuffer( 0, offset);
+                if (!sessionSocket.SendAsync(ClientSendEventArg))
+                {
+                    Sent(null, ClientSendEventArg);
+                }
+            }
+
             else
             {
                 ((UserToken)e.UserToken).OperationCompleted();

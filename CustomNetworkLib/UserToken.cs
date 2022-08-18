@@ -24,6 +24,7 @@ namespace CustomNetworkLib
         public void WaitOperationCompletion()
         {
             OperationPending.WaitOne();
+            OperationSemaphore.Wait();
         }
         
 

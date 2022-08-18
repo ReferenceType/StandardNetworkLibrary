@@ -60,7 +60,7 @@ namespace CustomNetworkLib
 
 
             e.SetBuffer(0, expectedLen);
-
+            e.Buffer[10] = 123;
             e.Completed -= RecievedHeader;
             e.Completed += RecievedBody;
 
@@ -84,7 +84,7 @@ namespace CustomNetworkLib
                 DisconnectClient(e);
                 return;
             }
-            else if (e.BytesTransferred < e.Count)
+            else if (e.BytesTransferred < e.Count-e.Offset)
             {
                 // count decreasing
                 e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
@@ -94,7 +94,16 @@ namespace CustomNetworkLib
                 }
                 return;
             }
-            HandleRecieveComplete(e.Buffer, e.Offset, e.Count);
+            if (e.Count != 5)
+            {
+                
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                if (e.Buffer[i]!=11)
+                { }
+            }
+            HandleRecieveComplete(e.Buffer, 0, e.Count);
 
             e.SetBuffer(0, 4);
 
@@ -116,12 +125,13 @@ namespace CustomNetworkLib
                 sendBuffer[i] = byteFrame[i];
             }
             Buffer.BlockCopy(bytes, 0, sendBuffer, 4, bytes.Length);
-            SendBuffer(bytes,0,bytes.Length+4);
+            //SendBuffer(bytes,0,bytes.Length+4);
             //ClientSendEventArg.SetBuffer(0, bytes.Length + 4);
-            //if (!sessionSocket.SendAsync(ClientSendEventArg))
-            //{
-            //    Sent(null, ClientSendEventArg);
-            //}
+            ClientSendEventArg.SetBuffer(sendBuffer,0, bytes.Length + 4);
+            if (!sessionSocket.SendAsync(ClientSendEventArg))
+            {
+                Sent(null, ClientSendEventArg);
+            }
         }
 
     }

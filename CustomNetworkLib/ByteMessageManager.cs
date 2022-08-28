@@ -25,7 +25,7 @@ namespace CustomNetworkLib
       
         public void AppendMessageChunk(byte[] bytes,int offset, int count)
         {
-            if (messageBuffer.Length - CurrentMsgBufferPos <= count)
+            if (messageBuffer.Length - CurrentMsgBufferPos < count)
                 Extend(count);
 
             Buffer.BlockCopy(bytes, offset, messageBuffer, CurrentMsgBufferPos, count);
@@ -34,6 +34,8 @@ namespace CustomNetworkLib
 
         private void Extend(int size)
         {
+            Console.WriteLine("Alloc");
+
             Array.Resize(ref messageBuffer, size + messageBuffer.Length);
         }
 
@@ -55,28 +57,34 @@ namespace CustomNetworkLib
                 ExpectedMsgLenght = BitConverter.ToInt32(header, 0);
                 if (messageBuffer.Length < ExpectedMsgLenght)
                 {
-                    Extend(ExpectedMsgLenght-messageBuffer.Length);
+                    //Console.WriteLine("Alloc by header");
+                    messageBuffer = new byte[ExpectedMsgLenght];
                 }
             }
         }
 
-        public byte[] GetMessageBytes()
-        {
-            byte[] bytes = new byte[ExpectedMsgLenght];
-            Buffer.BlockCopy(messageBuffer, 0,bytes, 0,ExpectedMsgLenght);
 
-            return bytes;
-        }
-
-        internal void Reset()
+        internal void Reset(bool v = true)
         {
            CurrentHeaderBufferPos = 0;
            CurrentMsgBufferPos= 0;
            ExpectedMsgLenght = 0;
+            if (v&& messageBuffer.Length > originalCapacity)
+            {
+                this.messageBuffer = new byte[originalCapacity];
+                //Console.WriteLine("De Alloc by reset");
+
+                //GC.Collect();
+            }
+        }
+        internal void FreeMemory()
+        {
             if (messageBuffer.Length > originalCapacity)
             {
                 this.messageBuffer = new byte[originalCapacity];
-                GC.Collect();
+                Console.WriteLine("De Alloc by reset");
+
+                //GC.Collect();
             }
         }
     }
@@ -159,7 +167,7 @@ namespace CustomNetworkLib
         // 0 or more bodies 
         private void HandleBody(byte[] incomingBytes, int offset, int count)
         {
-            // overflown message
+            // overflown message, there is for sure the message inside
             while (count-offset >= currentExpectedByteLenght)
             {
                 // nothing from prev call
@@ -173,22 +181,22 @@ namespace CustomNetworkLib
                 {
                     messageBuffer.AppendMessageChunk(incomingBytes, offset, currentExpectedByteLenght);
                     MessageReady(messageBuffer);
+                    // call with false if mem no concern.
                     messageBuffer.Reset();
                 }
 
                 offset += currentExpectedByteLenght;
-                //count -= currentExpectedByteLenght;
                 // can read byte frame.
                 if (count -offset>= MessageBuffer.HeaderLenght)
                 {
-                    currentExpectedByteLenght = BufferManager.ReadByteFrame(incomingBytes, offset);
+                    messageBuffer.AppendHeaderChunk(incomingBytes, offset, 4);
+                    currentExpectedByteLenght=messageBuffer.ExpectedMsgLenght;
+
                     offset += MessageBuffer.HeaderLenght;
-                    //count -= MessageBuffer.HeaderLenght;
                 }
-                //if (count < 4)
-                //{ }
+                
                 // incomplete byte frame
-                else
+                else 
                 {
                     messageBuffer.AppendHeaderChunk(incomingBytes, offset, count-offset);
                     currentState = OperationState.AwaitingMsgHeader;
@@ -215,8 +223,7 @@ namespace CustomNetworkLib
         }
         private void MessageReady(byte[] byteMsg, int offset, int count)
         {
-            if (count != 5) 
-            { }
+            
             OnMessageReady?.Invoke(byteMsg, offset, count);
         }
     }

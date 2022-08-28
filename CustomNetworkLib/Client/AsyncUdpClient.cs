@@ -12,7 +12,7 @@ namespace NetworkSystem
 {
     public class AsyncUdpClient
     {
-        public delegate void BytesRecieved(byte[] bytes);
+        public delegate void BytesRecieved(byte[] bytes, int offset, int count);
 
         public BytesRecieved OnBytesRecieved;
         public Action OnConnected;
@@ -69,7 +69,7 @@ namespace NetworkSystem
             {
                 e.Completed -= Connected;
                 CreateSession(e, Guid.NewGuid());
-                session.OnBytesRecieved += (object snder, byte[] bytes) => OnBytesRecieved?.Invoke(bytes);
+                session.OnBytesRecieved += ( byte[] bytes,int offset,int count) => OnBytesRecieved?.Invoke(bytes,  offset,  count);
                // Console.WriteLine("Connected with port " + ((IPEndPoint)e.ConnectSocket.LocalEndPoint).Port);
                 //OnConnected?.Invoke();
 

@@ -23,14 +23,14 @@ namespace CustomNetworkLib
 
         public void WaitOperationCompletion()
         {
-            OperationPending.WaitOne();
+            //OperationPending.WaitOne();
             OperationSemaphore.Wait();
         }
         
 
         public void OperationCompleted()
         {
-            OperationPending.Set();
+            //OperationPending.Set();
             OperationSemaphore.Release();
 
         }

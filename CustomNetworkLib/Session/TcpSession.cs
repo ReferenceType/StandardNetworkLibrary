@@ -9,52 +9,49 @@ using System.Threading.Tasks;
 
 namespace CustomNetworkLib
 {
-    public class Pair<T,U> where T:class where U:class
-    {
-        public T Item1;
-        public U Item2;
-        public Pair(T item1, U item2)
-        {
-            Item1 = item1;
-            Item2 = item2;
-        }
-        public void Release()
-        {
-            Item1 = null;
-            Item2 = null;
-        }
-    }
     public class TcpSession : IAsyncSession
     {
+        
         protected byte[] sendBuffer;
         protected byte[] recieveBuffer;
 
         protected SocketAsyncEventArgs ClientSendEventArg;
         protected SocketAsyncEventArgs ClientRecieveEventArg;
+
         protected Socket sessionSocket;
-        protected ConcurrentQueue<Pair<byte[], byte[]>> SendQueue = new ConcurrentQueue<Pair<byte[], byte[]>>();
+        protected ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
 
-        public virtual event EventHandler<byte[]> OnBytesRecieved;
+        public event Action<byte[], int, int> OnBytesRecieved;
         public Guid SessionId;
-        private int sendBufferSize = 128000;
+        protected int sendBufferSize = 128000;
         private int recieveBufferSize = 128000;
-        private int maxMem=128000;
-        private int currMem=0;
-        int offset=0;
-        int count=0;
-        private readonly object locker = new object();
+        private int maxMem = 128000000;
+        private int currMem = 0;
+        private bool Drop = false;
 
+        private bool fragmentedMessageExist = false;
+        private bool isHeaderWritten;
+        private int fragmetMsgOffset = 0;
+        private byte[] fragmentedMsg;
+
+        protected int prefixLenght = 0;
+
+        protected readonly object locker = new object();
 
         public TcpSession(SocketAsyncEventArgs acceptedArg, Guid sessionId)
         {
-
             sessionSocket = acceptedArg.AcceptSocket;
+            ConfigureSocket();
             ConfigureSendArgs(acceptedArg);
             ConfigureRecieveArgs(acceptedArg);
 
             StartRecieving();
-            //ThreadPool.SetMinThreads(2000, 2000);
-            
+        }
+
+        protected virtual void ConfigureSocket()
+        {
+            sessionSocket.ReceiveBufferSize = 128000;
+            sessionSocket.SendBufferSize = 128000;
         }
 
         protected virtual void ConfigureSendArgs(SocketAsyncEventArgs acceptedArg)
@@ -66,11 +63,12 @@ namespace CustomNetworkLib
             token.Guid = Guid.NewGuid();
 
             sendArg.UserToken = token;
-            sendBuffer = new byte[sendBufferSize];
+            sendBuffer = BufferManager.GetBuffer();
 
             sendArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
             ClientSendEventArg = sendArg;
-            
+
+            //ClientSendEventArg.SendPacketsFlags = TransmitFileOptions.UseDefaultWorkerThread;
         }
 
         protected virtual void ConfigureRecieveArgs(SocketAsyncEventArgs acceptedArg)
@@ -80,14 +78,16 @@ namespace CustomNetworkLib
 
             var token = new UserToken();
             token.Guid = Guid.NewGuid();
-            
+
             recieveArg.UserToken = new UserToken();
-            recieveBuffer = new byte[recieveBufferSize];
+            recieveBuffer = BufferManager.GetBuffer(); ;
 
             ClientRecieveEventArg = recieveArg;
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
-        }
 
+            //ClientRecieveEventArg.SendPacketsFlags = TransmitFileOptions.UseDefaultWorkerThread;
+        }
+        #region Recieve 
         protected virtual void StartRecieving()
         {
             sessionSocket.ReceiveAsync(ClientRecieveEventArg);
@@ -95,7 +95,7 @@ namespace CustomNetworkLib
 
         protected virtual void BytesRecieved(object sender, SocketAsyncEventArgs e)
         {
-            
+
             if (e.SocketError != SocketError.Success)
             {
                 HandleError(e, "while recieving header from ");
@@ -103,11 +103,12 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
+                Console.WriteLine("Disconnecting cl");
                 DisconnectClient(e);
                 return;
             }
 
-            HandleRecieveComplete(e.Buffer,e.Offset,e.BytesTransferred);
+            HandleRecieveComplete(e.Buffer, e.Offset, e.BytesTransferred);
 
             e.SetBuffer(0, e.Buffer.Length);
             if (!sessionSocket.ReceiveAsync(e))
@@ -116,139 +117,201 @@ namespace CustomNetworkLib
             }
         }
 
-        protected virtual void HandleRecieveComplete(byte[] buffer,int offset,int count)
+        protected virtual void HandleRecieveComplete(byte[] buffer, int offset, int count)
         {
-            byte[] message = new byte[count];
-            Buffer.BlockCopy(buffer, offset, message, 0, count);
-            OnBytesRecieved?.Invoke(null, message);
+            OnBytesRecieved?.Invoke(buffer, offset, count);
         }
-      
+         #endregion Recieve
+
+
+       
+
+        #region Send
+        public virtual void SendAsync(byte[] bytes)
+        {
+            SendOrEnqueue(ref bytes);
+        }
+
+
+        protected virtual void SendOrEnqueue(ref byte[] bytes)
+        {
+            var token = (UserToken)ClientSendEventArg.UserToken;
+            lock (locker)
+            {
+                if (Volatile.Read(ref currMem) < maxMem && token.OperationSemaphore.CurrentCount < 1)
+                {
+                    Interlocked.Add(ref currMem, bytes.Length + prefixLenght);
+                    SendQueue.Enqueue(bytes);
+                    return;
+                }
+            }
+
+            if (Drop && token.OperationSemaphore.CurrentCount < 1)
+                return;
+
+            token.WaitOperationCompletion();
+            Interlocked.Add(ref currMem, bytes.Length+ prefixLenght);
+
+            SendQueue.Enqueue(bytes);
+            ConsumeQueueAndSend();
+            return;
+
+        }
+
+        private bool ConsumeQueueAndSend()
+        {
+            bool ret = FlushQueue(ref sendBuffer, 0, out int offset);
+            if (ret)
+            {
+                ClientSendEventArg.SetBuffer(sendBuffer, 0, offset);
+                if (!sessionSocket.SendAsync(ClientSendEventArg))
+                {
+                   Task.Run(()=>Sent(null, ClientSendEventArg));
+                }
+            }
+
+            return ret;
+        }
+        private bool FlushQueue(ref byte[] sendBuffer, int offset, out int count)
+        {
+            count = 0;
+            CheckLeftoverMessage(ref sendBuffer, ref offset, ref count);
+            if (count == sendBuffer.Length)
+                return true;
+            
+            while (SendQueue.TryDequeue(out var bytes))
+            {
+                // buffer cant carry entire message not enough space
+                if (prefixLenght + bytes.Length - fragmetMsgOffset > sendBuffer.Length - offset)
+                {
+                    fragmentedMsg = bytes;
+                    fragmentedMessageExist = true;
+
+                    int available = sendBuffer.Length - offset;
+                    if (available < prefixLenght)
+                        break;
+
+                    Interlocked.Add(ref currMem, -(available));
+                    WriteMessagePrefix(ref sendBuffer, offset, bytes.Length);
+                    isHeaderWritten = true;
+
+                    offset += prefixLenght;
+                    available -= prefixLenght;
+
+                    Buffer.BlockCopy(bytes, fragmetMsgOffset, sendBuffer, offset, available);
+                    count = sendBuffer.Length;
+
+                    fragmetMsgOffset += available;
+                    break;
+                }
+                //---- regular msg
+                //SendQueue.TryDequeue(out bytes);
+                Interlocked.Add(ref currMem, -(prefixLenght + bytes.Length));
+
+                WriteMessagePrefix(ref sendBuffer, offset, bytes.Length);
+                offset += prefixLenght;
+
+                Buffer.BlockCopy(bytes, 0, sendBuffer, offset, bytes.Length);
+                offset += bytes.Length;
+
+                count += prefixLenght + bytes.Length;
+            }
+            return count != 0;
+
+        }
+
+        private void CheckLeftoverMessage(ref byte[] sendBuffer, ref int offset, ref int count)
+        {
+            if (fragmentedMessageExist)
+            {
+                int available = sendBuffer.Length - offset;
+                if (!isHeaderWritten)
+                {
+                    isHeaderWritten = true;
+                    WriteMessagePrefix(ref sendBuffer, offset, fragmentedMsg.Length);
+                    offset += prefixLenght;
+                    available -= prefixLenght;
+                }
+                // will fit
+                if (fragmentedMsg.Length - fragmetMsgOffset <= available)
+                {
+                    Interlocked.Add(ref currMem, -(fragmentedMsg.Length - fragmetMsgOffset));
+                    Buffer.BlockCopy(fragmentedMsg, fragmetMsgOffset, sendBuffer, offset, fragmentedMsg.Length - fragmetMsgOffset);
+
+                    offset += fragmentedMsg.Length - fragmetMsgOffset;
+                    count += offset;
+
+                    fragmetMsgOffset = 0;
+                    fragmentedMsg = null;
+                    isHeaderWritten = false;
+                    fragmentedMessageExist = false;
+                }
+                // wont fit read until you fill buffer
+                else
+                {
+                    Interlocked.Add(ref currMem, -(available));
+                    Buffer.BlockCopy(fragmentedMsg, fragmetMsgOffset, sendBuffer, offset, available);
+
+                    count = sendBuffer.Length;
+                    fragmetMsgOffset += available;
+
+                   // return true;
+                }
+            }
+        }
+        protected virtual void Sent(object ignored, SocketAsyncEventArgs e)
+        {
+            if (e.SocketError != SocketError.Success)
+            {
+                HandleError(e, "while sending the client");
+
+                return;
+            }
+
+            else if (e.BytesTransferred < e.Count)
+            {
+                e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
+                if (!sessionSocket.SendAsync(e))
+                {
+                    Task.Run(()=>Sent(null, e));
+                }
+                return;
+            }
+           
+            if (!ConsumeQueueAndSend())
+            {
+                bool flushAgain= false;
+                // here it means queue was empty and there was nothing to flush.
+                // but if during the couple cycles inbetween something is enqueued, 
+                // i have to flush that part , or it will stuck at queue since this consumer is exiting.
+                lock (locker)
+                {
+                    if (SendQueue.Count > 0)
+                    {
+                        flushAgain = true;
+                    }
+                    else
+                    {
+                        ((UserToken)e.UserToken).OperationCompleted();
+                        return;
+                    }
+                }
+                if (flushAgain)
+                    ConsumeQueueAndSend();
+            }
+        }
+
+        #endregion Send
+
+
+        protected virtual void WriteMessagePrefix(ref byte[] buffer,int offset,int messageLength) {}
+
         // TODO
         protected void DisconnectClient(SocketAsyncEventArgs e)
         {
         }
 
-        public void SendAsync(byte[] bytes)
-        {
-            SendOrEnqueue(ref bytes);
-        }
-
-       
-        protected virtual void SendOrEnqueue(ref byte[] bytes)
-        {
-            var token = (UserToken)ClientSendEventArg.UserToken;
-            if (Volatile.Read(ref currMem) < maxMem &&token.OperationSemaphore.CurrentCount < 1)
-            {
-                
-                Interlocked.Add(ref currMem,bytes.Length);
-                byte[] byteFrame = BitConverter.GetBytes(bytes.Length);
-                Interlocked.Add(ref currMem, byteFrame.Length);
-                
-                //SendQueue.Enqueue(byteFrame);
-                //SendQueue.Enqueue(bytes);
-                
-                SendQueue.Enqueue(new Pair<byte[], byte[]>(byteFrame, bytes));
-                return;
-            }
-
-            //token.OperationSemaphore.Wait();
-            token.WaitOperationCompletion();
-            Send(bytes);
-        }
-
-        protected virtual void Send(byte[] bytes) 
-        {
-            Buffer.BlockCopy(bytes, 0, sendBuffer, 0, bytes.Length);
-            SendBuffer(bytes,0,bytes.Length);
-
-            //List<ArraySegment<byte>> segments =  new List<ArraySegment<byte>>();
-            //segments.Add(new ArraySegment<byte>(bytes));
-            //ClientSendEventArg.BufferList= segments;
-        }
-
-        protected virtual void SendBuffer(byte[] bytes, int offset,int count)
-        {
-            //List<ArraySegment<byte>> segments = new List<ArraySegment<byte>>();
-            //segments.Add(new ArraySegment<byte>(bytes));
-            //ClientSendEventArg.SetBuffer(null,0,0);
-            //ClientSendEventArg.BufferList = segments;
-
-            //ClientSendEventArg.SetBuffer(offset, count);
-            ClientSendEventArg.SetBuffer(sendBuffer, 0, count);
-            if (!sessionSocket.SendAsync(ClientSendEventArg))
-            {
-                Sent(null, ClientSendEventArg);
-            }
-        }
-        protected void Sent(object sender, SocketAsyncEventArgs e)
-        {
-            if (e.SocketError != SocketError.Success)
-            {
-                HandleError(e, "while sending the client");
-               
-                return;
-            }
-
-            else if (e.BytesTransferred<e.Count)
-            {
-                e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
-                if (!sessionSocket.SendAsync(e))
-                {
-                    Sent(null, e);
-                }
-                return;
-            }
-             if (sendBuffer.Length > sendBufferSize)
-            {
-                sendBuffer = new byte[sendBufferSize];
-                e.SetBuffer(sendBuffer, 0, sendBufferSize);
-            }
-            offset = 0;
-            while(SendQueue.TryPeek(out var bytes))
-            {
-                
-                if(offset==0 && bytes.Item1.Length + bytes.Item2.Length > sendBuffer.Length)
-                {
-                    sendBuffer=new byte[bytes.Item1.Length + bytes.Item2.Length];
-                    e.SetBuffer(sendBuffer,0,sendBuffer.Length);
-                    //GC.Collect();
-
-                }
-
-                if (bytes.Item1.Length + bytes.Item2.Length > sendBuffer.Length - offset)
-                    break;
-
-                SendQueue.TryDequeue(out bytes);
-                Interlocked.Add(ref currMem, -(bytes.Item1.Length+bytes.Item2.Length));
-
-                Buffer.BlockCopy(bytes.Item1, 0, sendBuffer, offset, bytes.Item1.Length);
-                offset += bytes.Item1.Length;
-                Buffer.BlockCopy(bytes.Item2, 0, sendBuffer, offset, bytes.Item2.Length);
-
-                offset+=bytes.Item2.Length;
-                bytes.Release();
-
-               
-            }
-            if (offset != 0)
-            {
-               // GC.Collect();
-                e.SetBuffer(sendBuffer, 0, offset);
-                //e.SetBuffer( 0, offset);
-                if (!sessionSocket.SendAsync(ClientSendEventArg))
-                {
-                    Sent(null, ClientSendEventArg);
-                }
-            }
-
-            else
-            {
-                ((UserToken)e.UserToken).OperationCompleted();
-            }
-
-        }
-
-        // TODO
+        // TODO 
         protected void HandleError(SocketAsyncEventArgs e, string v)
         {
             Console.WriteLine(v);

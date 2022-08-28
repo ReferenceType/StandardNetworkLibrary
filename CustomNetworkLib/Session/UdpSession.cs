@@ -8,7 +8,7 @@ namespace CustomNetworkLib.Session.Interface
 {
     internal class UdpSession : IAsyncSession
     {
-        public event EventHandler<byte[]> OnBytesRecieved;
+        public event Action<byte[],int,int> OnBytesRecieved;
 
         protected SocketAsyncEventArgs clientSocketSendArgs;
         protected SocketAsyncEventArgs RecieveEventArg;
@@ -25,7 +25,7 @@ namespace CustomNetworkLib.Session.Interface
             RecieveEventArg = new SocketAsyncEventArgs();
             RecieveEventArg.Completed += Recieved;
             RecieveEventArg.SetBuffer(new byte[64000], 0, 64000);
-            RecieveEventArg.UserToken = new UserToken(e.AcceptSocket);
+            RecieveEventArg.UserToken = new UserToken();
             RecieveEventArg.AcceptSocket = e.AcceptSocket;
             RecieveEventArg.RemoteEndPoint = remoteEndPoint;
 
@@ -38,7 +38,7 @@ namespace CustomNetworkLib.Session.Interface
 
             clientSocketSendArgs = new SocketAsyncEventArgs();
             clientSocketSendArgs.SetBuffer(new byte[64000], 0, 64000);
-            clientSocketSendArgs.UserToken = new UserToken(e.ConnectSocket);
+            clientSocketSendArgs.UserToken = new UserToken();
             clientSocketSendArgs.AcceptSocket = e.AcceptSocket;
             clientSocketSendArgs.RemoteEndPoint = remoteEndPoint;
             clientSocketSendArgs.Completed += Sent;
@@ -59,7 +59,7 @@ namespace CustomNetworkLib.Session.Interface
             byte[] buffer = new byte[amount];
             Buffer.BlockCopy(recieveBuffer, 0, buffer, 0, amount);
 
-            OnBytesRecieved?.Invoke(null, buffer);
+            OnBytesRecieved?.Invoke(recieveBuffer,0,amount);
             sessionSocket.BeginReceiveFrom(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, ref remoteEndPoint, EndrecieveFrom, null);
         }
     
@@ -81,12 +81,12 @@ namespace CustomNetworkLib.Session.Interface
                 Console.WriteLine(Enum.GetName(typeof(SocketError), e.SocketError));
                 return;
             }
-            byte[] buffer = new byte[e.BytesTransferred];
-            Buffer.BlockCopy(e.Buffer, e.Offset, buffer, 0, e.BytesTransferred + e.Offset);
+            //byte[] buffer = new byte[e.BytesTransferred];
+            //Buffer.BlockCopy(e.Buffer, e.Offset, buffer, 0, e.BytesTransferred + e.Offset);
 
             e.SetBuffer(0, e.Buffer.Length);
 
-            OnBytesRecieved?.Invoke(null, buffer);
+            OnBytesRecieved?.Invoke(e.Buffer, e.Offset,e.BytesTransferred);
             e.RemoteEndPoint = remoteEndPoint;
             Recieve(e);
         }

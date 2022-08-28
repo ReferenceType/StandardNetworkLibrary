@@ -9,15 +9,23 @@ using System.Threading.Tasks;
 
 namespace CustomNetworkLib
 {
-    public class ByteProtocolTcpClient: AsyncTpcClient
+    public class ByteMessageTcpClient: AsyncTpcClient
     {
-        public ByteProtocolTcpClient()
+        public bool V2=false;
+        public ByteMessageTcpClient()
         { }
        
         protected override void CreateSession(SocketAsyncEventArgs e,Guid sessionId)
         {
-            base.session = new ByteMessageSession(e, sessionId);
-        }   
-       
+            //base.session = new ByteMessageSession(e, sessionId);
+            if(V2)
+                base.session = new ByteMessageSession(e, sessionId);
+            else
+               base.session = new ByteMessageSessionLite(e, sessionId);
+
+        }
+
+
+
     }
 }

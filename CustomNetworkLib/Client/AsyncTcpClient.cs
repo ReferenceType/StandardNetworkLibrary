@@ -14,7 +14,7 @@ namespace CustomNetworkLib
     public class AsyncTpcClient
     {
 
-        public Action<byte[]> OnBytesRecieved;
+        public Action<byte[],int,int> OnBytesRecieved;
 
        
         public Action OnConnected;
@@ -31,11 +31,12 @@ namespace CustomNetworkLib
         protected IAsyncSession session;
 
         #region Configuration
-        public int SocketSendBufferSize = 256000;
-        public int SocketRecieveBufferSize = 256000;
+        //256000
+        public int SocketSendBufferSize = 128000;
+        public int SocketRecieveBufferSize = 128000;
 
-        public int MessageSendBufferSize = 256000;
-        public int MessageRecieveBufferSize = 256000;
+        public int MessageSendBufferSize = 128000;
+        public int MessageRecieveBufferSize = 128000;
         public int MaxMessageSize = 100000000;
 
         #endregion
@@ -83,15 +84,10 @@ namespace CustomNetworkLib
             else
             {
                 e.AcceptSocket = e.ConnectSocket;
-                
-                
-                Console.WriteLine("Connected with port " + ((IPEndPoint)e.ConnectSocket.LocalEndPoint).Port);
+                connected = true;
 
                 HandleConnected(e);
-               
-
                 connectedCompletionSource?.SetResult(true);
-                connected = true;
             }
         }
 
@@ -111,19 +107,12 @@ namespace CustomNetworkLib
                 + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port + " Error: " + Enum.GetName(typeof(SocketError), e.SocketError));
             try { DisconnectClient(e); } catch { }
 
-            //// Skip disconnect errors
-            //if ((error == SocketError.ConnectionAborted) ||
-            //    (error == SocketError.ConnectionRefused) ||
-            //    (error == SocketError.ConnectionReset) ||
-            //    (error == SocketError.OperationAborted) ||
-            //    (error == SocketError.Shutdown))
-            //    return;
-
-            //OnError(error);
+          
         }
 
         private void DisconnectClient(SocketAsyncEventArgs e)
         {
+            this.clientSocket.DisconnectAsync(e);
             //try
             //{
             //    Console.WriteLine("Disconnecting");
@@ -162,7 +151,10 @@ namespace CustomNetworkLib
 
 
         }
-
+        public void Disconnect()
+        {
+            this.DisconnectClient(new SocketAsyncEventArgs());
+        }
 
         private void ClientDisconnected(object sender, SocketAsyncEventArgs e)
         {
@@ -175,7 +167,7 @@ namespace CustomNetworkLib
         protected virtual void HandleConnected(SocketAsyncEventArgs e)
         {
             CreateSession(e,Guid.NewGuid());
-            session.OnBytesRecieved += (object snder, byte[] bytes) => HandleBytesRecieved(bytes);
+            session.OnBytesRecieved += (byte[] bytes,int offset, int count) => HandleBytesRecieved(bytes, offset, count);
             OnConnected?.Invoke();
         }
         protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId )
@@ -183,9 +175,9 @@ namespace CustomNetworkLib
             session = new TcpSession(e,sessionId);
         }
 
-        protected virtual void HandleBytesRecieved(byte[] bytes)
+        protected virtual void HandleBytesRecieved(byte[] bytes,int offset,int count)
         {
-             OnBytesRecieved?.Invoke(bytes);
+             OnBytesRecieved?.Invoke(bytes,offset,count);
         }
 
     }

@@ -6,8 +6,7 @@ namespace CustomNetworkLib
 {
     public interface IAsyncSession
     {
-        event EventHandler<byte[]>  OnBytesRecieved;
-
+        event Action<byte[],int,int>  OnBytesRecieved;
         void SendAsync(byte[] buffer);
     }
 }

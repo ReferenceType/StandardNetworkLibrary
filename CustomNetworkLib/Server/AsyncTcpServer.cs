@@ -20,19 +20,19 @@ namespace CustomNetworkLib
         {
             // todo make the action
             public delegate void ClientAccepted(Guid guid, Socket ClientSocket);
-            public delegate void BytesRecieved(Guid guid, byte[] bytes);
+            public delegate void BytesRecieved(Guid guid, byte[] bytes, int offset, int count);
             public ClientAccepted OnClientAccepted;
             public BytesRecieved OnBytesRecieved;
 
             protected Socket ServerSocket;
            
             
-            ConcurrentDictionary<Guid,IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+            public ConcurrentDictionary<Guid,IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
             public AsyncTcpServer(int port = 20008)
             {
                 ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 //ServerSocket.NoDelay = true;
-                ServerSocket.ReceiveBufferSize = 1280000;
+                ServerSocket.ReceiveBufferSize = 2080000000;
                 ServerSocket.Bind(new IPEndPoint(IPAddress.Any, port));
                 ServerSocket.Listen(10000);
                 
@@ -48,6 +48,13 @@ namespace CustomNetworkLib
 
             private void Accepted(object sender, SocketAsyncEventArgs acceptedArg)
             {
+                SocketAsyncEventArgs nextClient = new SocketAsyncEventArgs();
+                nextClient.Completed += Accepted;
+
+                if (!ServerSocket.AcceptAsync(nextClient))
+                {
+                    Task.Run(() => Accepted(null, nextClient));
+                }
                 if (acceptedArg.SocketError != SocketError.Success)
                 {
                     Console.WriteLine(Enum.GetName(typeof(SocketError), acceptedArg.SocketError));
@@ -56,29 +63,21 @@ namespace CustomNetworkLib
                 int port = ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port;
                 Guid clientGuid = Guid.NewGuid();
 
-                var ses = CreateSession(acceptedArg, clientGuid);
+                var session = CreateSession(acceptedArg, clientGuid);
 
 
-                ses.OnBytesRecieved += (object sndr, byte[] bytes) => { HandleBytesRecieved(clientGuid, bytes); };
-                Sessions.TryAdd(clientGuid, ses);
+                session.OnBytesRecieved += (byte[] bytes,int offset, int count) => { HandleBytesRecieved(clientGuid, bytes,offset,count); };
+                Sessions.TryAdd(clientGuid, session);
                 
                 HandleClientAccepted(clientGuid,acceptedArg);
                 Console.WriteLine("Accepted with port: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port);
-
-
-                SocketAsyncEventArgs nextClient = new SocketAsyncEventArgs();
-                nextClient.Completed += Accepted;
-
-                if (!ServerSocket.AcceptAsync(nextClient))
-                {
-                    Accepted(null, nextClient);
-                }
-
             }
+
             protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
             {
                 return new TcpSession(e, sessionId);
             }
+
             //#region Send
             public void SendBytesToAllClients(byte[] bytes)
             {
@@ -93,15 +92,11 @@ namespace CustomNetworkLib
                 Sessions[id].SendAsync(bytes);
             }
 
-            
-
             #region Virtual
 
-         
-
-            protected virtual void HandleBytesRecieved(Guid guid,byte[] bytes)
+            protected virtual void HandleBytesRecieved(Guid guid,byte[] bytes, int offset, int count)
             {
-                OnBytesRecieved.Invoke(guid, bytes);
+                OnBytesRecieved.Invoke(guid, bytes,offset,count);
             }
 
             protected virtual void HandleClientAccepted(Guid clientGuid, SocketAsyncEventArgs e)

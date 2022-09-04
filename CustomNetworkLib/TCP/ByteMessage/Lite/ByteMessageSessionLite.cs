@@ -69,7 +69,8 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
-                DisconnectClient(e);
+                //Disconnect(e);
+                EndSession();
                 return;
             }
             else if (e.BytesTransferred + e.Offset < 4)
@@ -107,7 +108,8 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
-                DisconnectClient(e);
+               // Disconnect(e);
+               EndSession();
                 return;
             }
             else if (e.BytesTransferred < e.Count-e.Offset)
@@ -134,6 +136,8 @@ namespace CustomNetworkLib
             }
         }
         #endregion
+
+        #region Send
         public override void SendAsync(byte[] bytes)
         {
             var token = (UserToken)ClientSendEventArg.UserToken;
@@ -165,7 +169,9 @@ namespace CustomNetworkLib
 
             ((UserToken)e.UserToken).OperationCompleted();
         }
-        
+
+        #endregion
+
     }
 }
 

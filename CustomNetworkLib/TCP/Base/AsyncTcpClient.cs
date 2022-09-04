@@ -13,10 +13,7 @@ namespace CustomNetworkLib
 {
     public class AsyncTpcClient
     {
-
         public Action<byte[],int,int> OnBytesRecieved;
-
-       
         public Action OnConnected;
         public Action OnConnectFailed;
         public Action OnDisconnected;
@@ -26,20 +23,13 @@ namespace CustomNetworkLib
         private TaskCompletionSource<bool> connectedCompletionSource;
         
         protected bool connected = false;
-        private string IP;
-        private int port;
         protected IAsyncSession session;
 
-        #region Configuration
-        //256000
+        
+        
         public int SocketSendBufferSize = 128000;
         public int SocketRecieveBufferSize = 128000;
-
-        public int MessageSendBufferSize = 128000;
-        public int MessageRecieveBufferSize = 128000;
-        public int MaxMessageSize = 100000000;
-
-        #endregion
+       
 
         public AsyncTpcClient()
         {}
@@ -53,9 +43,6 @@ namespace CustomNetworkLib
 
         public void ConnectAsync(string IP, int port)
         {
-            this.IP = IP;
-            this.port = port;
-
             clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
             clientSocket.ReceiveBufferSize = SocketRecieveBufferSize;
@@ -75,9 +62,7 @@ namespace CustomNetworkLib
         {
             if (e.SocketError != SocketError.Success)
             {
-                Console.WriteLine(Enum.GetName(typeof(SocketError), e.SocketError));
-                //HandleError(e, "While connecting an error occured: ");
-
+                HandleError(e, "While connecting an error occured: ");
                 OnConnectFailed?.Invoke();
                 connectedCompletionSource?.SetException(new SocketException((int)e.SocketError));
             }
@@ -88,72 +73,30 @@ namespace CustomNetworkLib
 
                 HandleConnected(e);
                 connectedCompletionSource?.SetResult(true);
+
             }
         }
 
         public virtual void SendAsync(byte[] buffer)
         {
             if (connected)
-                session.SendAsync(buffer);
+                session?.SendAsync(buffer);
             return;
           
         }
-
-       
 
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
             Console.WriteLine("An error Occured while " + context + " associated port: "
                 + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port + " Error: " + Enum.GetName(typeof(SocketError), e.SocketError));
-            try { DisconnectClient(e); } catch { }
+            
 
           
         }
 
-        private void DisconnectClient(SocketAsyncEventArgs e)
-        {
-            this.clientSocket.DisconnectAsync(e);
-            //try
-            //{
-            //    Console.WriteLine("Disconnecting");
-            //    int port = ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port;
-
-            //    clientSocketRecieveArgs.Completed += ClientDisconnected;
-            //    try
-            //    {
-            //        clientSocketRecieveArgs.AcceptSocket.Shutdown(SocketShutdown.Both);
-            //    }
-            //    catch { };
-
-            //    if (!clientSocketRecieveArgs.AcceptSocket.DisconnectAsync(clientSocketRecieveArgs))
-            //    {
-            //        ClientDisconnected(null, clientSocketRecieveArgs);
-            //    }
-
-            //    clientSocketSendArgs.Dispose();
-            //    try
-            //    {
-            //        clientSocketSendArgs.AcceptSocket.Shutdown(SocketShutdown.Both);
-            //        if (!clientSocketSendArgs.AcceptSocket.DisconnectAsync(clientSocketSendArgs))
-            //        {
-            //            ClientDisconnected(null, clientSocketSendArgs);
-            //        }
-            //    }
-            //    catch { };
-            //}
-            //catch { }
-            //finally
-            //{
-
-            //}
-
-
-
-
-        }
         public void Disconnect()
         {
-            this.DisconnectClient(new SocketAsyncEventArgs());
+            session.EndSession();
         }
 
         private void ClientDisconnected(object sender, SocketAsyncEventArgs e)
@@ -168,6 +111,9 @@ namespace CustomNetworkLib
         {
             CreateSession(e,Guid.NewGuid());
             session.OnBytesRecieved += (byte[] bytes,int offset, int count) => HandleBytesRecieved(bytes, offset, count);
+            session.OnSessionClosed += (Guid sessionId) => OnDisconnected?.Invoke();
+
+            session.StartSession();
             OnConnected?.Invoke();
         }
         protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId )

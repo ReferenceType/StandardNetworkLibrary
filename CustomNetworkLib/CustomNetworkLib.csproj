@@ -4,5 +4,9 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>UnitTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

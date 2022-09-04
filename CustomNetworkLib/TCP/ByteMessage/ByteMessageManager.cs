@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
+
 
 namespace CustomNetworkLib
 {
     internal class MessageBuffer
     {
         public const int HeaderLenght = 4;
-        public byte[] messageBuffer;
+        public byte[] buffer;
         public byte[] header { get; } = new byte[HeaderLenght];
 
         public int CurrentMsgBufferPos;
@@ -18,17 +20,21 @@ namespace CustomNetworkLib
        
         public MessageBuffer(int capacity, int currentWriteIndex = 0)
         {
-            this.messageBuffer = new byte[capacity];
+            this.buffer = new byte[capacity];
             originalCapacity=capacity;
             CurrentMsgBufferPos = currentWriteIndex;
         }
       
         public void AppendMessageChunk(byte[] bytes,int offset, int count)
         {
-            if (messageBuffer.Length - CurrentMsgBufferPos < count)
+            if (buffer.Length - CurrentMsgBufferPos < count)
                 Extend(count);
 
-            Buffer.BlockCopy(bytes, offset, messageBuffer, CurrentMsgBufferPos, count);
+            Buffer.BlockCopy(bytes, offset, buffer, CurrentMsgBufferPos, count);
+            //for (int i = 0; i < count; i++)
+            //{
+            //    messageBuffer[i+CurrentHeaderBufferPos]=bytes[i + offset];
+            //}
             CurrentMsgBufferPos += count;
         }
 
@@ -36,7 +42,7 @@ namespace CustomNetworkLib
         {
             Console.WriteLine("Alloc");
 
-            Array.Resize(ref messageBuffer, size + messageBuffer.Length);
+            Array.Resize(ref buffer, size + buffer.Length);
         }
 
         public void AppendHeaderChunk(byte[] headerPart,int offset,int count)
@@ -46,21 +52,32 @@ namespace CustomNetworkLib
                 AppendHeaderByte(headerPart[i+offset]);
             }
         }
+        public int AppendHeader(byte[]buffer,int offset)
+        {
+            return ExpectedMsgLenght=BitConverter.ToInt32(buffer, offset);
+        }
 
         public void AppendHeaderByte(byte headerByte)
         {
+            if (CurrentHeaderBufferPos == HeaderLenght)
+            {
+                throw new InvalidOperationException(String.Format("Header byte tried to be added while header was full." +
+                    " Current heder bytes: {0}{1}{2}{3}", header[0], header[1], header[2], header[3])+"expectedMdg len = " + ExpectedMsgLenght);
+            }
             header[CurrentHeaderBufferPos] = headerByte;
             CurrentHeaderBufferPos++;
-
             if (CurrentHeaderBufferPos == HeaderLenght)
             {
                 ExpectedMsgLenght = BitConverter.ToInt32(header, 0);
-                if (messageBuffer.Length < ExpectedMsgLenght)
+                if (buffer.Length < ExpectedMsgLenght)
                 {
                     //Console.WriteLine("Alloc by header");
-                    messageBuffer = new byte[ExpectedMsgLenght];
+                    buffer = new byte[ExpectedMsgLenght];
                 }
             }
+            
+           
+            
         }
 
 
@@ -69,25 +86,21 @@ namespace CustomNetworkLib
            CurrentHeaderBufferPos = 0;
            CurrentMsgBufferPos= 0;
            ExpectedMsgLenght = 0;
-            if (v&& messageBuffer.Length > originalCapacity)
+            if (v&& buffer.Length > originalCapacity)
             {
-                this.messageBuffer = new byte[originalCapacity];
-                //Console.WriteLine("De Alloc by reset");
-
-                //GC.Collect();
+                this.buffer = new byte[originalCapacity];
             }
         }
         internal void FreeMemory()
         {
-            if (messageBuffer.Length > originalCapacity)
+            if (buffer.Length > originalCapacity)
             {
-                this.messageBuffer = new byte[originalCapacity];
-                Console.WriteLine("De Alloc by reset");
-
-                //GC.Collect();
+                this.buffer = new byte[originalCapacity];
+                //Console.WriteLine("De Alloc by reset");
             }
         }
     }
+
     internal class ByteMessageManager
     {
         private enum OperationState
@@ -134,11 +147,14 @@ namespace CustomNetworkLib
 
         private void HandleHeader(byte[] incomingBytes, int offset, int count)
         {
-            if (count-offset >= currentExpectedByteLenght)
+            if (count >= currentExpectedByteLenght)
             {
-                messageBuffer.AppendHeaderChunk(incomingBytes, 0,currentExpectedByteLenght);
+                if(messageBuffer.CurrentHeaderBufferPos!=0)
+                    messageBuffer.AppendHeaderChunk(incomingBytes, offset,currentExpectedByteLenght);
+                else
+                    messageBuffer.AppendHeader(incomingBytes, offset);
 
-                // perfect msg
+                // perfect msg -- i do a hot path here
                 if (count - currentExpectedByteLenght == messageBuffer.ExpectedMsgLenght)
                 {
                     MessageReady(incomingBytes, currentExpectedByteLenght, messageBuffer.ExpectedMsgLenght);
@@ -148,9 +164,9 @@ namespace CustomNetworkLib
                 else
                 {
                     offset += currentExpectedByteLenght;
-                    //count -= currentExpectedByteLenght;
-
+                    count -= currentExpectedByteLenght;
                     currentState = OperationState.AwaitingMsgBody;
+
                     currentExpectedByteLenght = messageBuffer.ExpectedMsgLenght;
                     HandleBody(incomingBytes, offset, count);
                 }
@@ -158,8 +174,8 @@ namespace CustomNetworkLib
             // Fragmented header. we will get on next call,
             else
             {
-                messageBuffer.AppendHeaderChunk(incomingBytes,0, count);
-                currentExpectedByteLenght = MessageBuffer.HeaderLenght - (count-offset);
+                messageBuffer.AppendHeaderChunk(incomingBytes,offset, count);
+                currentExpectedByteLenght  -= count;
             }
            
         }
@@ -168,7 +184,7 @@ namespace CustomNetworkLib
         private void HandleBody(byte[] incomingBytes, int offset, int count)
         {
             // overflown message, there is for sure the message inside
-            while (count-offset >= currentExpectedByteLenght)
+            while (count >= currentExpectedByteLenght)
             {
                 // nothing from prev call
                 if (messageBuffer.CurrentMsgBufferPos == 0)
@@ -180,47 +196,53 @@ namespace CustomNetworkLib
                 else
                 {
                     messageBuffer.AppendMessageChunk(incomingBytes, offset, currentExpectedByteLenght);
-                    MessageReady(messageBuffer);
+                    MessageReady(messageBuffer.buffer, 0, messageBuffer.CurrentMsgBufferPos);
                     // call with false if mem no concern.
                     messageBuffer.Reset();
                 }
 
                 offset += currentExpectedByteLenght;
-                // can read byte frame.
-                if (count -offset>= MessageBuffer.HeaderLenght)
+                count -= currentExpectedByteLenght;
+
+                // read byte frame and determine next msg.
+                if (count >= MessageBuffer.HeaderLenght)
                 {
-                    messageBuffer.AppendHeaderChunk(incomingBytes, offset, 4);
-                    currentExpectedByteLenght=messageBuffer.ExpectedMsgLenght;
+                    messageBuffer.AppendHeader(incomingBytes,offset);
+                    currentExpectedByteLenght = messageBuffer.ExpectedMsgLenght;
 
                     offset += MessageBuffer.HeaderLenght;
+                    count -= MessageBuffer.HeaderLenght;
                 }
-                
-                // incomplete byte frame
-                else 
+                // incomplete byte frame, we need to store the bytes 
+                else if(count!=0)
                 {
-                    messageBuffer.AppendHeaderChunk(incomingBytes, offset, count-offset);
-                    currentState = OperationState.AwaitingMsgHeader;
-                    currentExpectedByteLenght = MessageBuffer.HeaderLenght - (count-offset);
+                    messageBuffer.AppendHeaderChunk(incomingBytes, offset, count);
+                    currentExpectedByteLenght = MessageBuffer.HeaderLenght - (count);
 
+                    currentState = OperationState.AwaitingMsgHeader;
+                    return;
+                }
+                // nothing to store
+                else
+                {
+                    currentExpectedByteLenght = MessageBuffer.HeaderLenght;
+                    currentState = OperationState.AwaitingMsgHeader;
                     return;
                 }
             }
 
-            // incomplete msg,
-            if (count-offset < currentExpectedByteLenght)
+            // we got the header, but we have a partial msg.
+            if (count > 0)
             {
-                messageBuffer.AppendMessageChunk(incomingBytes, offset, count-offset);
-                currentExpectedByteLenght = currentExpectedByteLenght - (count-offset);
-
+                messageBuffer.AppendMessageChunk(incomingBytes, offset, count);
+                currentExpectedByteLenght = currentExpectedByteLenght - count;
             }
            
+
+            
+           
         }
-        private void MessageReady(MessageBuffer buffer)
-        {
-            //var byteMsg = buffer.GetMessageBytes();
-            //OnMessageReady?.Invoke(buffer.messageBuffer, 0, buffer.CurrentMsgBufferPos);
-            MessageReady(buffer.messageBuffer, 0, buffer.CurrentMsgBufferPos);
-        }
+       
         private void MessageReady(byte[] byteMsg, int offset, int count)
         {
             

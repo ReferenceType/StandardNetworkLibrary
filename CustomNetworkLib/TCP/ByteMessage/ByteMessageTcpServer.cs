@@ -10,16 +10,16 @@ namespace CustomNetworkLib
 {
     public class ByteMessageTcpServer : AsyncTcpServer
     {
-        public bool Lite = true;
         public ByteMessageTcpServer(int port): base(port)
         {}
 
         protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            if(Lite)
-                return new ByteMessageSession(e,sessionId);
-            else
-                return new ByteMessageSessionLite(e,sessionId);
+            var session = new ByteMessageSession(e, sessionId);
+            session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
+            session.DropOnCongestion = DropOnBackPressure;
+            return session;
+            
         }
 
        

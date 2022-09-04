@@ -12,7 +12,7 @@ namespace CustomNetworkLib
         
         public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
-            messageManager = new ByteMessageManager(sessionId,base.sendBufferSize);
+            messageManager = new ByteMessageManager(sessionId,base.SAEASendBufferSize);
             messageManager.OnMessageReady += HandleMessage;
             prefixLenght = 4;
 

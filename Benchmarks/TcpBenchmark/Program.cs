@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+
 namespace ConsoleTest
 {
 
@@ -111,7 +112,7 @@ namespace ConsoleTest
                 //Console.WriteLine("Elapsed total MS " + sw2.ElapsedMilliseconds);
             }
 
-            
+            server.StopServer();
             void OnClientReceivedMessage(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgClient);

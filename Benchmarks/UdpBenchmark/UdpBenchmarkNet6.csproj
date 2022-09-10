@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <Reference Include="NetworkLibrary">
-      <HintPath>..\CustomNetworkLib\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
+      <HintPath>..\..\NetworkLibrary\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
     </Reference>
   </ItemGroup>
 

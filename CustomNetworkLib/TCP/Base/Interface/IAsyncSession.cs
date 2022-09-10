@@ -6,7 +6,7 @@ namespace CustomNetworkLib
 {
     public interface IAsyncSession: IDisposable
     {
-        event Action<byte[],int,int>  OnBytesRecieved;
+        event Action<Guid,byte[],int,int>  OnBytesRecieved;
         event Action<Guid> OnSessionClosed;
         void SendAsync(byte[] buffer);
 

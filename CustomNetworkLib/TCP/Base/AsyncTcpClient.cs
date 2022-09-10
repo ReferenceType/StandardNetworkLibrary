@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CustomNetworkLib.Utils;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -17,22 +18,37 @@ namespace CustomNetworkLib
         public Action OnConnected;
         public Action OnConnectFailed;
         public Action OnDisconnected;
-        
+
+        private BufferProvider bufferManager;
+        public BufferProvider BufferManager 
+        {
+            get => bufferManager;
+            set
+            {
+                if (IsConnecting)
+                    throw new InvalidOperationException("Setting buffer manager is not supported after conection is initiated.");
+                bufferManager = value;
+            }
+        }
 
         private Socket clientSocket;
         private TaskCompletionSource<bool> connectedCompletionSource;
         
         protected bool connected = false;
         protected IAsyncSession session;
-
+        public bool IsConnecting { get; private set; }
+        public bool IsConnected { get; private set; }
         
-        
+        // Config
         public int SocketSendBufferSize = 128000;
         public int SocketRecieveBufferSize = 128000;
-       
+        public int MaxIndexedMemory = 128000;
+        public bool DropOnCongestion = false;
 
         public AsyncTpcClient()
-        {}
+        {
+        
+        }
 
         public async Task<bool> ConnectAsyncAwaitable(string IP, int port)
         {
@@ -43,6 +59,9 @@ namespace CustomNetworkLib
 
         public void ConnectAsync(string IP, int port)
         {
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "Client Connecting.. ");
+            IsConnecting = true;
+
             clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
             clientSocket.ReceiveBufferSize = SocketRecieveBufferSize;
@@ -62,7 +81,7 @@ namespace CustomNetworkLib
         {
             if (e.SocketError != SocketError.Success)
             {
-                HandleError(e, "While connecting an error occured: ");
+                HandleError(e, "While Connecting an Error Eccured: ");
                 OnConnectFailed?.Invoke();
                 connectedCompletionSource?.SetException(new SocketException((int)e.SocketError));
             }
@@ -80,23 +99,24 @@ namespace CustomNetworkLib
         public virtual void SendAsync(byte[] buffer)
         {
             if (connected)
-                session?.SendAsync(buffer);
-            return;
-          
+                session?.SendAsync(buffer);          
+        }
+        public void Disconnect()
+        {
+            session.EndSession();
         }
 
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
-            Console.WriteLine("An error Occured while " + context + " associated port: "
-                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port + " Error: " + Enum.GetName(typeof(SocketError), e.SocketError));
-            
+            string msg = "An error Occured While " + context + 
+                " associated port: "
+                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port +
+                "IP: "
+                +((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Address.ToString() +
+                " Error: " + Enum.GetName(typeof(SocketError), e.SocketError);
 
-          
-        }
+            MiniLogger.Log(MiniLogger.LogLevel.Error, msg);
 
-        public void Disconnect()
-        {
-            session.EndSession();
         }
 
         private void ClientDisconnected(object sender, SocketAsyncEventArgs e)
@@ -104,21 +124,34 @@ namespace CustomNetworkLib
             e.AcceptSocket.Close();
             e.AcceptSocket.Dispose();
             e.Dispose();
+            IsConnected = false;
         }
-
 
         protected virtual void HandleConnected(SocketAsyncEventArgs e)
         {
-            CreateSession(e,Guid.NewGuid());
-            session.OnBytesRecieved += (byte[] bytes,int offset, int count) => HandleBytesRecieved(bytes, offset, count);
+            if (bufferManager == null)
+            {
+                bufferManager = new BufferProvider(1, SocketSendBufferSize, 1, SocketRecieveBufferSize);
+            }
+            
+            CreateSession(e,Guid.NewGuid(),bufferManager);
+            session.OnBytesRecieved += (Guid sessionId, byte[] bytes,int offset, int count) => HandleBytesRecieved(bytes, offset, count);
             session.OnSessionClosed += (Guid sessionId) => OnDisconnected?.Invoke();
 
             session.StartSession();
             OnConnected?.Invoke();
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "Client Connected.");
+
+            IsConnected = true;
         }
-        protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId )
+        protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId,BufferProvider bufferManager )
         {
-            session = new TcpSession(e,sessionId);
+            var ses = new TcpSession(e,sessionId,bufferManager);
+            ses.socketSendBufferSize = SocketSendBufferSize;
+            ses.socketRecieveBufferSize = SocketRecieveBufferSize;
+            ses.maxIndexedMemory = MaxIndexedMemory;
+            ses.dropOnCongestion = DropOnCongestion;
+            session = ses;
         }
 
         protected virtual void HandleBytesRecieved(byte[] bytes,int offset,int count)

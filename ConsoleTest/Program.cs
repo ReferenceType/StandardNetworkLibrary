@@ -1,5 +1,6 @@
 ﻿using CustomNetworkLib;
 using CustomNetworkLib.SocketEventArgsTests;
+using CustomNetworkLib.Utils;
 using NetworkSystem;
 using System;
 using System.Collections.Concurrent;
@@ -213,27 +214,28 @@ namespace ConsoleTest
         private static void TcpTest()
         {
             var msg1 = new byte[32];
+            int clAmount = 10;
 
-            server = new ByteMessageTcpServer(2008);
+            server = new ByteMessageTcpServer(2008,clAmount*2);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
-            server.MaxIndexedMemoryPerClient = 1280000;
+            server.MaxIndexedMemoryPerClient = 1280000000;
             server.DropOnBackPressure = false;
             server.StartServer();
-            int clAmount = 1000;
-            BufferManager.InitContigiousSendBuffers(clAmount*2, 12800);
-            BufferManager.InitContigiousReceiveBuffers(clAmount*2, 12800);
+            //BufferManager.InitContigiousSendBuffers(clAmount*2, 128000);
+            //BufferManager.InitContigiousReceiveBuffers(clAmount*2, 128000);
 
-            int dep=0;
+            int dep =0;
             for (int i = 0; i < clAmount; i++)
             {
 
                 var client = new ByteMessageTcpClient();
+                client.BufferManager = server.BufferManager;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion=false;
-                client.OnConnected += async () =>
-                {
-                    await Task.Delay(10000); Console.WriteLine("-------------------                            --------------"); client.Disconnect();
-                };
+                //client.OnConnected += async () =>
+                //{
+                //    await Task.Delay(10000); Console.WriteLine("-------------------                            --------------"); client.Disconnect();
+                //};
                 client.OnBytesRecieved += (byte[] arg2, int offset, int count) => clientMsgRec2(client, arg2, offset, count);
 
                 client.ConnectAsync("127.0.0.1", 2008);
@@ -257,7 +259,7 @@ namespace ConsoleTest
             }
 
 
-            const int numMsg = 100;
+            const int numMsg = 1000000;
            
             var t1 = new Thread(() =>
             {
@@ -267,7 +269,7 @@ namespace ConsoleTest
                     foreach (var client in clients)
                     {
                         msg = new byte[32];
-                        BufferManager.WriteInt32AsBytes(ref msg, 0, i);
+                        PrefixWriter.WriteInt32AsBytes(ref msg, 0, i);
 
                         client.SendAsync(msg);
                         

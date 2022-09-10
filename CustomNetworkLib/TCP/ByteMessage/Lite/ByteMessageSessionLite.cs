@@ -1,8 +1,10 @@
-﻿using System;
+﻿using CustomNetworkLib.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CustomNetworkLib
@@ -22,38 +24,30 @@ namespace CustomNetworkLib
         }
         ByteMessage SendMessage;
 
-        public ByteMessageSessionLite(SocketAsyncEventArgs acceptedArg,Guid sessionId) : base(acceptedArg,sessionId)
+        SemaphoreSlim SendSemaphore;
+
+        public ByteMessageSessionLite(SocketAsyncEventArgs acceptedArg,Guid sessionId, BufferProvider bufferManager) : base(acceptedArg,sessionId, bufferManager)
         {
-            
+            SendSemaphore=new SemaphoreSlim(1,1);
         }
         protected override void ConfigureSocket()
         {
             sessionSocket.ReceiveBufferSize = 128000;
             sessionSocket.SendBufferSize = 128000;
         }
-        protected override void ConfigureRecieveArgs(SocketAsyncEventArgs acceptedArg)
+        protected override void InitialiseReceiveArgs()
         {
-            var recieveArg = new SocketAsyncEventArgs();
-            recieveArg.Completed += RecievedHeader;
+            ClientRecieveEventArg = new SocketAsyncEventArgs();
+            ClientRecieveEventArg.Completed += RecievedHeader;
 
-            recieveArg.UserToken = new UserToken();
             recieveBuffer = new byte[4];
-
-            ClientRecieveEventArg = recieveArg;
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);       
         }
 
-        protected override void ConfigureSendArgs(SocketAsyncEventArgs acceptedArg)
+        protected override void InitialiseSendArgs()
         {
-            var sendArg = new SocketAsyncEventArgs();
-            sendArg.Completed += Sent;
-
-            var token = new UserToken();
-            token.Guid = Guid.NewGuid();
-
-            sendArg.UserToken = token;
-            
-            ClientSendEventArg = sendArg;
+            ClientSendEventArg = new SocketAsyncEventArgs();
+            ClientSendEventArg.Completed += Sent;            
             SendMessage = new ByteMessage( new List<ArraySegment<byte>>(2));
         }
 
@@ -69,7 +63,6 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
-                //Disconnect(e);
                 EndSession();
                 return;
             }
@@ -83,7 +76,7 @@ namespace CustomNetworkLib
                 return;
             }
 
-            int expectedLen = BufferManager.ReadByteFrame(e.Buffer, 0);
+            int expectedLen = BufferProvider.ReadByteFrame(e.Buffer, 0);
             recieveBuffer = new byte[expectedLen];
 
             e.SetBuffer(recieveBuffer, 0,expectedLen);
@@ -108,7 +101,6 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
-               // Disconnect(e);
                EndSession();
                 return;
             }
@@ -140,16 +132,15 @@ namespace CustomNetworkLib
         #region Send
         public override void SendAsync(byte[] bytes)
         {
-            var token = (UserToken)ClientSendEventArg.UserToken;
-            token.WaitOperationCompletion();
+            SendSemaphore.Wait();
 
-            BufferManager.WriteInt32AsBytes(SendMessage.data[0].Array, 0, bytes.Length);
+            PrefixWriter.WriteInt32AsBytes(SendMessage.data[0].Array, 0, bytes.Length);
             SendMessage.data[1] = new ArraySegment<byte>(bytes);
 
             ClientSendEventArg.BufferList = SendMessage.data;
             if (!sessionSocket.SendAsync(ClientSendEventArg))
             {
-                Sent(null, ClientSendEventArg);
+                ThreadPool.UnsafeQueueUserWorkItem((e) => Sent(null, ClientSendEventArg), null) ;
             }
         }
 
@@ -158,7 +149,6 @@ namespace CustomNetworkLib
             if (e.SocketError != SocketError.Success)
             {
                 HandleError(e, "while sending the client");
-
                 return;
             }
 
@@ -167,7 +157,13 @@ namespace CustomNetworkLib
                 // shouldnt happen in theory
             }
 
-            ((UserToken)e.UserToken).OperationCompleted();
+            SendSemaphore.Release();
+        }
+
+        public override void EndSession()
+        {
+            if (Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
+                DcAndDispose();
         }
 
         #endregion

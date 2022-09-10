@@ -55,6 +55,7 @@
   <ItemGroup>
     <Compile Include="DisconnectAndDisposalTest.cs" />
     <Compile Include="ByteMessageParserTest.cs" />
+    <Compile Include="MessageConsistencyTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

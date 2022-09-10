@@ -2,6 +2,7 @@
 
 namespace CustomNetworkLib
 {
+    using CustomNetworkLib.Utils;
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
@@ -22,26 +23,36 @@ namespace CustomNetworkLib
             public ClientAccepted OnClientAccepted;
             public BytesRecieved OnBytesRecieved;
 
-            public int MaxIndexedMemoryPerClient = 128000;
+            public BufferProvider BufferManager { get; private set; }
+
+            public int MaxClients { get; private set; } = 10000;
+            public int ClientSendBufsize = 128000;
+            public int ClientReceiveBufsize = 128000;
+            public int MaxIndexedMemoryPerClient = 1280000;
             public int SoocketReceiveBufferSize = 2080000000;
-            public bool DropOnBackPressure=false;
+            public bool DropOnBackPressure = false;
             public bool NaggleNoDelay = false;
 
             protected Socket ServerSocket;
             protected int ServerPort { get; }
             public ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
-            public AsyncTcpServer(int port = 20008)
+            public bool Stopping { get; private set; }
+
+            public AsyncTcpServer(int port = 20008, int maxClients = 100)
             {
                 ServerPort = port;
+                MaxClients = maxClients;
             }
 
             public void StartServer()
             {
+                BufferManager = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
+
                 ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 ServerSocket.NoDelay = NaggleNoDelay;
                 ServerSocket.ReceiveBufferSize = SoocketReceiveBufferSize;
                 ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
-                ServerSocket.Listen(10000);
+                ServerSocket.Listen(MaxClients);
 
 
                 SocketAsyncEventArgs e = new SocketAsyncEventArgs();
@@ -55,51 +66,60 @@ namespace CustomNetworkLib
 
             private void Accepted(object sender, SocketAsyncEventArgs acceptedArg)
             {
-                if (acceptedArg.SocketError != SocketError.Success)
-                {
-                    HandleError(acceptedArg.SocketError, "While Accepting Client an error occured");
+                if (Stopping)
                     return;
-                }
                 SocketAsyncEventArgs nextClient = new SocketAsyncEventArgs();
                 nextClient.Completed += Accepted;
 
                 if (!ServerSocket.AcceptAsync(nextClient))
                 {
-                    ThreadPool.QueueUserWorkItem((s) => Accepted(null, nextClient));
+                    ThreadPool.UnsafeQueueUserWorkItem((s) => Accepted(null, nextClient), null);
                 }
 
                 if (acceptedArg.SocketError != SocketError.Success)
                 {
-                    Console.WriteLine(Enum.GetName(typeof(SocketError), acceptedArg.SocketError));
+                    HandleError(acceptedArg.SocketError, "While Accepting Client an Error Occured :");
                     return;
                 }
 
-                int port = ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port;
+                if (!HandleConnectionRequest(acceptedArg.AcceptSocket))
+                {
+                    return;
+                }
+
                 Guid clientGuid = Guid.NewGuid();
+                var session = CreateSession(acceptedArg, clientGuid, BufferManager);
 
-                var session = CreateSession(acceptedArg, clientGuid);
-                Sessions.TryAdd(clientGuid, session);
-
-                session.OnBytesRecieved += (byte[] bytes,int offset, int count) => { HandleBytesRecieved(clientGuid, bytes,offset,count); };
+                session.OnBytesRecieved += (Guid sessionId, byte[] bytes,int offset, int count) => { HandleBytesRecieved(sessionId, bytes,offset,count); };
                 session.OnSessionClosed += (Guid sessionId) => { HandleDeadSession(sessionId); };
 
                 session.StartSession();
-                Console.WriteLine("Accepted with port: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port);
+                Sessions.TryAdd(clientGuid, session);
+
+                string msg = "Accepted with port: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port+
+                    " Ip: "+ ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Address.ToString();
+
+                MiniLogger.Log(MiniLogger.LogLevel.Info, msg);
 
                 HandleClientAccepted(clientGuid,acceptedArg);
             }
 
-
-            protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+            protected virtual bool HandleConnectionRequest(Socket acceptSocket)
             {
-                var session = new TcpSession(e, sessionId);
-                session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
-                session.DropOnCongestion = DropOnBackPressure;
+                return true;
+            }
+
+            protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+            {
+                var session = new TcpSession(e, sessionId, bufferManager);
+                session.socketSendBufferSize = ClientSendBufsize;
+                session.socketRecieveBufferSize = ClientReceiveBufsize;
+                session.maxIndexedMemory = MaxIndexedMemoryPerClient;
+                session.dropOnCongestion = DropOnBackPressure;
                 return session;
             }
 
 
-            //#region Send
             public void SendBytesToAllClients(byte[] bytes)
             {
                 Parallel.ForEach(Sessions, session =>
@@ -129,12 +149,13 @@ namespace CustomNetworkLib
                 Sessions.TryRemove(sessionId, out _);
             }
 
-            protected virtual void HandleError(SocketError error, object context)
+            protected virtual void HandleError(SocketError error, string context)
             {
-
+                MiniLogger.Log(MiniLogger.LogLevel.Error, context + Enum.GetName(typeof(SocketError), error));
             }
-            public void StopServer()
+            public virtual void StopServer()
             {
+                Stopping = true;
                 ServerSocket.Close();
                 ServerSocket.Dispose();
 

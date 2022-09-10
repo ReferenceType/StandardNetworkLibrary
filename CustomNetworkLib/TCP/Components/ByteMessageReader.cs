@@ -62,8 +62,9 @@ namespace CustomNetworkLib
             if (CurrentHeaderBufferPos == HeaderLenght)
             {
                 throw new InvalidOperationException(String.Format("Header byte tried to be added while header was full." +
-                    " Current heder bytes: {0}{1}{2}{3}", header[0], header[1], header[2], header[3])+"expectedMdg len = " + ExpectedMsgLenght);
+                    " Current heder bytes: {0},{1},{2},{3}", header[0], header[1], header[2], header[3])+"expectedMdg len = " + ExpectedMsgLenght);
             }
+
             header[CurrentHeaderBufferPos] = headerByte;
             CurrentHeaderBufferPos++;
             if (CurrentHeaderBufferPos == HeaderLenght)
@@ -75,13 +76,10 @@ namespace CustomNetworkLib
                     buffer = new byte[ExpectedMsgLenght];
                 }
             }
-            
-           
-            
+                        
         }
 
-
-        internal void Reset(bool v = true)
+        internal void Reset(bool v = false)
         {
            CurrentHeaderBufferPos = 0;
            CurrentMsgBufferPos= 0;
@@ -91,6 +89,7 @@ namespace CustomNetworkLib
                 this.buffer = new byte[originalCapacity];
             }
         }
+
         internal void FreeMemory()
         {
             if (buffer.Length > originalCapacity)
@@ -101,7 +100,7 @@ namespace CustomNetworkLib
         }
     }
 
-    internal class ByteMessageManager
+    internal class ByteMessageReader
     {
         private enum OperationState
         {
@@ -116,7 +115,7 @@ namespace CustomNetworkLib
         private OperationState currentState;
         private int currentExpectedByteLenght;
         
-        public ByteMessageManager(Guid guid, int bufferSize = 256000)
+        public ByteMessageReader(Guid guid, int bufferSize = 256000)
         {
             currentState = OperationState.AwaitingMsgHeader;
             currentExpectedByteLenght = MessageBuffer.HeaderLenght;

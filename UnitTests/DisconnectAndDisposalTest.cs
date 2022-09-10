@@ -26,26 +26,25 @@ namespace UnitTests
         [TestMethod]
         public void DisconnectTest()
         {
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
-            List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
 
-            Stopwatch sw2 = new Stopwatch();
-            AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
             int totMsgCl = 0;
             int totMsgsw = 0;
             int totDisconnectRequest = 0;
             var msg = new byte[32];
             var response = new byte[32];
+
             const int numMsg = 100;
+            int clAmount = 100;
+
+            ByteMessageTcpServer server = new ByteMessageTcpServer(2008,200);
+            List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
+            AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
             server.MaxIndexedMemoryPerClient = 1280000;
             server.DropOnBackPressure = false;
             server.OnBytesRecieved += OnServerReceviedMessage;
-            server.StartServer();
 
-            int clAmount = 100;
-            BufferManager.InitContigiousSendBuffers(clAmount * 2, 12800);
-            BufferManager.InitContigiousReceiveBuffers(clAmount * 2, 12800);
+            server.StartServer();
 
             Task[] toWait = new Task[clAmount];
             for (int i = 0; i < clAmount; i++)
@@ -63,6 +62,7 @@ namespace UnitTests
 
             Task.WaitAll(toWait);
 
+            // Deploy timed disconnections.
             foreach (var client in clients)
             {
                 Task.Run(async () => {
@@ -76,7 +76,6 @@ namespace UnitTests
                     }
                 });
             }
-            sw2.Start();
 
             // Messages starts here
             Parallel.ForEach(clients, client =>
@@ -110,13 +109,13 @@ namespace UnitTests
                 Thread.SpinWait(100);
             }
 
-            if (!BufferManager.VerifyAvailableRBIndexes())
+            if (!server.BufferManager.VerifyAvailableRBIndexes())
             {
-                BufferManager.VerifyAvailableRBIndexes();
+                server.BufferManager.VerifyAvailableRBIndexes();
             }
             Assert.AreEqual(0, server.Sessions.Count);
-            Assert.IsTrue(BufferManager.VerifyAvailableRBIndexes());
-            Assert.IsTrue(BufferManager.VerifyAvailableSBIndexes());
+            Assert.IsTrue(server.BufferManager.VerifyAvailableRBIndexes());
+            Assert.IsTrue(server.BufferManager.VerifyAvailableSBIndexes());
             server.StopServer();
         }
 

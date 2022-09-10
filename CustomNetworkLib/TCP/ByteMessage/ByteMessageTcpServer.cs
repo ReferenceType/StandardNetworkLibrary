@@ -10,19 +10,18 @@ namespace CustomNetworkLib
 {
     public class ByteMessageTcpServer : AsyncTcpServer
     {
-        public ByteMessageTcpServer(int port): base(port)
+        public ByteMessageTcpServer(int port, int maxClients = 100): base(port, maxClients)
         {}
 
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
-            var session = new ByteMessageSession(e, sessionId);
-            session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
-            session.DropOnCongestion = DropOnBackPressure;
+            var session = new ByteMessageSession(e, sessionId, bufferManager);
+            session.socketSendBufferSize = ClientSendBufsize;
+            session.socketRecieveBufferSize = ClientReceiveBufsize;
+            session.maxIndexedMemory = MaxIndexedMemoryPerClient;
+            session.dropOnCongestion = DropOnBackPressure;
             return session;
             
         }
-
-       
-       
     }
 }

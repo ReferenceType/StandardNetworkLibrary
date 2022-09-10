@@ -1,4 +1,5 @@
-﻿using NetworkSystem;
+﻿using CustomNetworkLib;
+using NetworkSystem;
 using System.Diagnostics;
 using System.Net;
 
@@ -17,6 +18,7 @@ internal class Program
     }
     static void UdpTest()
     {
+        MiniLogger.AllLog+=(string log)=>Console.WriteLine(log);
         int clAmount = 1000;
         int timeClientsComplete=0;
         int timeServerComplete=0;

@@ -9,8 +9,10 @@ using System.Threading.Tasks;
 
 namespace CustomNetworkLib
 {
-    public class TcpSession : IAsyncSession
+    internal class TcpSession : IAsyncSession
     {
+        protected MessageQueue messageQueue;
+        // this ill be on SAEA objects and provided by buffer provider.
         protected byte[] sendBuffer;
         protected byte[] recieveBuffer;
 
@@ -18,79 +20,79 @@ namespace CustomNetworkLib
         protected SocketAsyncEventArgs ClientRecieveEventArg;
 
         protected Socket sessionSocket;
-        protected ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
 
-        public event Action<byte[], int, int> OnBytesRecieved;
+        public event Action<Guid,byte[], int, int> OnBytesRecieved;
         public event Action<Guid> OnSessionClosed;
 
         public Guid SessionId;
         protected int prefixLenght = 0;
 
-        internal int SAEASendBufferSize = 128000;
-        internal int recieveBufferSize = 128000;
-        internal int MaxIndexedMemory = 1280000;
+        internal int socketRecieveBufferSize = 128000;
+        internal int socketSendBufferSize = 128000;
+        internal int maxIndexedMemory = 1280000;
         protected int currentIndexedMemory = 0;
-        internal bool DropOnCongestion = false;
+        internal bool dropOnCongestion = false;
 
-        internal bool fragmentedMessageExist = false;
-        internal bool isPrefxWritten;
-        internal int fragmentedMsgOffset = 0;
-        internal byte[] fragmentedMsg;
-
+        
         private int disposeStatus = 0;
         private int sendInProgress = 0;
         private int receiveInProgress = 0;
-        private int SessionClosing = 0;
+        protected int SessionClosing = 0;
         private int SendBufferReleased = 0;
         private int ReceiveBufferReleased = 0;
+
+        private BufferProvider bufferManager;
 
         private SemaphoreSlim SendOperationSemaphore;
         private int disconnectStatus;
         protected readonly object exitLock = new object();
         CancellationTokenSource semaphoreCancellation =  new CancellationTokenSource();
 
-        public TcpSession(SocketAsyncEventArgs acceptedArg, Guid sessionId)
+        public TcpSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager)
         {
             SessionId = sessionId;
             sessionSocket = acceptedArg.AcceptSocket;
-
-            ConfigureSocket();
-            ConfigureSendArgs(acceptedArg);
-            ConfigureRecieveArgs(acceptedArg);
+            this.bufferManager = bufferManager;
         }
 
         protected virtual void ConfigureSocket()
         {
-            sessionSocket.ReceiveBufferSize = 128000;
-            sessionSocket.SendBufferSize = 128000;
+            sessionSocket.ReceiveBufferSize = socketRecieveBufferSize;
+            sessionSocket.SendBufferSize = socketSendBufferSize;
         }
 
-        protected virtual void ConfigureSendArgs(SocketAsyncEventArgs acceptedArg)
+        protected virtual void InitialiseSendArgs()
         {
-            var sendArg = new SocketAsyncEventArgs();
-            sendArg.Completed += Sent;
+            ClientSendEventArg = new SocketAsyncEventArgs();
+            ClientSendEventArg.Completed += Sent;
 
             SendOperationSemaphore = new SemaphoreSlim(1,1);
-            sendBuffer = BufferManager.GetSendBuffer();
+            sendBuffer = bufferManager.GetSendBuffer();
 
-            sendArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
-            ClientSendEventArg = sendArg;
+            ClientSendEventArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
         }
 
-        protected virtual void ConfigureRecieveArgs(SocketAsyncEventArgs acceptedArg)
+        protected virtual void InitialiseReceiveArgs()
         {
-            var recieveArg = new SocketAsyncEventArgs();
-            recieveArg.Completed += BytesRecieved;
+            ClientRecieveEventArg = new SocketAsyncEventArgs();
+            ClientRecieveEventArg.Completed += BytesRecieved;
 
-            recieveBuffer = BufferManager.GetReceiveBuffer();
-
-            ClientRecieveEventArg = recieveArg;
+            recieveBuffer = bufferManager.GetReceiveBuffer();
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
         }
-        public void StartSession()
-        {
-            Receive();
 
+        protected virtual void ConfigureMessageQueue()
+        {
+            messageQueue = new MessageQueue(maxIndexedMemory, prefixLenght, WriteMessagePrefix);
+        }
+
+        public virtual void StartSession()
+        {
+            ConfigureSocket();
+            InitialiseSendArgs();
+            InitialiseReceiveArgs();
+            ConfigureMessageQueue();
+            Receive();
         }
         #region Recieve 
         protected virtual void Receive()
@@ -112,12 +114,13 @@ namespace CustomNetworkLib
 
         protected virtual void BytesRecieved(object sender, SocketAsyncEventArgs e)
         {
-            Interlocked.Decrement(ref receiveInProgress);
             if (IsSessionClosing())
             {
                 ReleaseReceiveResources();
                 return;
             }
+            Interlocked.Decrement(ref receiveInProgress);
+            
             if (e.SocketError != SocketError.Success)
             {
                 HandleError(e, "while recieving from ");
@@ -126,7 +129,7 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
-                Console.WriteLine(" 0 bytes recieved");
+                HandleError(e," 0 bytes recieved");
                 Disconnect();
                 return;
             }
@@ -143,7 +146,7 @@ namespace CustomNetworkLib
 
         protected virtual void HandleRecieveComplete(byte[] buffer, int offset, int count)
         {
-            OnBytesRecieved?.Invoke(buffer, offset, count);
+            OnBytesRecieved?.Invoke(SessionId,buffer, offset, count);
         }
 
         #endregion Recieve
@@ -161,141 +164,58 @@ namespace CustomNetworkLib
         {
             lock (exitLock)
             {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && SendOperationSemaphore.CurrentCount < 1)
+                if(SendOperationSemaphore.CurrentCount < 1 && messageQueue.TryEnqueueMessage(bytes))
                 {
-                    Interlocked.Add(ref currentIndexedMemory, bytes.Length + prefixLenght);
-                    SendQueue.Enqueue(bytes);
-                    return;
+                     return;     
                 }
-  
             }
 
-            if (DropOnCongestion && SendOperationSemaphore.CurrentCount < 1)
+            if (dropOnCongestion && SendOperationSemaphore.CurrentCount < 1)
                 return;
 
             try
             {
                 SendOperationSemaphore.Wait(semaphoreCancellation.Token);
             }
-            catch (ObjectDisposedException) { return; };
+            catch (Exception) { return; };
 
-            Interlocked.Add(ref currentIndexedMemory, bytes.Length + prefixLenght);
-            SendQueue.Enqueue(bytes);
-            ConsumeQueueAndSend();
+            SendBytesAsync(bytes,0,bytes.Length);
             return;
 
         }
 
-        private bool ConsumeQueueAndSend()
+        private void SendBytesAsync(byte[] bytes, int offset, int count)
         {
+            if (count > sendBuffer.Length)
+            {
+                messageQueue.TryEnqueueMessage(bytes);
+                if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
+                    FlushSendBuffer(0, amountWritten);
+                
+            }
+            else
+            {
+                WriteMessagePrefix(ref sendBuffer, offset, count);
+                Buffer.BlockCopy(bytes, offset, sendBuffer, prefixLenght + offset, count);
+                FlushSendBuffer(offset, count + prefixLenght);
+            }
+           
             
-            //if (IsSessionClosing())
-            //{
-            //    ReleaseSendResources();
-            //    return false;
-            //}
-            bool flushedSomething = FlushQueue(ref sendBuffer, 0, out int offset);
-            if (flushedSomething)
-            {
-                try
-                {
-                    Interlocked.CompareExchange(ref sendInProgress, 1, 0);
-                    ClientSendEventArg.SetBuffer(sendBuffer, 0, offset);
-                    if (!sessionSocket.SendAsync(ClientSendEventArg))
-                    {
-                        ThreadPool.UnsafeQueueUserWorkItem((e) => Sent(null, ClientSendEventArg), null);
-                    }
-                }
-                catch (ObjectDisposedException) { return false; }
-              
-            }
-
-            return flushedSomething;
         }
-        private bool FlushQueue(ref byte[] sendBuffer, int offset, out int count)
+        private void FlushSendBuffer(int offset,int count)
         {
-            count = 0;
-            CheckLeftoverMessage(ref sendBuffer, ref offset, ref count);
-            if (count == sendBuffer.Length)
-                return true;
-            
-            while (SendQueue.TryDequeue(out var bytes))
+            try
             {
-                // buffer cant carry entire message not enough space
-                if (prefixLenght + bytes.Length > sendBuffer.Length - offset)
+                Interlocked.CompareExchange(ref sendInProgress, 1, 0);
+                ClientSendEventArg.SetBuffer(sendBuffer, offset, count);
+                if (!sessionSocket.SendAsync(ClientSendEventArg))
                 {
-                    fragmentedMsg = bytes;
-                    fragmentedMessageExist = true;
-
-                    int available = sendBuffer.Length - offset;
-                    if (available < prefixLenght)
-                        break;
-
-                    Interlocked.Add(ref currentIndexedMemory, -(available));
-                    WriteMessagePrefix(ref sendBuffer, offset, bytes.Length);
-                    isPrefxWritten = true;
-
-                    offset += prefixLenght;
-                    available -= prefixLenght;
-
-                    Buffer.BlockCopy(bytes, fragmentedMsgOffset, sendBuffer, offset, available);
-                    count = sendBuffer.Length;
-
-                    fragmentedMsgOffset += available;
-                    break;
-                }
-
-                Interlocked.Add(ref currentIndexedMemory, -(prefixLenght + bytes.Length));
-
-                WriteMessagePrefix(ref sendBuffer, offset, bytes.Length);
-                offset += prefixLenght;
-
-                Buffer.BlockCopy(bytes, 0, sendBuffer, offset, bytes.Length);
-                offset += bytes.Length;
-                count += prefixLenght + bytes.Length;
-            }
-            return count != 0;
-
-        }
-
-        private void CheckLeftoverMessage(ref byte[] sendBuffer, ref int offset, ref int count)
-        {
-            if (fragmentedMessageExist)
-            {
-                int available = sendBuffer.Length - offset;
-                if (!isPrefxWritten)
-                {
-                    isPrefxWritten = true;
-                    WriteMessagePrefix(ref sendBuffer, offset, fragmentedMsg.Length);
-                    offset += prefixLenght;
-                    available -= prefixLenght;
-                }
-                // will fit
-                if (fragmentedMsg.Length - fragmentedMsgOffset <= available)
-                {
-                    Interlocked.Add(ref currentIndexedMemory, -(fragmentedMsg.Length - fragmentedMsgOffset));
-                    Buffer.BlockCopy(fragmentedMsg, fragmentedMsgOffset, sendBuffer, offset, fragmentedMsg.Length - fragmentedMsgOffset);
-
-                    offset += fragmentedMsg.Length - fragmentedMsgOffset;
-                    count += offset;
-
-                    // reset
-                    fragmentedMsgOffset = 0;
-                    fragmentedMsg = null;
-                    isPrefxWritten = false;
-                    fragmentedMessageExist = false;
-                }
-                // wont fit read until you fill buffer
-                else
-                {
-                    Interlocked.Add(ref currentIndexedMemory, -(available));
-                    Buffer.BlockCopy(fragmentedMsg, fragmentedMsgOffset, sendBuffer, offset, available);
-
-                    count = sendBuffer.Length;
-                    fragmentedMsgOffset += available;
+                    ThreadPool.UnsafeQueueUserWorkItem((e) => Sent(null, ClientSendEventArg), null);
                 }
             }
+            catch (ObjectDisposedException) { Interlocked.CompareExchange(ref sendInProgress, 0, 1); }
         }
+
 
         protected virtual void Sent(object ignored, SocketAsyncEventArgs e)
         {
@@ -307,7 +227,7 @@ namespace CustomNetworkLib
 
             if (e.SocketError != SocketError.Success)
             {
-                HandleError(e, "while sending the client");
+                HandleError(e, "While sending the client ");
                 return;
             }
 
@@ -321,15 +241,21 @@ namespace CustomNetworkLib
                 return;
             }
 
-            if (!ConsumeQueueAndSend())
+            //int count = 0;
+            
+            if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
+            {
+                FlushSendBuffer(0, amountWritten);
+            }
+            else
             {
                 bool flushAgain = false;
                 // here it means queue was empty and there was nothing to flush.
-                // but this check is not atomic, if during the couple cycles in between something is enqueued, 
+                // but this check is clearly not atomic, if during the couple cycles in between something is enqueued, 
                 // i have to flush that part ,or it will stuck at queue since consumer is exiting.
                 lock (exitLock)
                 {
-                    if (SendQueue.Count > 0)
+                    if (!messageQueue.IsEmpty())
                     {
                         flushAgain = true;
                     }
@@ -340,8 +266,10 @@ namespace CustomNetworkLib
                         return;
                     }
                 }
-                if (flushAgain)
-                    ConsumeQueueAndSend();
+                if (flushAgain && messageQueue.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
+                {
+                    FlushSendBuffer(0, amountWritten);
+                }
             }
         }
 
@@ -357,9 +285,9 @@ namespace CustomNetworkLib
         }
 
         // TODO 
-        protected void HandleError(SocketAsyncEventArgs e, string v)
+        protected void HandleError(SocketAsyncEventArgs e, string context)
         {
-            Console.WriteLine(v+Enum.GetName(typeof(SocketError),e.SocketError));
+           MiniLogger.Log(MiniLogger.LogLevel.Error, context + Enum.GetName(typeof(SocketError), e.SocketError));
         }
 
         private bool IsSessionClosing()
@@ -367,9 +295,8 @@ namespace CustomNetworkLib
             return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
         }
 
-        public void EndSession()
+        public virtual void EndSession()
         {
-            semaphoreCancellation.Cancel();
             // is it the first time im being called?
             if (Interlocked.CompareExchange(ref SessionClosing, 1, 0)==0)
             {
@@ -398,9 +325,11 @@ namespace CustomNetworkLib
         {
             if (Interlocked.CompareExchange(ref SendBufferReleased, 1, 0) == 0)
             {
+                semaphoreCancellation.Cancel();
                 SendOperationSemaphore.Dispose();
+
                 DcAndDispose();
-                BufferManager.ReturnSendBuffer(ref sendBuffer);
+                bufferManager.ReturnSendBuffer(ref sendBuffer);
             }
                
         }
@@ -410,12 +339,12 @@ namespace CustomNetworkLib
             if (Interlocked.CompareExchange(ref ReceiveBufferReleased, 1, 0) == 0)
             {
                 DcAndDispose();
-                BufferManager.ReturnReceiveBuffer(ref recieveBuffer);
+                bufferManager.ReturnReceiveBuffer(ref recieveBuffer);
             }
               
         }
 
-        private void DcAndDispose()
+        protected void DcAndDispose()
         {
             // can be calles only once
             if (Interlocked.CompareExchange(ref disconnectStatus, 1, 0) == 1)
@@ -444,10 +373,8 @@ namespace CustomNetworkLib
             ClientSendEventArg.Dispose();
             ClientRecieveEventArg.Dispose();
 
-          
-
             sessionSocket.Dispose();
-            Console.WriteLine("disposed");
+            MiniLogger.Log(MiniLogger.LogLevel.Debug, String.Format("Session with Guid: {0} is disposed",SessionId));
             GC.SuppressFinalize(this);
 
         }

@@ -9,23 +9,22 @@ using System.Threading.Tasks;
 
 namespace CustomNetworkLib
 {
-    public class ByteMessageTcpClient: AsyncTpcClient
+    public class ByteMessageTcpClient : AsyncTpcClient
     {
-        public int MaxIndexedMemory = 128000;
-        public bool DropOnCongestion = false;
+
         public ByteMessageTcpClient()
         { }
-       
-        protected override void CreateSession(SocketAsyncEventArgs e,Guid sessionId)
+
+        protected override void CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
-            var session= new ByteMessageSession(e, sessionId);
-            session.MaxIndexedMemory=MaxIndexedMemory;
-            session.DropOnCongestion = DropOnCongestion;
+            var session = new ByteMessageSession(e, sessionId, bufferManager);
+            session.socketSendBufferSize = SocketSendBufferSize;
+            session.socketRecieveBufferSize = SocketRecieveBufferSize;
+            session.maxIndexedMemory = MaxIndexedMemory;
+            session.dropOnCongestion = DropOnCongestion;
             base.session = session;
-            
+
         }
-
-
 
     }
 }

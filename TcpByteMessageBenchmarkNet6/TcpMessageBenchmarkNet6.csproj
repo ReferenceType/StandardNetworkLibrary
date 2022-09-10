@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="CustomNetworkLib">
-      <HintPath>..\CustomNetworkLib\bin\Release\netstandard2.0\CustomNetworkLib.dll</HintPath>
+    <Reference Include="NetworkLibrary">
+      <HintPath>..\CustomNetworkLib\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
     </Reference>
   </ItemGroup>
 

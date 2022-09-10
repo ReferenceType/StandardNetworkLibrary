@@ -71,9 +71,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CustomNetworkLib\CustomNetworkLib.csproj">
+    <ProjectReference Include="..\CustomNetworkLib\NetworkLibrary.csproj">
       <Project>{BE87BAB5-0B84-4AE9-BB79-D9CECC4F11BE}</Project>
-      <Name>CustomNetworkLib</Name>
+      <Name>NetworkLibrary</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

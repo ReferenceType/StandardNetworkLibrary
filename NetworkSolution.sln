@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CustomNetworkLib", "CustomNetworkLib\CustomNetworkLib.csproj", "{BE87BAB5-0B84-4AE9-BB79-D9CECC4F11BE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NetworkLibrary", "CustomNetworkLib\NetworkLibrary.csproj", "{BE87BAB5-0B84-4AE9-BB79-D9CECC4F11BE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "UnitTests\UnitTests.csproj", "{D9A61287-1648-4412-B56D-4B3C972F225A}"
 EndProject
@@ -11,9 +11,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleTest", "ConsoleTest\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Benchmarks", "Benchmarks", "{88B95995-6047-4481-A29E-861550B92E5C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TcpByteMessageBenchmarkNet6", "TcpByteMessageBenchmarkNet6\TcpByteMessageBenchmarkNet6.csproj", "{1878A03A-5A07-47BC-81EF-1E9A066AE1DE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TcpMessageBenchmarkNet6", "TcpByteMessageBenchmarkNet6\TcpMessageBenchmarkNet6.csproj", "{1878A03A-5A07-47BC-81EF-1E9A066AE1DE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UdpBenchmarkNet6", "UdpBenchmarkNet6\UdpBenchmarkNet6.csproj", "{947ECFF9-8F91-400B-B310-308B7089ADF4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UdpBenchmarkNet6", "UdpBenchmarkNet6\UdpBenchmarkNet6.csproj", "{947ECFF9-8F91-400B-B310-308B7089ADF4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -10,7 +10,8 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
+using NetworkLibrary.TCP.SSL.ByteMessage;
+using NetworkLibrary.TCP.SSL.Custom;
 
 namespace ConsoleTest
 {
@@ -19,34 +20,30 @@ namespace ConsoleTest
     {
         static void Main(string[] args)
         {
-            TcpTest();
+            CustomSslTest();
 
         }
-
-        private static void TcpTest()
+        //----------TCP --------------------------------------------------------
+        private static void CustomSslTest()
         {
-            // dont change.
-            int NumFinishedClients = 0;
-
-            MiniLogger.AllLog+=(string log)=>Console.WriteLine(log);
+            MiniLogger.AllLog += (string log) => Console.WriteLine(log);
 
             int totMsgClient = 0;
             int totMsgServer = 0;
             int lastTimeStamp = 1;
             int clientAmount = 100;
 
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008, clientAmount*2);
-            List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
+            CustomSslServer server = new CustomSslServer(2008, "server.pfx",clientAmount * 2 );
+            List<CustomSslClient> clients = new List<CustomSslClient>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-           
-
             var message = new byte[32];
             var response = new byte[32];
 
-            server.MaxIndexedMemoryPerClient = 1280000000;
+            server.MaxIndexedMemoryPerClient = 1280000;
+
             server.ClientSendBufsize = 128000;
             server.ClientReceiveBufsize = 128000;
             server.DropOnBackPressure = false;
@@ -56,25 +53,21 @@ namespace ConsoleTest
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
             {
-                var client = new ByteMessageTcpClient();
+                var client = new CustomSslClient("client.pfx");
                 client.BufferManager = server.BufferManager;
+                client.OnBytesRecieved += ( byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
-
-                client.DropOnCongestion = false;
-                client.OnBytesRecieved += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
-
-                toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
+                client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
                 clients.Add(client);
             }
+            Thread.Sleep(100);
 
-            Task.WaitAll(toWait);
             // -----------------------  Bechmark ---------------------------
             Console.WriteLine("Press any key to start");
             Console.Read();
             sw2.Start();
 
-            // We parallely send the messages here
-            const int numMsg = 500000;
+            const int numMsg = 10000;
             Parallel.ForEach(clients, client =>
             {
                 for (int i = 0; i < numMsg; i++)
@@ -82,62 +75,46 @@ namespace ConsoleTest
                     client.SendAsync(message);
 
                 }
-                
-            });
 
-            // final msg to get the tıme elapsed.
+            });
+            // final msg to get the time elapsed.
             foreach (var cl in clients)
             {
                 cl.SendAsync(new byte[502]);
             }
 
-            // -------- Messages are sent by clients ------ 
-
+           
             Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
                 "ms. Press enter to see status");
             Console.ReadLine();
 
-            Console.WriteLine("Press e to Exit");
+            Console.WriteLine("Press E to Exit");
             while (Console.ReadLine() != "e")
             {
-                ShowStatus();
-            }
-            //----- End --- 
-            void ShowStatus()
-            {
+
+
                 Console.WriteLine("Press E to Exit");
 
                 Console.WriteLine("Total Messages on server: " + totMsgServer);
                 Console.WriteLine("Total Messages on clients: " + totMsgClient);
-
-                lastTimeStamp = (int)sw2.ElapsedMilliseconds;
-                Console.WriteLine("Elapsed " + lastTimeStamp);
-
-                var elapsedSeconds = (float)lastTimeStamp / 1000;
+                Console.WriteLine("Last Timestamp " + lastTimeStamp);
+                Console.WriteLine("Elapsed " + sw2.ElapsedMilliseconds);
+                var elapsedSeconds = ((float)lastTimeStamp / 1000);
                 var messagePerSecond = totMsgClient / elapsedSeconds;
 
                 Console.WriteLine(" Request-Response Per second " + totMsgClient / elapsedSeconds);
-                Console.WriteLine("Data transmissıon rate Inbound " + message.Length * messagePerSecond / 1000000 + " Megabytes/s");
-                Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
+                Console.WriteLine("Data transmissıon rate Inbound " + (message.Length * messagePerSecond) / 1000000 + " Megabytes/s");
+                Console.WriteLine("Data transmissıon rate Outbound " + (response.Length * messagePerSecond) / 1000000 + " Megabytes/s");
+                //Console.WriteLine("Elapsed total MS " + sw2.ElapsedMilliseconds);
             }
 
-            void OnClientReceivedMessage(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
+            void OnClientReceivedMessage(CustomSslClient client, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgClient);
-
+                //client.SendAsync(response);
                 if (count == 502)
                 {
                     lastTimeStamp = (int)sw2.ElapsedMilliseconds;
-                    Interlocked.Increment(ref NumFinishedClients);
-
-                    if (Volatile.Read(ref NumFinishedClients) == clientAmount)
-                    {
-                        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
-                        ShowStatus();
-                        sw2.Stop();
-                        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
-
-                    }
                 }
             }
 
@@ -149,13 +126,15 @@ namespace ConsoleTest
                     server.SendBytesToClient(id, new byte[502]);
                     return;
                 }
-                // response = new byte[32000];
+
                 server.SendBytesToClient(id, response);
             }
 
         }
 
-    }
 
+
+
+    }
 }
 

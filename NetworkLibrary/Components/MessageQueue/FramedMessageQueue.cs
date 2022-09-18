@@ -1,51 +1,25 @@
-﻿using System;
+﻿using NetworkLibrary.Utils;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 
-namespace CustomNetworkLib
+namespace NetworkLibrary.Components.MessageQueue
 {
-    internal class MessageQueue
+    internal class FramedMessageQueue : MessageQueue, IMessageQueue
     {
-        public delegate void PrefixDelegate(ref byte[] buffer, int offset, int messageLenght);
-
-        internal ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
-
-        internal bool isThereAFragmentedMessage = false;
         internal bool isPrefixWritten = false;
-        internal byte[] fragmentedMsg;
-        internal int fragmentedMsgOffset = 0;
-        internal int fragmentedMsgCount = 0;
-
-        private int prefixLenght = 0;
-        private int MaxIndexedMemory = 1280000;
-        private int currentIndexedMemory = 0;
-        private PrefixDelegate HowToFillPrefix;
-
-        public MessageQueue(int maxIndexedMemory, int prefixLenght, PrefixDelegate howToFillPrefix)
+        private int prefixLenght = 4;
+        public FramedMessageQueue(int maxIndexedMemory) : base(maxIndexedMemory)
         {
             MaxIndexedMemory = maxIndexedMemory;
-            this.prefixLenght = prefixLenght;
-            HowToFillPrefix = howToFillPrefix;
         }
 
-        // Enqueue if you are within the memory limits
-        public bool TryEnqueueMessage(byte[] bytes)
-        { 
-            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
-            {
-                Interlocked.Add(ref currentIndexedMemory, bytes.Length + prefixLenght);
-                SendQueue.Enqueue(bytes);
-                return true;
-            }
-            return false;
-        }
-
-        public bool TryFlushQueue(ref byte[] buffer, int offset, out int amountWritten)
+        public override bool TryFlushQueue(ref byte[] buffer, int offset, out int amountWritten)
         {
             amountWritten = 0;
-            // Is there any message from previous call we dequeud and not fully sent?
+            // Is there any message from previous call we dequeed and not fully sent?
             // If so, count will be more than 0.
             CheckLeftoverMessage(ref buffer, ref offset, ref amountWritten);
             if (amountWritten == buffer.Length)
@@ -95,7 +69,7 @@ namespace CustomNetworkLib
             return amountWritten != 0;
 
         }
-        private void CheckLeftoverMessage(ref byte[] buffer, ref int bufferOffset, ref int amountWritten)
+        protected override void CheckLeftoverMessage(ref byte[] buffer, ref int bufferOffset, ref int amountWritten)
         {
             if (isThereAFragmentedMessage)
             {
@@ -128,28 +102,19 @@ namespace CustomNetworkLib
                 // Wont fit, copy partially until you fill the buffer
                 else
                 {
-                    System.Buffer.BlockCopy(fragmentedMsg, fragmentedMsgOffset, buffer, bufferOffset, availableInBuffer);
+                    Buffer.BlockCopy(fragmentedMsg, fragmentedMsgOffset, buffer, bufferOffset, availableInBuffer);
                     amountWritten += availableInBuffer;
 
                     fragmentedMsgOffset += availableInBuffer;
-                    Interlocked.Add(ref currentIndexedMemory, - amountWritten);
+                    Interlocked.Add(ref currentIndexedMemory, -amountWritten);
 
                 }
             }
         }
 
-        
-        public bool IsEmpty()
-        {
-            return SendQueue.IsEmpty;
-        }
-
         protected void WriteMessagePrefix(ref byte[] buffer, int offset, int messageLength)
         {
-            HowToFillPrefix?.Invoke(ref buffer, offset, messageLength);
-
+            PrefixWriter.WriteInt32AsBytes(buffer, offset, messageLength);
         }
-
-
     }
 }

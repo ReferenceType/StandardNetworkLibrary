@@ -2,11 +2,11 @@
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace CustomNetworkLib
+namespace NetworkLibrary.TCP.Base.Interface
 {
-    public interface IAsyncSession: IDisposable
+    public interface IAsyncSession : IDisposable
     {
-        event Action<Guid,byte[],int,int>  OnBytesRecieved;
+        event Action<Guid, byte[], int, int> OnBytesRecieved;
         event Action<Guid> OnSessionClosed;
         void SendAsync(byte[] buffer);
 

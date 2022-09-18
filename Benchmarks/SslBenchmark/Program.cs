@@ -10,99 +10,89 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkLibrary.TCP.SSL.ByteMessage;
+using System.Security.Cryptography.X509Certificates;
 
-
-namespace ConsoleTest
+namespace SslBenchmark
 {
 
     internal class Program
     {
         static void Main(string[] args)
         {
-            TcpTest();
+            Bench();
 
         }
-
-        private static void TcpTest()
+        private static void Bench()
         {
-            // dont change.
+            MiniLogger.AllLog += (log) => Console.WriteLine(log);
+
             int NumFinishedClients = 0;
-
-            MiniLogger.AllLog+=(string log)=>Console.WriteLine(log);
-
             int totMsgClient = 0;
             int totMsgServer = 0;
             int lastTimeStamp = 1;
             int clientAmount = 100;
 
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008, clientAmount*2);
-            List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var ccert = new X509Certificate2("client.pfx", "greenpass");
+
+            SSlByteMessageServer server = new SSlByteMessageServer(2008, clientAmount * 2, scert);
+            List<SsLByteMessageClient> clients = new List<SsLByteMessageClient>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-           
-
             var message = new byte[32];
             var response = new byte[32];
 
-            server.MaxIndexedMemoryPerClient = 1280000000;
-            server.ClientSendBufsize = 128000;
-            server.ClientReceiveBufsize = 128000;
-            server.DropOnBackPressure = false;
-            server.OnBytesRecieved += OnServerReceviedMessage;
+            server.MaxMemoryPerClient = 1280000000;
+            server.DropOnCongestion = false;
+            server.OnBytesReceived += OnServerReceviedMessage;
             server.StartServer();
 
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
             {
-                var client = new ByteMessageTcpClient();
-                client.BufferManager = server.BufferManager;
-                client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
-
-                client.DropOnCongestion = false;
-                client.OnBytesRecieved += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
-
-                toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
+                var client = new SsLByteMessageClient(ccert);
+                client.OnBytesReceived += (buffer, offset, count) => OnClientReceivedMessage(client, buffer, offset, count);
+                client.MaxIndexedMemory = 1280000000;
+                client.Connect("127.0.0.1", 2008);
                 clients.Add(client);
             }
 
-            Task.WaitAll(toWait);
             // -----------------------  Bechmark ---------------------------
-            Console.WriteLine("Press any key to start");
+            Console.WriteLine("Press enter to start");
             Console.Read();
             sw2.Start();
 
-            // We parallely send the messages here
-            const int numMsg = 500000;
+            const int numMsg = 100000;
             Parallel.ForEach(clients, client =>
             {
                 for (int i = 0; i < numMsg; i++)
                 {
+                    //message = new byte[32000];
                     client.SendAsync(message);
 
                 }
-                
-            });
 
+            });
             // final msg to get the tıme elapsed.
             foreach (var cl in clients)
             {
                 cl.SendAsync(new byte[502]);
             }
 
-            // -------- Messages are sent by clients ------ 
-
+            
             Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
                 "ms. Press enter to see status");
             Console.ReadLine();
 
             Console.WriteLine("Press e to Exit");
-            while (Console.ReadLine() != "e")
+            while (Console.ReadLine()!= "e")
             {
                 ShowStatus();
             }
-            //----- End --- 
+
             void ShowStatus()
             {
                 Console.WriteLine("Press E to Exit");
@@ -121,18 +111,18 @@ namespace ConsoleTest
                 Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
             }
 
-            void OnClientReceivedMessage(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
+            void OnClientReceivedMessage(SsLByteMessageClient client, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgClient);
-
+                
                 if (count == 502)
                 {
                     lastTimeStamp = (int)sw2.ElapsedMilliseconds;
                     Interlocked.Increment(ref NumFinishedClients);
 
-                    if (Volatile.Read(ref NumFinishedClients) == clientAmount)
+                    if(Volatile.Read(ref NumFinishedClients) == clientAmount)
                     {
-                        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
+                        Console.WriteLine("--- All Clients are finished receiving response --- \n");
                         ShowStatus();
                         sw2.Stop();
                         Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
@@ -155,7 +145,9 @@ namespace ConsoleTest
 
         }
 
-    }
 
+
+
+    }
 }
 

@@ -1,7 +1,7 @@
-﻿using CustomNetworkLib;
-using CustomNetworkLib.SocketEventArgsTests;
-using CustomNetworkLib.Utils;
+﻿
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NetworkLibrary.Components;
+using NetworkLibrary.Utils;
 using System;
 using System.Diagnostics;
 using System.Linq;

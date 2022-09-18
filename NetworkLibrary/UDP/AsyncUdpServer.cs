@@ -6,9 +6,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using CustomNetworkLib;
 
-namespace NetworkSystem
+namespace NetworkLibrary.UDP
 {
     public class AsyncUdpServer
     {
@@ -18,7 +17,7 @@ namespace NetworkSystem
         public BytesRecieved OnBytesRecieved;
 
         protected Socket ServerSocket;
-       
+
         protected ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs> RegisteredClients = new ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs>();
 
         protected int port = 0;
@@ -43,7 +42,7 @@ namespace NetworkSystem
             this.port = port;
         }
         // 239.0.0.0 to 239.255.255.255
-        public void SetMulticastAddress(string Ip, int port ) => multicastEndpoint= new IPEndPoint(IPAddress.Parse(Ip),port);
+        public void SetMulticastAddress(string Ip, int port) => multicastEndpoint = new IPEndPoint(IPAddress.Parse(Ip), port);
 
 
         public void StartServer()
@@ -60,7 +59,7 @@ namespace NetworkSystem
         {
             if (!ServerSocket.ReceiveFromAsync(e))
             {
-               ThreadPool.QueueUserWorkItem((cb)=> RecievedFromMainSocket(null, e));
+                ThreadPool.QueueUserWorkItem((cb) => RecievedFromMainSocket(null, e));
             }
         }
 
@@ -73,7 +72,7 @@ namespace NetworkSystem
             ReceiveFromMainEp(e);
         }
 
-     
+
 
         private void HandleMessage(SocketAsyncEventArgs e)
         {
@@ -106,7 +105,7 @@ namespace NetworkSystem
         {
             if (!ServerSocket.ReceiveFromAsync(e))
             {
-                ThreadPool.UnsafeQueueUserWorkItem((cb) => RecievedFromKnownSocket(null, e),null);
+                ThreadPool.UnsafeQueueUserWorkItem((cb) => RecievedFromKnownSocket(null, e), null);
             }
         }
 
@@ -131,13 +130,13 @@ namespace NetworkSystem
 
         public void SendBytesToClient(IPEndPoint clientEndpoint, byte[] bytes)
         {
-            ServerSocket.BeginSendTo(bytes, 0, bytes.Length, SocketFlags.None, clientEndpoint, (IAsyncResult ar) => ServerSocket.EndSendTo(ar), null);
+            ServerSocket.BeginSendTo(bytes, 0, bytes.Length, SocketFlags.None, clientEndpoint, (ar) => ServerSocket.EndSendTo(ar), null);
         }
 
         public void MulticastMessage(byte[] message)
         {
-            if(multicastEndpoint!=null)
-                ServerSocket.BeginSendTo(message, 0, message.Length, SocketFlags.None, multicastEndpoint, (IAsyncResult ar) => ServerSocket.EndSendTo(ar), null);
+            if (multicastEndpoint != null)
+                ServerSocket.BeginSendTo(message, 0, message.Length, SocketFlags.None, multicastEndpoint, (ar) => ServerSocket.EndSendTo(ar), null);
 
         }
 

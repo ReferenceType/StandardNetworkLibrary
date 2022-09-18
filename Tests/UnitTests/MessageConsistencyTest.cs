@@ -3,12 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using CustomNetworkLib;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using CustomNetworkLib.Utils;
 using System.Collections.Concurrent;
+using NetworkLibrary.TCP.ByteMessage;
+using NetworkLibrary.Utils;
 
 namespace UnitTests
 {

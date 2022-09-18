@@ -1,4 +1,4 @@
-﻿using CustomNetworkLib.SocketEventArgsTests;
+﻿using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CustomNetworkLib
+namespace NetworkLibrary.TCP.ByteMessage
 {
     public class ByteMessageTcpClient : AsyncTpcClient
     {

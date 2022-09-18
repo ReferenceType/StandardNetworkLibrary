@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace CustomNetworkLib.Utils
+namespace NetworkLibrary.Utils
 {
     public class PrefixWriter
     {

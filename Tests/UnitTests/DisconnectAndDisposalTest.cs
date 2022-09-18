@@ -1,5 +1,5 @@
-﻿using CustomNetworkLib;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NetworkLibrary.TCP.ByteMessage;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

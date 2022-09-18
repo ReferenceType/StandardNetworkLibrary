@@ -1,4 +1,5 @@
-﻿using CustomNetworkLib.Utils;
+﻿using NetworkLibrary.TCP.Base.Interface;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,17 +11,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CustomNetworkLib
+namespace NetworkLibrary.TCP.Base
 {
     public class AsyncTpcClient
     {
-        public Action<byte[],int,int> OnBytesRecieved;
+        public Action<byte[], int, int> OnBytesRecieved;
         public Action OnConnected;
         public Action OnConnectFailed;
         public Action OnDisconnected;
 
         private BufferProvider bufferManager;
-        public BufferProvider BufferManager 
+        public BufferProvider BufferManager
         {
             get => bufferManager;
             set
@@ -33,12 +34,12 @@ namespace CustomNetworkLib
 
         private Socket clientSocket;
         private TaskCompletionSource<bool> connectedCompletionSource;
-        
+
         protected bool connected = false;
         protected IAsyncSession session;
         public bool IsConnecting { get; private set; }
         public bool IsConnected { get; private set; }
-        
+
         // Config
         public int SocketSendBufferSize = 128000;
         public int SocketRecieveBufferSize = 128000;
@@ -47,7 +48,7 @@ namespace CustomNetworkLib
 
         public AsyncTpcClient()
         {
-        
+
         }
 
         public async Task<bool> ConnectAsyncAwaitable(string IP, int port)
@@ -99,7 +100,7 @@ namespace CustomNetworkLib
         public virtual void SendAsync(byte[] buffer)
         {
             if (connected)
-                session?.SendAsync(buffer);          
+                session?.SendAsync(buffer);
         }
         public void Disconnect()
         {
@@ -108,11 +109,11 @@ namespace CustomNetworkLib
 
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
-            string msg = "An error Occured While " + context + 
+            string msg = "An error Occured While " + context +
                 " associated port: "
                 + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port +
                 "IP: "
-                +((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Address.ToString() +
+                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Address.ToString() +
                 " Error: " + Enum.GetName(typeof(SocketError), e.SocketError);
 
             MiniLogger.Log(MiniLogger.LogLevel.Error, msg);
@@ -133,10 +134,10 @@ namespace CustomNetworkLib
             {
                 bufferManager = new BufferProvider(1, SocketSendBufferSize, 1, SocketRecieveBufferSize);
             }
-            
-            CreateSession(e,Guid.NewGuid(),bufferManager);
-            session.OnBytesRecieved += (Guid sessionId, byte[] bytes,int offset, int count) => HandleBytesRecieved(bytes, offset, count);
-            session.OnSessionClosed += (Guid sessionId) => OnDisconnected?.Invoke();
+
+            CreateSession(e, Guid.NewGuid(), bufferManager);
+            session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
+            session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
 
             session.StartSession();
             OnConnected?.Invoke();
@@ -144,9 +145,9 @@ namespace CustomNetworkLib
 
             IsConnected = true;
         }
-        protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId,BufferProvider bufferManager )
+        protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
-            var ses = new TcpSession(e,sessionId,bufferManager);
+            var ses = new TcpSession(e, sessionId, bufferManager);
             ses.socketSendBufferSize = SocketSendBufferSize;
             ses.socketRecieveBufferSize = SocketRecieveBufferSize;
             ses.maxIndexedMemory = MaxIndexedMemory;
@@ -154,9 +155,9 @@ namespace CustomNetworkLib
             session = ses;
         }
 
-        protected virtual void HandleBytesRecieved(byte[] bytes,int offset,int count)
+        protected virtual void HandleBytesRecieved(byte[] bytes, int offset, int count)
         {
-             OnBytesRecieved?.Invoke(bytes,offset,count);
+            OnBytesRecieved?.Invoke(bytes, offset, count);
         }
 
     }

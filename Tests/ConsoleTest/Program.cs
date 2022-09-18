@@ -1,7 +1,6 @@
-﻿using CustomNetworkLib;
-using CustomNetworkLib.SocketEventArgsTests;
-using CustomNetworkLib.Utils;
-using NetworkSystem;
+﻿
+using NetworkLibrary.TCP.SSL;
+using NetworkLibrary;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -12,6 +11,13 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkLibrary.TCP.SSL.ByteMessage;
+using NetworkLibrary.UDP;
+using NetworkLibrary.TCP.ByteMessage;
+using NetworkLibrary.Utils;
+using System.Security.Cryptography;
+using NetworkLibrary.TCP.SSL.Custom;
+using System.Security.Cryptography.X509Certificates;
 
 namespace ConsoleTest
 {
@@ -36,53 +42,120 @@ namespace ConsoleTest
 
         static void Main(string[] args)
         {
-            TcpTest();
+            //AesTest();
+            //SSlTest2();
+            SSlTest();
+            //TcpTest();
             
             //UdpTest();
             //UdpTestMc();
 
-            return;
-            byte[] buffer = new byte[1024];
-            ConcurrentQueue<byte[]> qq = new ConcurrentQueue<byte[]>();
-            Console.ReadLine();
-            sw.Start();
-            for (int i = 0; i < 100000000; i++)
-            {
-                qq.Enqueue(buffer);
-            }
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds);
+           
             
-            Console.ReadLine();
-            sw.Restart();
-            while (qq.Count>1)
-            {
-                qq.TryDequeue(out _);
-
-                //_ = qq.Dequeue();
-            }
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds);
-            Console.WriteLine("dq");
-            Console.ReadLine();
-
-
-            Console.WriteLine("eqdq");
-
-            Console.ReadLine();
-            Console.WriteLine("gc");
-            sw.Restart ();
-            GC.Collect();
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds);
-            Console.ReadLine();
-            return;
-            for (int i = 0; i < 55000000; i++)
-            {
-                qq.Enqueue(buffer);
-            }
-            Console.ReadLine();
         }
+
+        private static void SSlTest2()
+        {
+            Stopwatch sw = new Stopwatch();
+            int totMsgClient = 0;
+            int totMsgServer = 0;
+            byte[] req = new byte[32];
+            byte[] resp = new byte[32];
+
+            CustomSslServer server = new CustomSslServer(2008, "server.pfx");
+            server.OnBytesRecieved += ServerReceived;
+            server.StartServer();
+
+            CustomSslClient client = new CustomSslClient("client.pfx");
+            client.OnBytesRecieved += ClientReceived;
+            client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
+            sw.Start();
+            for (int i = 0; i < 1000000; i++)
+            {
+                client.SendAsync(req);
+
+            }
+            client.SendAsync(new byte[502]);
+
+            while (Console.ReadLine() != "e")
+            {
+                Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
+                Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
+            }
+
+            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
+            {
+                Interlocked.Increment(ref totMsgServer);
+                if(arg4 == 502)
+                {
+                    server.SendBytesToClient(arg1,new byte[502]);
+                    return;
+                }
+                server.SendBytesToClient(arg1, resp);
+            }
+
+            void ClientReceived( byte[] arg2, int arg3, int arg4)
+            {
+                Interlocked.Increment(ref totMsgClient);
+                if(arg4!= 32)
+                {
+
+                }
+                if(arg4 == 502)
+                {
+                    sw.Stop();
+                    Console.WriteLine(sw.ElapsedMilliseconds);
+                }
+               // client.SendAsync(req);
+            }
+        }
+
+       
+
+        private static void SSlTest()
+        {
+            int totMsgClient=0;
+            int totMsgServer=0;
+            byte[] req = new byte[32];
+            byte[] resp = new byte[32];
+
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            SSlByteMessageServer server = new SSlByteMessageServer(2008, 2, scert);
+            server.OnBytesReceived += ServerReceived;
+            server.StartServer();
+
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+            SsLByteMessageClient client = new SsLByteMessageClient(cert);
+
+            client.OnBytesReceived += ClientReceived;
+            client.Connect("127.0.0.1", 2008);
+
+            for (int i = 0; i < 10000000; i++)
+            {
+                client.SendAsync(req);
+
+            }
+
+            while (Console.ReadLine()!="e")
+            {
+                Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
+                Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
+            }
+
+            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
+            {
+                Interlocked.Increment(ref totMsgServer);
+                server.SendBytesToClient(arg1, resp);
+            }
+
+            void ClientReceived( byte[] arg2, int arg3, int arg4)
+            {
+                Interlocked.Increment(ref totMsgClient);
+
+                //client.Send(req);
+            }
+        }
+
 
         private static void UdpTestMc()
         {
@@ -272,8 +345,6 @@ namespace ConsoleTest
                         PrefixWriter.WriteInt32AsBytes(ref msg, 0, i);
 
                         client.SendAsync(msg);
-                        
-
                     }
 
                 }

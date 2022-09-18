@@ -1,18 +1,19 @@
-﻿using CustomNetworkLib.Utils;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageQueue;
+using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CustomNetworkLib
+namespace NetworkLibrary.TCP.ByteMessage
 {
     internal class ByteMessageSession : TcpSession
     {
         ByteMessageReader messageManager;
         public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager) : base(acceptedArg, sessionId, bufferManager)
         {
-            prefixLenght = 4;
         }
 
         public override void StartSession()
@@ -23,23 +24,24 @@ namespace CustomNetworkLib
             base.StartSession();
         }
 
-        private void HandleMessage(byte[] buffer, int offset, int count)
+        protected virtual void HandleMessage(byte[] buffer, int offset, int count)
         {
-             base.HandleRecieveComplete(buffer, offset, count);
+            base.HandleRecieveComplete(buffer, offset, count);
         }
 
         // We take the received from the base here put it on msg reader,
         // for each extracted message reader will call handle message,
         // which will call base HandleRecieveComplete to triger message received event.
-        protected override void HandleRecieveComplete(byte[] buffer, int offset, int count)
+        protected sealed override void HandleRecieveComplete(byte[] buffer, int offset, int count)
         {
             messageManager.ParseBytes(buffer, offset, count);
         }
 
-        protected override void WriteMessagePrefix(ref byte[] buffer, int offset, int messageLength)
+        protected override void ConfigureMessageQueue()
         {
-            PrefixWriter.WriteInt32AsBytes(ref buffer, offset, messageLength);
+            messageQueue = new FramedMessageQueue(maxIndexedMemory);
         }
+
 
     }
 }

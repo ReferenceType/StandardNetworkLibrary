@@ -1,5 +1,5 @@
-﻿using CustomNetworkLib;
-using NetworkSystem;
+﻿using NetworkLibrary.UDP;
+using NetworkLibrary.Utils;
 using System.Diagnostics;
 using System.Net;
 

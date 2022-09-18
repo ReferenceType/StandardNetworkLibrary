@@ -1,4 +1,5 @@
-﻿using CustomNetworkLib.Utils;
+﻿using NetworkLibrary.TCP.Base;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CustomNetworkLib
+namespace NetworkLibrary.TCP.ByteMessage.Lite
 {
     internal class ByteMessageSessionLite : TcpSession
     {
@@ -17,18 +18,18 @@ namespace CustomNetworkLib
 
             public ByteMessage(List<ArraySegment<byte>> data)
             {
-               this.data = data;
-               data.Add(new ArraySegment<byte>(new byte[4]));
-               data.Add(new ArraySegment<byte>(new byte[0]));
+                this.data = data;
+                data.Add(new ArraySegment<byte>(new byte[4]));
+                data.Add(new ArraySegment<byte>(new byte[0]));
             }
         }
         ByteMessage SendMessage;
 
         SemaphoreSlim SendSemaphore;
 
-        public ByteMessageSessionLite(SocketAsyncEventArgs acceptedArg,Guid sessionId, BufferProvider bufferManager) : base(acceptedArg,sessionId, bufferManager)
+        public ByteMessageSessionLite(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager) : base(acceptedArg, sessionId, bufferManager)
         {
-            SendSemaphore=new SemaphoreSlim(1,1);
+            SendSemaphore = new SemaphoreSlim(1, 1);
         }
         protected override void ConfigureSocket()
         {
@@ -41,14 +42,14 @@ namespace CustomNetworkLib
             ClientRecieveEventArg.Completed += RecievedHeader;
 
             recieveBuffer = new byte[4];
-            ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);       
+            ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
         }
 
         protected override void InitialiseSendArgs()
         {
             ClientSendEventArg = new SocketAsyncEventArgs();
-            ClientSendEventArg.Completed += Sent;            
-            SendMessage = new ByteMessage( new List<ArraySegment<byte>>(2));
+            ClientSendEventArg.Completed += Sent;
+            SendMessage = new ByteMessage(new List<ArraySegment<byte>>(2));
         }
 
 
@@ -79,7 +80,7 @@ namespace CustomNetworkLib
             int expectedLen = BufferProvider.ReadByteFrame(e.Buffer, 0);
             recieveBuffer = new byte[expectedLen];
 
-            e.SetBuffer(recieveBuffer, 0,expectedLen);
+            e.SetBuffer(recieveBuffer, 0, expectedLen);
 
             e.Completed -= RecievedHeader;
             e.Completed += RecievedBody;
@@ -101,21 +102,21 @@ namespace CustomNetworkLib
             }
             else if (e.BytesTransferred == 0)
             {
-               EndSession();
+                EndSession();
                 return;
             }
-            else if (e.BytesTransferred < e.Count-e.Offset)
+            else if (e.BytesTransferred < e.Count - e.Offset)
             {
                 // count decreasing
                 e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
                 if (!sessionSocket.ReceiveAsync(e))
                 {
-                    Task.Run(()=>RecievedBody(null, e));
+                    Task.Run(() => RecievedBody(null, e));
                 }
                 return;
             }
-            
-           
+
+
             HandleRecieveComplete(e.Buffer, 0, e.Count);
 
             e.SetBuffer(0, 4);
@@ -140,7 +141,7 @@ namespace CustomNetworkLib
             ClientSendEventArg.BufferList = SendMessage.data;
             if (!sessionSocket.SendAsync(ClientSendEventArg))
             {
-                ThreadPool.UnsafeQueueUserWorkItem((e) => Sent(null, ClientSendEventArg), null) ;
+                ThreadPool.UnsafeQueueUserWorkItem((e) => Sent(null, ClientSendEventArg), null);
             }
         }
 
@@ -152,7 +153,7 @@ namespace CustomNetworkLib
                 return;
             }
 
-            else if (e.BytesTransferred < e.BufferList.Sum(x=>x.Count))
+            else if (e.BytesTransferred < e.BufferList.Sum(x => x.Count))
             {
                 // shouldnt happen in theory
             }

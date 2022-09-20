@@ -1,4 +1,4 @@
-# .Net Standard Network Library (WIP)
+# .Net Standard Network Library (Experimental WIP)
 
 A library intended to be a strong backbone for future developments. Aim is to achieve highest performance with reasonable memory requirements. 
 Target Framework .Net Standard 2.0+.

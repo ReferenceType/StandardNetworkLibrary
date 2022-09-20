@@ -3,7 +3,7 @@
 A library intended to be a strong backbone for future developments. Aim is to achieve highest performance with reasonable memory requirements. 
 Target Framework .Net Standard 2.0+.
 
-Not production ready everything is subject to change. So far mostly for exploration.
+Not production ready, everything is subject to change. Mostly for experimental purposes yet.
 
 So far we have:
 - Regular Tcp Sever Client send and recieves pure bytes, used as base, can be used standalone.

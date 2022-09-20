@@ -16,6 +16,7 @@ This project will be extended to implement Protobuff, HTTP.
 
 
 # Documentation
+Development is in progress, design is not finalised.
 TODO
 
 # Benchmarks

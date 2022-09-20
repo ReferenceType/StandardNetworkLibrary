@@ -1,19 +1,25 @@
-# NetworkExperiments
+# .Net Standard Network Library (WIP)
 
 A library intended to be a strong backbone for future developments. Aim is to achieve highest performance with reasonable memory requirements. 
 Target Framework .Net Standard 2.0+.
 
+Not production ready everything is subject to change. So far mostly for exploration.
+
 So far we have:
-- Regular Tcp Sever Client send and recieves pure bytes, used as base can be used standalone.
+- Regular Tcp Sever Client send and recieves pure bytes, used as base, can be used standalone.
 - Byte Message Server Client for sending and receiving atomic messages with 4 byte header.
+- Ssl Client Server model using .Net built in Ssl strream with custom buffering supproting also Byte message protocol.
+- A custom Ssl client server with custom key exchange and AES, only for experimental purposes. This will extend into secure UDP
 - Simple Udp Server-Client. There is no buffering here, every message is pure System call.
 
-This project will be extended to implement Protobuff, HTTP, SSL.
+This project will be extended to implement Protobuff, HTTP.
+
 
 # Documentation
 TODO
 
 # Benchmarks
+Benchmarks are executed in personal laptop with i7 8750H.
 ## TCP ByteMessage Server
 TCP Byte Message Server- Client are sending and receiving byte messages identified by 4 byte header.
 Benchmark is done by parallely requesting to the server by N clients with M Messages, and getting a response for each message.

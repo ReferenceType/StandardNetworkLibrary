@@ -1,23 +1,31 @@
-# .Net Standard Network Library (Experimental WIP)
+# .Net Standard Network Library (WIP)
 
-A library intended to be a strong backbone for future developments. Aim is to achieve highest performance with reasonable memory requirements. 
-Target Framework .Net Standard 2.0+.
+A library intended to be a strong backbone for future developments. Aim is to achieve highest performance with reasonable memory requirements.
+
+No locks, no extra allocations, minimum GC pressure, automatic concurrency.
+
+Supported Frameworks .Net Standard 2.0+.
 
 Not production ready, everything is subject to change. Mostly for experimental purposes yet.
 
 So far we have:
-- Regular Tcp Sever Client send and recieves pure bytes, used as base, can be used standalone.
-- Byte Message Server Client for sending and receiving atomic messages with 4 byte header.
-- Ssl Client Server model using .Net built in Ssl strream with custom buffering supproting also Byte message protocol.
-- A custom Ssl client server with custom key exchange and AES, only for experimental purposes. This will extend into secure UDP
-- Simple Udp Server-Client. There is no buffering here, every message is pure System call.
+- Regular Tcp Sever - Client send and recieves pure bytes, used as base, can be used standalone.
+- Byte Message Server - Client for sending and receiving atomic messages with 4 byte length header.
+- Ssl Client Server model using .Net built in Ssl stream supporting atomic Byte message protocol.
+- A custom Ssl client - server with custom key exchange and AES, only for experimental purposes. This may extend into secure UDP
+- Simple Udp Server-Client work in progress, to be returned here. 
 
 This project will be extended to implement Protobuff, HTTP.
 
 
 # Documentation
 Development is in progress, design is not finalised.
-TODO
+
+Helicopter view design involves:
+- SocketAsyncEventArgs based Tcp Server-Client.
+- Contigious send and receive buffers for the reduction of GC overheads due to WSA pinning.
+- A message queue system where the messages are queued if the async operation is pending.
+- Messages are dequeued and processed by the worker thread which comes from operation completion callback.
 
 # Sample Code
 ```c#
@@ -52,7 +60,7 @@ Hello I'm a client! this message will reach you atomically
 Hello I'm the server I got your message
 ```
 # Benchmarks
-Benchmarks are executed in personal laptop with i7 8750H.
+Benchmarks are executed in personal laptop with i7 8750H. This section will be updated.
 ## TCP ByteMessage Server
 TCP Byte Message Server- Client are sending and receiving byte messages identified by 4 byte header.
 Benchmark is done by parallely requesting to the server by N clients with M Messages, and getting a response for each message.

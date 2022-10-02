@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.TCP.ByteMessage;
+﻿using NetworkLibrary.TCP.Base;
+using NetworkLibrary.TCP.ByteMessage;
 using System;
 using System.Collections.Generic;
 using System.Net.Security;
@@ -11,19 +12,19 @@ namespace NetworkLibrary.TCP.SSL.Custom
     public class CustomSslClient : ByteMessageTcpClient
     {
         private X509Certificate2 certificate;
-        public CustomSslClient(string certificatePath)
+        public CustomSslClient(X509Certificate2 certificate)
         {
-            certificate = new X509Certificate2(certificatePath, "greenpass");
+            this.certificate = certificate;
         }
 
-        protected override void CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
             var session = new CustomSslSession(e, sessionId, bufferManager, (byte[])e.UserToken);
             session.socketSendBufferSize = SocketSendBufferSize;
             session.socketRecieveBufferSize = SocketRecieveBufferSize;
             session.maxIndexedMemory = MaxIndexedMemory;
             session.dropOnCongestion = DropOnCongestion;
-            base.session = session;
+            return session;
         }
 
         

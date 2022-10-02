@@ -34,6 +34,8 @@ namespace ConsoleTest
             int totMsgServer = 0;
             int lastTimeStamp = 1;
             int clientAmount = 100;
+            const int numMsg = 1000000;
+
 
             ByteMessageTcpServer server = new ByteMessageTcpServer(2008, clientAmount*2);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
@@ -50,7 +52,7 @@ namespace ConsoleTest
             server.ClientSendBufsize = 128000;
             server.ClientReceiveBufsize = 128000;
             server.DropOnBackPressure = false;
-            server.OnBytesRecieved += OnServerReceviedMessage;
+            server.OnBytesReceived += OnServerReceviedMessage;
             server.StartServer();
 
             Task[] toWait = new Task[clientAmount];
@@ -61,20 +63,20 @@ namespace ConsoleTest
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
 
                 client.DropOnCongestion = false;
-                client.OnBytesRecieved += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
+                client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
                 toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
                 clients.Add(client);
             }
 
             Task.WaitAll(toWait);
+
             // -----------------------  Bechmark ---------------------------
             Console.WriteLine("Press any key to start");
             Console.Read();
             sw2.Start();
 
             // We parallely send the messages here
-            const int numMsg = 500000;
             Parallel.ForEach(clients, client =>
             {
                 for (int i = 0; i < numMsg; i++)

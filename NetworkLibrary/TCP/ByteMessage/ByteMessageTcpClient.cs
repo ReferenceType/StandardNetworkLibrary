@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.TCP.Base;
+using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -15,14 +16,16 @@ namespace NetworkLibrary.TCP.ByteMessage
         public ByteMessageTcpClient()
         { }
 
-        protected override void CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
             var session = new ByteMessageSession(e, sessionId, bufferManager);
             session.socketSendBufferSize = SocketSendBufferSize;
             session.socketRecieveBufferSize = SocketRecieveBufferSize;
             session.maxIndexedMemory = MaxIndexedMemory;
             session.dropOnCongestion = DropOnCongestion;
-            base.session = session;
+            session.OnSessionClosed += (id) => OnDisconnected?.Invoke();
+
+            return session;
 
         }
 

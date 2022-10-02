@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace NetworkLibrary.Utils
 {
     public class PrefixWriter
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public static void WriteInt32AsBytes(ref byte[] buffer, int offset, int value)
         {
             buffer[0 + offset] = (byte)value;

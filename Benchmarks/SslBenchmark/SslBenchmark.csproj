@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <Reference Include="NetworkLibrary">
-      <HintPath>..\..\NetworkLibrary\bin\Debug\netstandard2.0\NetworkLibrary.dll</HintPath>
+      <HintPath>..\..\NetworkLibrary\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
     </Reference>
   </ItemGroup>
 

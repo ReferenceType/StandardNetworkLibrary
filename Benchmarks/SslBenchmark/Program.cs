@@ -36,26 +36,27 @@ namespace SslBenchmark
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            SSlByteMessageServer server = new SSlByteMessageServer(2008, clientAmount * 2, scert);
-            List<SsLByteMessageClient> clients = new List<SsLByteMessageClient>();
+            SslByteMessageServer server = new SslByteMessageServer(2008, clientAmount * 2, scert);
+            List<SslByteMessageClient> clients = new List<SslByteMessageClient>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-            var message = new byte[32];
-            var response = new byte[32];
+            var message = new byte[3200];
+            var response = new byte[3200];
 
-            server.MaxMemoryPerClient = 1280000000;
-            server.DropOnCongestion = false;
+            server.MaxIndexedMemoryPerClient = 1280000000;
+            server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
             server.StartServer();
 
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
             {
-                var client = new SsLByteMessageClient(ccert);
+                var client = new SslByteMessageClient(ccert);
+                client.BufferProvider = server.BufferProvider;
                 client.OnBytesReceived += (buffer, offset, count) => OnClientReceivedMessage(client, buffer, offset, count);
-                client.MaxIndexedMemory = 1280000000;
+                client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.Connect("127.0.0.1", 2008);
                 clients.Add(client);
             }
@@ -65,7 +66,7 @@ namespace SslBenchmark
             Console.Read();
             sw2.Start();
 
-            const int numMsg = 100000;
+            const int numMsg = 10000;
             Parallel.ForEach(clients, client =>
             {
                 for (int i = 0; i < numMsg; i++)
@@ -111,7 +112,7 @@ namespace SslBenchmark
                 Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
             }
 
-            void OnClientReceivedMessage(SsLByteMessageClient client, byte[] arg2, int offset, int count)
+            void OnClientReceivedMessage(SslByteMessageClient client, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgClient);
                 

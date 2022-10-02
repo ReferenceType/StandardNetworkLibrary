@@ -15,6 +15,8 @@ namespace NetworkLibrary.UDP
         public delegate void BytesRecieved(byte[] bytes, int offset, int count);
 
         public BytesRecieved OnBytesRecieved;
+
+        public Action OnError;
         public Action OnConnected;
         private Socket clientSocket;
         public bool Connected { get; private set; } = false;
@@ -67,7 +69,16 @@ namespace NetworkLibrary.UDP
         }
         private void EndRecieve(IAsyncResult ar)
         {
-            int amount = clientSocket.EndReceive(ar);
+            int amount = 0;
+            try
+            {
+                 amount = clientSocket.EndReceive(ar);
+            }
+            catch (SocketException)
+            {
+                OnError?.Invoke();
+                return;
+            };
             HandleBytesReceived(recieveBuffer, 0, amount);
 
             if (ar.CompletedSynchronously)
@@ -77,7 +88,16 @@ namespace NetworkLibrary.UDP
         }
         private void EndRecieveFrom(IAsyncResult ar)
         {
-            int amount = clientSocket.EndReceiveFrom(ar, ref remoteEndPoint);
+            int amount = 0;
+            try
+            {
+                amount = clientSocket.EndReceiveFrom(ar,ref remoteEndPoint);
+            }
+            catch (SocketException) 
+            {
+                OnError?.Invoke();
+                return; 
+            };
             HandleBytesReceived(recieveBuffer, 0, amount);
 
             if (ar.CompletedSynchronously)
@@ -95,12 +115,16 @@ namespace NetworkLibrary.UDP
 
         public void SendAsync(byte[] bytes)
         {
+            SendAsyncInternal(bytes);
+        }
+
+        protected virtual void SendAsyncInternal(byte[] bytes)
+        {
             if (clientSocket.Connected)
                 clientSocket.BeginSend(bytes, 0, bytes.Length, SocketFlags.None, EndSend, null);
             else
                 clientSocket.BeginSendTo(bytes, 0, bytes.Length, SocketFlags.None, remoteEndPoint, EndSendTo, null);
         }
-
         private void EndSend(IAsyncResult ar)
         {
             clientSocket.EndSend(ar);
@@ -111,6 +135,8 @@ namespace NetworkLibrary.UDP
             clientSocket.EndSendTo(ar);
         }
 
+
+
         public void JoinMulticastGroup(IPAddress multicastAddr)
         {
             MulticastOption mcOpt = new MulticastOption(multicastAddr, ((IPEndPoint)clientSocket.LocalEndPoint).Address);
@@ -119,6 +145,8 @@ namespace NetworkLibrary.UDP
                 SocketOptionName.AddMembership,
                 mcOpt);
         }
+
+        
 
     }
 }

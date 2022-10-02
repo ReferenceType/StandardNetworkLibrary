@@ -4,11 +4,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-
+/// <summary>
+/// This class provides contigious send and receive buffer, this was to optimise GC because the send and receive buffers are pinned
+/// by the WSA calls.
+/// </summary>
 public class BufferProvider
 {
     private  byte[][] sendBuffers ;
@@ -25,9 +29,9 @@ public class BufferProvider
         InitContigiousSendBuffers(numSendBuffers, sendBufSizes);
     }
 
-    public static int ReadByteFrame(byte[] buffer, int offset)
+    public bool IsExhausted()
     {
-        return BitConverter.ToInt32(buffer, offset);
+        return availableIndexesRB.Count < 1 && availableIndexesSB.Count < 1;
     }
 
 
@@ -37,7 +41,9 @@ public class BufferProvider
         availableIndexesSB= new ConcurrentBag<int>();
         for (int i = 0; i < numBuffers; i++)
         {
-            sendBuffers[i]= new byte[bufferSize];
+            var bufer = new byte[bufferSize];
+
+            sendBuffers[i]= bufer;
             availableIndexesSB.Add(i);
         }
     }
@@ -48,7 +54,9 @@ public class BufferProvider
         availableIndexesRB = new ConcurrentBag<int>();
         for (int i = 0; i < numBuffers; i++)
         {
-            receiveBuffers[i] = new byte[bufferSize];
+            var bufer = new byte[bufferSize];
+
+            receiveBuffers[i] = bufer;
             availableIndexesRB.Add(i);
         }
     }

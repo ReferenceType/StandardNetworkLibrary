@@ -1,4 +1,4 @@
-﻿using NetworkLibrary.TCP.Base.Interface;
+﻿using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
@@ -13,12 +13,12 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public class AsyncTpcClient
+    public class AsyncTpcClient : TcpClientBase
     {
-        public Action<byte[], int, int> OnBytesRecieved;
-        public Action OnConnected;
-        public Action OnConnectFailed;
-        public Action OnDisconnected;
+        #region Fields & Props
+
+        public BytesRecieved OnBytesReceived;
+       
 
         private BufferProvider bufferManager;
         public BufferProvider BufferManager
@@ -36,37 +36,31 @@ namespace NetworkLibrary.TCP.Base
         private TaskCompletionSource<bool> connectedCompletionSource;
 
         protected bool connected = false;
-        protected IAsyncSession session;
-        public bool IsConnecting { get; private set; }
-        public bool IsConnected { get; private set; }
+        internal IAsyncSession session;
 
-        // Config
-        public int SocketSendBufferSize = 128000;
-        public int SocketRecieveBufferSize = 128000;
-        public int MaxIndexedMemory = 128000;
-        public bool DropOnCongestion = false;
+        #endregion Fields & Props
+        public AsyncTpcClient() {}
 
-        public AsyncTpcClient()
+        #region Connect
+
+        public override void Connect(string IP, int port)
         {
-
+            ConnectAsyncAwaitable(IP, port).Wait();
         }
 
-        public async Task<bool> ConnectAsyncAwaitable(string IP, int port)
+        public override async Task<bool> ConnectAsyncAwaitable(string IP, int port)
         {
             connectedCompletionSource = new TaskCompletionSource<bool>();
             ConnectAsync(IP, port);
             return await connectedCompletionSource.Task;
         }
 
-        public void ConnectAsync(string IP, int port)
+        public override void ConnectAsync(string IP, int port)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Client Connecting.. ");
             IsConnecting = true;
 
             clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-
-            clientSocket.ReceiveBufferSize = SocketRecieveBufferSize;
-            clientSocket.SendBufferSize = SocketSendBufferSize;
 
             var clientSocketRecieveArgs = new SocketAsyncEventArgs();
             clientSocketRecieveArgs.RemoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
@@ -77,13 +71,15 @@ namespace NetworkLibrary.TCP.Base
                 Connected(null, clientSocketRecieveArgs);
             }
         }
+        #endregion Connect
 
+        #region Connected
         private void Connected(object sender, SocketAsyncEventArgs e)
         {
             if (e.SocketError != SocketError.Success)
             {
                 HandleError(e, "While Connecting an Error Eccured: ");
-                OnConnectFailed?.Invoke();
+                OnConnectFailed?.Invoke(e.ConnectByNameError);
                 connectedCompletionSource?.SetException(new SocketException((int)e.SocketError));
             }
             else
@@ -93,19 +89,57 @@ namespace NetworkLibrary.TCP.Base
 
                 HandleConnected(e);
                 connectedCompletionSource?.SetResult(true);
-
             }
         }
 
-        public virtual void SendAsync(byte[] buffer)
+        protected virtual void HandleConnected(SocketAsyncEventArgs e)
+        {
+            if (bufferManager == null)
+            {
+                bufferManager = new BufferProvider(1, SocketSendBufferSize, 1, SocketRecieveBufferSize);
+            }
+            
+            session = CreateSession(e, Guid.NewGuid(), bufferManager);
+
+            session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
+            session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
+
+            session.StartSession();
+            OnConnected?.Invoke();
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "Client Connected.");
+
+            IsConnected = true;
+        }
+        #endregion Connected
+
+        #region Create Session Dependency
+
+        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        {
+            var ses = new TcpSession(e, sessionId, bufferManager);
+            ses.socketSendBufferSize = SocketSendBufferSize;
+            ses.socketRecieveBufferSize = SocketRecieveBufferSize;
+            ses.maxIndexedMemory = MaxIndexedMemory;
+            ses.dropOnCongestion = DropOnCongestion;
+            ses.OnSessionClosed+=(id)=>OnDisconnected?.Invoke();
+            return ses;
+        }
+
+        #endregion
+
+        #region Send & Receive
+        public override void SendAsync(byte[] buffer)
         {
             if (connected)
                 session?.SendAsync(buffer);
         }
-        public void Disconnect()
+
+        protected virtual void HandleBytesRecieved(byte[] bytes, int offset, int count)
         {
-            session.EndSession();
+            OnBytesReceived?.Invoke(bytes, offset, count);
         }
+
+        #endregion Send & Receive
 
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
@@ -120,44 +154,12 @@ namespace NetworkLibrary.TCP.Base
 
         }
 
-        private void ClientDisconnected(object sender, SocketAsyncEventArgs e)
+        public override void Disconnect()
         {
-            e.AcceptSocket.Close();
-            e.AcceptSocket.Dispose();
-            e.Dispose();
+            // session will fire OnDisconnected;
+            session.EndSession();
             IsConnected = false;
-        }
-
-        protected virtual void HandleConnected(SocketAsyncEventArgs e)
-        {
-            if (bufferManager == null)
-            {
-                bufferManager = new BufferProvider(1, SocketSendBufferSize, 1, SocketRecieveBufferSize);
-            }
-
-            CreateSession(e, Guid.NewGuid(), bufferManager);
-            session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
-            session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
-
-            session.StartSession();
-            OnConnected?.Invoke();
-            MiniLogger.Log(MiniLogger.LogLevel.Info, "Client Connected.");
-
-            IsConnected = true;
-        }
-        protected virtual void CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
-        {
-            var ses = new TcpSession(e, sessionId, bufferManager);
-            ses.socketSendBufferSize = SocketSendBufferSize;
-            ses.socketRecieveBufferSize = SocketRecieveBufferSize;
-            ses.maxIndexedMemory = MaxIndexedMemory;
-            ses.dropOnCongestion = DropOnCongestion;
-            session = ses;
-        }
-
-        protected virtual void HandleBytesRecieved(byte[] bytes, int offset, int count)
-        {
-            OnBytesRecieved?.Invoke(bytes, offset, count);
+            
         }
 
     }

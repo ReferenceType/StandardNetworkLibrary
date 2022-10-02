@@ -77,7 +77,7 @@ namespace NetworkLibrary.TCP.ByteMessage.Lite
                 return;
             }
 
-            int expectedLen = BufferProvider.ReadByteFrame(e.Buffer, 0);
+            int expectedLen = BitConverter.ToInt32(e.Buffer, 0);
             recieveBuffer = new byte[expectedLen];
 
             e.SetBuffer(recieveBuffer, 0, expectedLen);

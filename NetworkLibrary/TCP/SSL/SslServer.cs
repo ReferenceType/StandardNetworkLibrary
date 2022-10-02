@@ -17,6 +17,8 @@ namespace NetworkLibrary.TCP.SSL.Base
     {
         public BytesRecieved OnBytesReceived;
         public ClientAccepted OnClientAccepted;
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
+
         // this returns bool
         public ClientConnectionRequest OnClientRequestedConnection;
 
@@ -34,6 +36,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             this.certificate = certificate;
             BufferProvider = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
             OnClientRequestedConnection = (socket) => true;
+            RemoteCertificateValidationCallback += DefaultValidationCallback;
         }
 
         public override void StartServer()
@@ -80,7 +83,12 @@ namespace NetworkLibrary.TCP.SSL.Base
         }
         private bool ValidateCeriticate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors)
+            return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
+           
+        }
+        private bool DefaultValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
             return false;
         }

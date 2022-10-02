@@ -34,6 +34,8 @@ namespace ConsoleTest
             int lastTimeStamp = 1;
             int clientAmount = 100;
             const int numMsg = 10000;
+            var message = new byte[3200];
+            var response = new byte[3200];
 
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
@@ -45,11 +47,7 @@ namespace ConsoleTest
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-            var message = new byte[3200];
-            var response = new byte[3200];
-
             server.MaxIndexedMemoryPerClient = 1280000000;
-
             server.ClientSendBufsize = 128000;
             server.ClientReceiveBufsize = 128000;
             server.DropOnBackPressure = false;

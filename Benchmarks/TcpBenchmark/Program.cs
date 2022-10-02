@@ -35,6 +35,8 @@ namespace ConsoleTest
             int lastTimeStamp = 1;
             int clientAmount = 100;
             const int numMsg = 1000000;
+            var message = new byte[32];
+            var response = new byte[32];
 
 
             ByteMessageTcpServer server = new ByteMessageTcpServer(2008, clientAmount*2);
@@ -42,11 +44,6 @@ namespace ConsoleTest
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
-
-           
-
-            var message = new byte[32];
-            var response = new byte[32];
 
             server.MaxIndexedMemoryPerClient = 1280000000;
             server.ClientSendBufsize = 128000;
@@ -87,7 +84,7 @@ namespace ConsoleTest
                 
             });
 
-            // final msg to get the tıme elapsed.
+            // final msg to get the time elapsed.
             foreach (var cl in clients)
             {
                 cl.SendAsync(new byte[502]);

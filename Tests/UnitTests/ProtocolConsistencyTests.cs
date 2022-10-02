@@ -12,6 +12,7 @@ using NetworkLibrary.Utils;
 using System.Security.Cryptography.X509Certificates;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.TCP.SSL.Custom;
+using System.Net.Security;
 
 namespace UnitTests
 {
@@ -449,13 +450,14 @@ namespace UnitTests
             server.MaxIndexedMemoryPerClient = 128000000;
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
-
+            server.RemoteCertificateValidationCallback += ValidateCertAsServer;
             server.StartServer();
 
             Task[] toWait = new Task[clAmount];
             for (int i = 0; i < clAmount; i++)
             {
                 var client = new SslByteMessageClient(ccert);
+                client.RemoteCertificateValidationCallback += ValidateCertAsClient;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion = false;
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
@@ -467,7 +469,14 @@ namespace UnitTests
                 clients.TryAdd(client, -1);
             }
 
-            //Task.WaitAll(toWait);
+            bool ValidateCertAsClient(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
+            bool ValidateCertAsServer(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
 
             Thread.Sleep(1000);
             sw2.Start();
@@ -537,6 +546,7 @@ namespace UnitTests
         // Send messages between 505-1000000 bytes and validate their order.
         public void SSlRandomSizeConsistencyTest()
         {
+
             const int numMsg = 1000;
             int clAmount = 10;
             int completionCount = clAmount;
@@ -558,13 +568,14 @@ namespace UnitTests
             server.MaxIndexedMemoryPerClient = 128000000;
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
-
+            server.RemoteCertificateValidationCallback += ValidateCertAsServer;
             server.StartServer();
 
             Task[] toWait = new Task[clAmount];
             for (int i = 0; i < clAmount; i++)
             {
                 var client = new SslByteMessageClient(ccert);
+                client.RemoteCertificateValidationCallback += ValidateCertAsClient;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion = false;
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
@@ -575,6 +586,15 @@ namespace UnitTests
                 clients.TryAdd(client, -1);
             }
 
+
+            bool ValidateCertAsClient(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
+            bool ValidateCertAsServer(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
             Task.WaitAll(toWait);
 
             // Messages starts here

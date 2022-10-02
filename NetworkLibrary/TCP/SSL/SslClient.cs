@@ -15,7 +15,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         #region Fields & Props
 
         public BytesRecieved OnBytesReceived;
-        public RemoteCertificateValidationCallback remoteCertificateValidationCallback;
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
         protected Socket clientSocket;
         protected SslStream sslStream;
@@ -38,7 +38,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         public SslClient(X509Certificate2 certificate)
         {
             this.certificate = certificate;
-            remoteCertificateValidationCallback += DefaultValidationCallbackHandler;
+            RemoteCertificateValidationCallback += DefaultValidationCallbackHandler;
         }
 
         private Socket GetSocket()
@@ -123,14 +123,14 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         protected virtual bool ValidateCeriticate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-           return remoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
+           return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
            
         }
 
         private bool DefaultValidationCallbackHandler(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            return true;
-            if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors)
+            //return true;
+            if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
             return false;
         }

@@ -31,7 +31,7 @@ TODO
             client.OnBytesReceived += ClientBytesReceived;
             client.Connect("127.0.0.1", 20008);
 
-            client.SendAsync(ASCIIEncoding.ASCII.GetBytes("hello im a client"));
+            client.SendAsync(ASCIIEncoding.ASCII.GetBytes("Hello I'm a client! this message will reach you atomically"));
             Console.ReadLine();
 
             void ClientBytesReceived(byte[] bytes, int offset, int count)
@@ -42,14 +42,14 @@ TODO
             void ServerBytesReceived(Guid guid, byte[] bytes, int offset, int count)
             {
                 Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
-                server.SendBytesToClient(guid, ASCIIEncoding.ASCII.GetBytes("hello im the server"));
+                server.SendBytesToClient(guid, ASCIIEncoding.ASCII.GetBytes("Hello I'm the server I got your message"));
             }
         }
  ```
 ```Console
 output:
-hello im a client
-hello im the server
+Hello I'm a client! this message will reach you atomically
+Hello I'm the server I got your message
 ```
 # Benchmarks
 Benchmarks are executed in personal laptop with i7 8750H.

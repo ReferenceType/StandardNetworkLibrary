@@ -48,10 +48,10 @@ Helicopter view design involves:
                 Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
             }
 
-            void ServerBytesReceived(Guid guid, byte[] bytes, int offset, int count)
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
             {
                 Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
-                server.SendBytesToClient(guid, ASCIIEncoding.ASCII.GetBytes("Hello I'm the server I got your message"));
+                server.SendBytesToClient(clientId, ASCIIEncoding.ASCII.GetBytes("Hello I'm the server I got your message"));
             }
         }
  ```

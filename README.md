@@ -19,6 +19,38 @@ This project will be extended to implement Protobuff, HTTP.
 Development is in progress, design is not finalised.
 TODO
 
+# Sample Code
+```c#
+        static void Main(string[] args)
+        {
+            ByteMessageTcpServer server = new ByteMessageTcpServer(20008, maxClients:100);
+            server.OnBytesReceived += ServerBytesReceived;
+            server.StartServer();
+
+            ByteMessageTcpClient client = new ByteMessageTcpClient();
+            client.OnBytesReceived += ClientBytesReceived;
+            client.Connect("127.0.0.1", 20008);
+
+            client.SendAsync(ASCIIEncoding.ASCII.GetBytes("hello im a client"));
+            Console.ReadLine();
+
+            void ClientBytesReceived(byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
+            }
+
+            void ServerBytesReceived(Guid guid, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
+                server.SendBytesToClient(guid, ASCIIEncoding.ASCII.GetBytes("hello im the server"));
+            }
+        }
+ ```
+```Console
+output:
+hello im a client
+hello im the server
+```
 # Benchmarks
 Benchmarks are executed in personal laptop with i7 8750H.
 ## TCP ByteMessage Server

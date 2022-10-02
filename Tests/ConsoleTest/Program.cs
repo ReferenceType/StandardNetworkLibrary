@@ -44,14 +44,39 @@ namespace ConsoleTest
         {
             //AesTest();
             //SSlTest2();
-            SSlTest();
-            //TcpTest();
+            //SSlTest();
+            TcpTest();
             
             //UdpTest();
+            //UdpTest2();
             //UdpTestMc();
 
            
             
+        }
+
+        private static void UdpTest2()
+        {
+            AsyncUdpClient cl = new AsyncUdpClient(2008);
+            cl.OnBytesRecieved += ClientBytesRecieved;
+            //cl.Connect("127.0.0.1", 2009);
+            cl.SetRemoteEnd("127.0.0.1", 2009);
+            cl.SocketSendBufferSize = 64000;
+            cl.ReceiveBufferSize = 64000;
+
+            AsyncUdpClient cl2 = new AsyncUdpClient(2009);
+            cl2.OnBytesRecieved += ClientBytesRecieved;
+            //cl2.Connect("127.0.0.1", 2008);
+            cl2.SetRemoteEnd("127.0.0.1", 2008);
+           
+            cl2.SocketSendBufferSize = 64000;
+            cl2.ReceiveBufferSize = 64000;
+
+            cl.SendAsync(new byte[32]);
+            cl2.SendAsync(new byte[32]);
+
+            Console.ReadLine();
+
         }
 
         private static void SSlTest2()
@@ -61,13 +86,14 @@ namespace ConsoleTest
             int totMsgServer = 0;
             byte[] req = new byte[32];
             byte[] resp = new byte[32];
-
-            CustomSslServer server = new CustomSslServer(2008, "server.pfx");
-            server.OnBytesRecieved += ServerReceived;
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+            CustomSslServer server = new CustomSslServer(2008, scert);
+            server.OnBytesReceived += ServerReceived;
             server.StartServer();
 
-            CustomSslClient client = new CustomSslClient("client.pfx");
-            client.OnBytesRecieved += ClientReceived;
+            CustomSslClient client = new CustomSslClient(cert);
+            client.OnBytesReceived += ClientReceived;
             client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
             sw.Start();
             for (int i = 0; i < 1000000; i++)
@@ -120,12 +146,12 @@ namespace ConsoleTest
             byte[] resp = new byte[32];
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
-            SSlByteMessageServer server = new SSlByteMessageServer(2008, 2, scert);
+            var server = new SslByteMessageServer(2008, 2, scert);
             server.OnBytesReceived += ServerReceived;
             server.StartServer();
 
             var cert = new X509Certificate2("client.pfx", "greenpass");
-            SsLByteMessageClient client = new SsLByteMessageClient(cert);
+            SslByteMessageClient client = new SslByteMessageClient(cert);
 
             client.OnBytesReceived += ClientReceived;
             client.Connect("127.0.0.1", 2008);
@@ -309,18 +335,18 @@ namespace ConsoleTest
                 //{
                 //    await Task.Delay(10000); Console.WriteLine("-------------------                            --------------"); client.Disconnect();
                 //};
-                client.OnBytesRecieved += (byte[] arg2, int offset, int count) => clientMsgRec2(client, arg2, offset, count);
+                client.OnBytesReceived += (byte[] arg2, int offset, int count) => clientMsgRec2(client, arg2, offset, count);
 
                 client.ConnectAsync("127.0.0.1", 2008);
-                Console.WriteLine(server.Sessions.Count);
+                Console.WriteLine(server.SessionCount);
 
                 clients.Add(client);
             }
             //client.SendAsync(new byte[123]);
 
-            server.OnBytesRecieved += SWOnMsgRecieved;
+            server.OnBytesReceived += SWOnMsgRecieved;
             Console.ReadLine();
-            Console.WriteLine(server.Sessions.Count);           
+            Console.WriteLine(server.SessionCount);           
             Console.ReadLine();
             Console.ReadLine();
             var msg = new byte[32];
@@ -395,7 +421,7 @@ namespace ConsoleTest
                 Console.WriteLine("Total on clients: "+totMsgCl);
                 Console.WriteLine("2-- " + sw2.ElapsedMilliseconds);
                 Console.WriteLine("last was sw "+lastSW);
-                Console.WriteLine("sw ses count "+server.Sessions.Count);
+                Console.WriteLine("sw ses count "+server.SessionCount);
                 
                 Console.ReadLine();
                 if (i == 2)

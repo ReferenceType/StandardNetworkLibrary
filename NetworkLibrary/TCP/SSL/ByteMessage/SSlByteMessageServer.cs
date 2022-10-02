@@ -1,4 +1,4 @@
-﻿using NetworkLibrary.TCP.Base.Interface;
+﻿using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Generic;
@@ -8,16 +8,16 @@ using System.Text;
 
 namespace NetworkLibrary.TCP.SSL.ByteMessage
 {
-    public class SSlByteMessageServer : SslServer
+    public class SslByteMessageServer : SslServer
     {
-        public SSlByteMessageServer(int port, int maxClients, X509Certificate2 certificate) : base(port, maxClients, certificate)
+        public SslByteMessageServer(int port, int maxClients, X509Certificate2 certificate) : base(port, maxClients, certificate)
         {
         }
 
-        protected override IAsyncSession CreateSession(Guid guid, SslStream sslStream)
+        internal override IAsyncSession CreateSession(Guid guid, SslStream sslStream, BufferProvider bufferProvider)
         {
-            var ses =  new SSLByteMessageSession(guid, sslStream);
-            ses.MaxIndexedMemory = MaxMemoryPerClient;
+            var ses =  new SslByteMessageSession(guid, sslStream, bufferProvider);
+            ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             return ses;
         }
     }

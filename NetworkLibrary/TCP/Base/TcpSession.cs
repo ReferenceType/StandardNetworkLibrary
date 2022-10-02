@@ -1,5 +1,5 @@
-﻿using NetworkLibrary.Components.MessageQueue;
-using NetworkLibrary.TCP.Base.Interface;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
@@ -12,9 +12,10 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    internal class TcpSession : IAsyncSession
+    internal class TcpSession : IAsyncSession 
     {
-        protected IMessageQueue messageQueue;
+        #region Fields & Props
+        protected IMessageProcessQueue messageBuffer = null;
         // this ill be on SAEA objects and provided by buffer provider.
         protected byte[] sendBuffer;
         protected byte[] recieveBuffer;
@@ -49,12 +50,25 @@ namespace NetworkLibrary.TCP.Base
         private int disconnectStatus;
         protected readonly object exitLock = new object();
         CancellationTokenSource semaphoreCancellation = new CancellationTokenSource();
+        Spinlock spinlock = new Spinlock();
+
+        #endregion
 
         public TcpSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager)
         {
             SessionId = sessionId;
             sessionSocket = acceptedArg.AcceptSocket;
             this.bufferManager = bufferManager;
+        }
+
+        #region Initialisation
+        public virtual void StartSession()
+        {
+            ConfigureSocket();
+            InitialiseSendArgs();
+            InitialiseReceiveArgs();
+            messageBuffer = CreateMessageBuffer();
+            Receive();
         }
 
         protected virtual void ConfigureSocket()
@@ -83,19 +97,13 @@ namespace NetworkLibrary.TCP.Base
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
         }
 
-        protected virtual void ConfigureMessageQueue()
+        protected virtual IMessageProcessQueue CreateMessageBuffer()
         {
-            messageQueue = new MessageQueue(maxIndexedMemory);
+            return new MessageQueue<PlainMessageWriter>(maxIndexedMemory,new PlainMessageWriter());
         }
 
-        public virtual void StartSession()
-        {
-            ConfigureSocket();
-            InitialiseSendArgs();
-            InitialiseReceiveArgs();
-            ConfigureMessageQueue();
-            Receive();
-        }
+        #endregion Initialisation
+
         #region Recieve 
         protected virtual void Receive()
         {
@@ -164,14 +172,23 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void SendOrEnqueue(byte[] bytes)
         {
-            lock (exitLock)
+            //lock (exitLock)
+            //{
+            try
             {
-                if (SendOperationSemaphore.CurrentCount < 1 && messageQueue.TryEnqueueMessage(bytes))
+                spinlock.Take();
+                if (SendOperationSemaphore.CurrentCount < 1 && messageBuffer.TryEnqueueMessage(bytes))
                 {
                     return;
                 }
             }
+            finally
+            {
+                spinlock.Release();
 
+            }
+
+            // }
             if (dropOnCongestion && SendOperationSemaphore.CurrentCount < 1)
                 return;
 
@@ -182,14 +199,15 @@ namespace NetworkLibrary.TCP.Base
             catch (Exception) { return; };
 
             SendBytesAsync(bytes, 0, bytes.Length);
+
             return;
 
         }
 
         private void SendBytesAsync(byte[] bytes, int offset, int count)
         {
-            messageQueue.TryEnqueueMessage(bytes);
-            if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
+            messageBuffer.TryEnqueueMessage(bytes);
+            if (messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
                 FlushSendBuffer(0, amountWritten);
 
         }
@@ -197,7 +215,7 @@ namespace NetworkLibrary.TCP.Base
         {
             try
             {
-                Interlocked.CompareExchange(ref sendInProgress, 1, 0);
+                Interlocked.Exchange(ref sendInProgress, 1);
                 ClientSendEventArg.SetBuffer(sendBuffer, offset, count);
                 if (!sessionSocket.SendAsync(ClientSendEventArg))
                 {
@@ -234,7 +252,7 @@ namespace NetworkLibrary.TCP.Base
 
             //int count = 0;
 
-            if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
+            if (messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
             {
                 FlushSendBuffer(0, amountWritten);
             }
@@ -244,20 +262,31 @@ namespace NetworkLibrary.TCP.Base
                 // here it means queue was empty and there was nothing to flush.
                 // but this check is clearly not atomic, if during the couple cycles in between something is enqueued, 
                 // i have to flush that part ,or it will stuck at queue since consumer is exiting.
-                lock (exitLock)
+                //lock (exitLock)
+                //{
+                try
                 {
-                    if (!messageQueue.IsEmpty())
+                    spinlock.Take();
+                    if (!messageBuffer.IsEmpty())
                     {
                         flushAgain = true;
                     }
                     else
                     {
                         SendOperationSemaphore.Release();
-                        Interlocked.CompareExchange(ref sendInProgress, 0, 1);
+                        Interlocked.Exchange(ref sendInProgress, 0);
+
                         return;
                     }
                 }
-                if (flushAgain && messageQueue.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
+                finally
+                {
+                    spinlock.Release();
+
+                }
+
+                // }
+                if (flushAgain && messageBuffer.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
                 {
                     FlushSendBuffer(0, amountWritten);
                 }
@@ -358,6 +387,7 @@ namespace NetworkLibrary.TCP.Base
             {
                 return;
             }
+
             sessionSocket.Close();
             ClientSendEventArg.Dispose();
             ClientRecieveEventArg.Dispose();

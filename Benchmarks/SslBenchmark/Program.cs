@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using System.Security.Cryptography.X509Certificates;
+using System.Net.Security;
 
 namespace SslBenchmark
 {
@@ -32,40 +33,52 @@ namespace SslBenchmark
             int totMsgServer = 0;
             int lastTimeStamp = 1;
             int clientAmount = 100;
+            const int numMsg = 10000;
+            var message = new byte[3200];
+            var response = new byte[3200];
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            SSlByteMessageServer server = new SSlByteMessageServer(2008, clientAmount * 2, scert);
-            List<SsLByteMessageClient> clients = new List<SsLByteMessageClient>();
+            SslByteMessageServer server = new SslByteMessageServer(2008, clientAmount * 2, scert);
+            List<SslByteMessageClient> clients = new List<SslByteMessageClient>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-            var message = new byte[32];
-            var response = new byte[32];
+            
 
-            server.MaxMemoryPerClient = 1280000000;
-            server.DropOnCongestion = false;
+            server.MaxIndexedMemoryPerClient = 1280000000;
+            server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
+            server.RemoteCertificateValidationCallback += ValidateCertAsServer;
             server.StartServer();
 
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
             {
-                var client = new SsLByteMessageClient(ccert);
+                var client = new SslByteMessageClient(ccert);
+                client.RemoteCertificateValidationCallback += ValidateCertAsClient;
+                client.BufferProvider = server.BufferProvider;
                 client.OnBytesReceived += (buffer, offset, count) => OnClientReceivedMessage(client, buffer, offset, count);
-                client.MaxIndexedMemory = 1280000000;
+                client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.Connect("127.0.0.1", 2008);
                 clients.Add(client);
             }
 
+            bool ValidateCertAsClient(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
+            bool ValidateCertAsServer(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
             // -----------------------  Bechmark ---------------------------
             Console.WriteLine("Press enter to start");
-            Console.Read();
+            Console.ReadLine();
             sw2.Start();
 
-            const int numMsg = 100000;
             Parallel.ForEach(clients, client =>
             {
                 for (int i = 0; i < numMsg; i++)
@@ -82,7 +95,7 @@ namespace SslBenchmark
                 cl.SendAsync(new byte[502]);
             }
 
-            
+            // -----------------  End of stress test ---------------------
             Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
                 "ms. Press enter to see status");
             Console.ReadLine();
@@ -111,7 +124,7 @@ namespace SslBenchmark
                 Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
             }
 
-            void OnClientReceivedMessage(SsLByteMessageClient client, byte[] arg2, int offset, int count)
+            void OnClientReceivedMessage(SslByteMessageClient client, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgClient);
                 
@@ -145,9 +158,7 @@ namespace SslBenchmark
 
         }
 
-
-
-
+       
     }
 }
 

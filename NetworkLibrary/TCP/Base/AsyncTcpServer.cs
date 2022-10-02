@@ -1,5 +1,5 @@
 ﻿using System;
-using NetworkLibrary.TCP.Base.Interface;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
@@ -14,29 +14,24 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public class AsyncTcpServer
+    public class AsyncTcpServer:TcpServerBase
     {
-        public delegate void ClientAccepted(Guid guid, Socket ClientSocket);
-        public delegate void BytesRecieved(Guid guid, byte[] bytes, int offset, int count);
-        //public delegate bool ClientConnectionRequest(Socket acceptedSocket);
+        
+        #region Fields & Props
+
         public ClientAccepted OnClientAccepted;
-        public BytesRecieved OnBytesRecieved;
-       // public ClientConnectionRequest OnClientAccepting;
+        public BytesRecieved OnBytesReceived;
+        public ClientConnectionRequest OnClientAccepting = (socket) => true;
 
         public BufferProvider BufferManager { get; private set; }
-
-        public int MaxClients { get; private set; } = 10000;
-        public int ClientSendBufsize = 128000;
-        public int ClientReceiveBufsize = 128000;
-        public int MaxIndexedMemoryPerClient = 1280000;
-        public int SoocketReceiveBufferSize = 2080000000;
-        public bool DropOnBackPressure = false;
-        public bool NaggleNoDelay = false;
-
         protected Socket ServerSocket;
-        protected int ServerPort { get; }
-        public ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+      
+        internal ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+
+        public int SessionCount=>Sessions.Count;
         public bool Stopping { get; private set; }
+
+        #endregion
 
         public AsyncTcpServer(int port = 20008, int maxClients = 100)
         {
@@ -44,13 +39,14 @@ namespace NetworkLibrary.TCP.Base
             MaxClients = maxClients;
         }
 
-        public void StartServer()
+        #region Start
+        public override void StartServer()
         {
             BufferManager = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
 
             ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             ServerSocket.NoDelay = NaggleNoDelay;
-            ServerSocket.ReceiveBufferSize = SoocketReceiveBufferSize;
+            ServerSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
             ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
             ServerSocket.Listen(MaxClients);
 
@@ -63,7 +59,9 @@ namespace NetworkLibrary.TCP.Base
             }
         }
 
+        #endregion Start
 
+        #region Accept
         private void Accepted(object sender, SocketAsyncEventArgs acceptedArg)
         {
             if (Stopping)
@@ -82,11 +80,14 @@ namespace NetworkLibrary.TCP.Base
                 return;
             }
 
+            if (BufferManager.IsExhausted())
+                return;
+
             if (!HandleConnectionRequest(acceptedArg))
             {
                 return;
             }
-          
+            
             Guid clientGuid = Guid.NewGuid();
             var session = CreateSession(acceptedArg, clientGuid, BufferManager);
 
@@ -104,14 +105,20 @@ namespace NetworkLibrary.TCP.Base
             HandleClientAccepted(clientGuid, acceptedArg);
         }
 
-       
-
         protected virtual bool HandleConnectionRequest(SocketAsyncEventArgs acceptArgs)
         {
-            return true;
+            return OnClientAccepting.Invoke(acceptArgs.AcceptSocket);
         }
 
-        protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        protected virtual void HandleClientAccepted(Guid clientGuid, SocketAsyncEventArgs e)
+        {
+            OnClientAccepted?.Invoke(clientGuid);
+        }
+
+        #endregion Accept
+
+        #region Create Session
+        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
             var session = new TcpSession(e, sessionId, bufferManager);
             session.socketSendBufferSize = ClientSendBufsize;
@@ -120,9 +127,10 @@ namespace NetworkLibrary.TCP.Base
             session.dropOnCongestion = DropOnBackPressure;
             return session;
         }
+        #endregion
 
-
-        public void SendBytesToAllClients(byte[] bytes)
+        #region Send & Receive
+        public override void SendBytesToAllClients(byte[] bytes)
         {
             Parallel.ForEach(Sessions, session =>
             {
@@ -130,22 +138,20 @@ namespace NetworkLibrary.TCP.Base
             });
         }
 
-        public void SendBytesToClient(Guid id, byte[] bytes)
+        public override void SendBytesToClient(Guid id, byte[] bytes)
         {
             Sessions[id].SendAsync(bytes);
         }
 
-        #region Virtual
 
         protected virtual void HandleBytesRecieved(Guid guid, byte[] bytes, int offset, int count)
         {
-            OnBytesRecieved?.Invoke(guid, bytes, offset, count);
+            OnBytesReceived?.Invoke(guid, bytes, offset, count);
         }
 
-        protected virtual void HandleClientAccepted(Guid clientGuid, SocketAsyncEventArgs e)
-        {
-            OnClientAccepted?.Invoke(clientGuid, e.AcceptSocket);
-        }
+        #endregion
+
+
         protected virtual void HandleDeadSession(Guid sessionId)
         {
             Sessions.TryRemove(sessionId, out _);
@@ -155,7 +161,15 @@ namespace NetworkLibrary.TCP.Base
         {
             MiniLogger.Log(MiniLogger.LogLevel.Error, context + Enum.GetName(typeof(SocketError), error));
         }
-        public virtual void StopServer()
+
+        public override void CloseSession(Guid sessionId)
+        {
+            if(Sessions.TryGetValue(sessionId,out var session))
+            {
+                session.EndSession();
+            }
+        }
+        public override void ShutdownServer()
         {
             Stopping = true;
             ServerSocket.Close();
@@ -163,12 +177,20 @@ namespace NetworkLibrary.TCP.Base
 
             foreach (var session in Sessions)
             {
-                session.Value.EndSession();
+                try
+                {
+                    session.Value.EndSession();
+                }
+                catch { }
             }
+
+            BufferManager=null;
+            GC.Collect();
 
         }
 
-        #endregion
+
+       
     }
 
 

@@ -2,9 +2,9 @@
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace NetworkLibrary.TCP.Base.Interface
+namespace NetworkLibrary.TCP.Base
 {
-    public interface IAsyncSession : IDisposable
+    internal interface IAsyncSession : IDisposable
     {
         event Action<Guid, byte[], int, int> OnBytesRecieved;
         event Action<Guid> OnSessionClosed;

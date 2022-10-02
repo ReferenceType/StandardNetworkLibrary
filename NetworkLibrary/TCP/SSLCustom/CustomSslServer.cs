@@ -1,4 +1,4 @@
-﻿using NetworkLibrary.TCP.Base.Interface;
+﻿using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
 using System.Collections.Concurrent;
@@ -15,9 +15,9 @@ namespace NetworkLibrary.TCP.SSL.Custom
     {
         
         private X509Certificate2 certificate;
-        public CustomSslServer(int port, string certificatePath, int maxClients = 100) : base(port, maxClients)
+        public CustomSslServer(int port, X509Certificate2 certificate, int maxClients = 100) : base(port, maxClients)
         {
-            certificate = new X509Certificate2(certificatePath, "greenpass");
+            this.certificate = certificate;
         }
 
         protected override bool HandleConnectionRequest(SocketAsyncEventArgs acceptArgs)
@@ -25,7 +25,6 @@ namespace NetworkLibrary.TCP.SSL.Custom
             // Todo do ssl part of server here
             var sslStream = new SslStream(new NetworkStream(acceptArgs.AcceptSocket, false), false, ValidateCeriticate);
             sslStream.AuthenticateAsServer(certificate, true, System.Security.Authentication.SslProtocols.Tls12, false);
-
             // create key for this client
 
             var rnd = new RNGCryptoServiceProvider();
@@ -52,7 +51,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
 
 
         // override create session
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
         {
 
             var session = new CustomSslSession(e, sessionId, bufferManager,(byte[])e.UserToken);

@@ -1,5 +1,4 @@
 ﻿using NetworkLibrary.Components;
-using NetworkLibrary.Components.MessageQueue;
 using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Generic;
@@ -11,7 +10,7 @@ namespace NetworkLibrary.TCP.ByteMessage
 {
     internal class ByteMessageSession : TcpSession
     {
-        ByteMessageReader messageManager;
+        ByteMessageReader messageManager= null;
         public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager) : base(acceptedArg, sessionId, bufferManager)
         {
         }
@@ -37,9 +36,14 @@ namespace NetworkLibrary.TCP.ByteMessage
             messageManager.ParseBytes(buffer, offset, count);
         }
 
-        protected override void ConfigureMessageQueue()
+        protected override IMessageProcessQueue CreateMessageBuffer()
         {
-            messageQueue = new FramedMessageQueue(maxIndexedMemory);
+            var proccesor = new DelimitedMessageWriter();
+            var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+
+            //q.SetMessageProcessor(proccesor);
+            return q;
+           
         }
 
 

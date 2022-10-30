@@ -1,5 +1,4 @@
 ﻿using NetworkLibrary.TCP.Base;
-using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -21,6 +20,13 @@ namespace NetworkLibrary.TCP.ByteMessage
             session.socketRecieveBufferSize = ClientReceiveBufsize;
             session.maxIndexedMemory = MaxIndexedMemoryPerClient;
             session.dropOnCongestion = DropOnBackPressure;
+
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                session.UseQueue = true;
+            else
+                session.UseQueue = false;
+
             return session;
 
         }

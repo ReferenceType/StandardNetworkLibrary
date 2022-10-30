@@ -7,6 +7,8 @@ namespace NetworkLibrary.TCP.Base
 {
     public abstract class TcpClientBase
     {
+        public ScatterGatherConfig GatherConfig = ScatterGatherConfig.UseQueue;
+
         /// <summary>
         /// Callback delegate of bytes recieved
         /// </summary>
@@ -18,17 +20,23 @@ namespace NetworkLibrary.TCP.Base
         /// <summary>
         /// Fires when client is connected;
         /// </summary>
-        public Action OnConnected;
+        public Action OnConnected { get; set; }
 
         /// <summary>
         /// Fires when connection is failed when the connection is initiated with <see cref="ConnectAsync(string, int)"/>
         /// </summary>
-        public Action<Exception> OnConnectFailed;
+        public Action<Exception> OnConnectFailed { get; set; }
 
         /// <summary>
         /// Fires when client is disconnected.
         /// </summary>
-        public Action OnDisconnected;
+        public Action OnDisconnected { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public BytesRecieved OnBytesReceived { get; set; }
+
 
         /// <summary>
         /// Send buffer size option to set on the socket

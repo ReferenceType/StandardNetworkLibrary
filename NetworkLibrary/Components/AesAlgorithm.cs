@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    public class AesAlgorithm
+    public class AesAlgorithm:IDisposable
     {
         protected Aes algorithm;
         protected ICryptoTransform encryptor;
@@ -45,6 +46,8 @@ namespace NetworkLibrary.Components
         /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
+        /// 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Decrypt(byte[] message)
         {
             byte[] output = decryptor.TransformFinalBlock(message, 0, message.Length);
@@ -58,8 +61,11 @@ namespace NetworkLibrary.Components
         /// <param name="offset"></param>
         /// <param name="count"></param>
         /// <returns></returns>
+        /// 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Decrypt(byte[] buffer, int offset, int count)
         {
+            
             byte[] output = decryptor.TransformFinalBlock(buffer, offset, count);
             return output;
 
@@ -74,6 +80,8 @@ namespace NetworkLibrary.Components
         /// <param name="output"></param>
         /// <param name="outputOffset"></param>
         /// <returns></returns>
+        /// 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PartialDecrpytInto(byte[] source, int sourceOffset, int sourceCount, byte[] output, int outputOffset)
         {
             return decryptor.TransformBlock(source, sourceOffset, sourceCount, output, outputOffset);
@@ -89,6 +97,8 @@ namespace NetworkLibrary.Components
         /// <param name="output"></param>
         /// <param name="outputOffset"></param>
         /// <returns></returns>
+        /// 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int DecryptInto(byte[] source, int sourceOffset, int sourceCount, byte[] output, int outputOffset)
         {
             int amountDecripted = decryptor.TransformBlock(source, sourceOffset, sourceCount, output, outputOffset);
@@ -109,6 +119,8 @@ namespace NetworkLibrary.Components
         /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
+        /// 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Encrypt(byte[] message)
         {
             return encryptor.TransformFinalBlock(message, 0, message.Length);
@@ -120,6 +132,7 @@ namespace NetworkLibrary.Components
         /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Encrypt(byte[] buffer, int offset, int count)
         {
             return encryptor.TransformFinalBlock(buffer, offset, count);
@@ -135,6 +148,7 @@ namespace NetworkLibrary.Components
         /// <param name="output"></param>
         /// <param name="outputOffset"></param>
         /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PartialEncrpytInto(byte[] source, int sourceOffset, int sourceCount, byte[] output, int outputOffset)
         {
             return encryptor.TransformBlock(source, sourceOffset, sourceCount, output, outputOffset);
@@ -149,6 +163,8 @@ namespace NetworkLibrary.Components
         /// <param name="output"></param>
         /// <param name="outputOffset"></param>
         /// <returns></returns>
+        /// 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int EncryptInto(byte[] source, int sourceOffset, int sourceCount, byte[] output, int outputOffset)
         {
             // it has to  be multiple of block size to do partial.
@@ -172,7 +188,11 @@ namespace NetworkLibrary.Components
 
             return amountDecripted;
         }
-       
 
+        public void Dispose()
+        {
+            encryptor.Dispose();
+            decryptor.Dispose();
+        }
     }
 }

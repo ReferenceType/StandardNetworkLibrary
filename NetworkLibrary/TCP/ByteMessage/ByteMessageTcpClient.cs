@@ -1,5 +1,4 @@
 ﻿using NetworkLibrary.TCP.Base;
-using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -24,6 +23,11 @@ namespace NetworkLibrary.TCP.ByteMessage
             session.maxIndexedMemory = MaxIndexedMemory;
             session.dropOnCongestion = DropOnCongestion;
             session.OnSessionClosed += (id) => OnDisconnected?.Invoke();
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                session.UseQueue = true;
+            else
+                session.UseQueue = false;
 
             return session;
 

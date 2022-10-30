@@ -1,4 +1,6 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components.MessageProcessor.Unmanaged;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Generic;
@@ -28,9 +30,19 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
 
         protected override IMessageProcessQueue CreateMessageQueue()
         {
-            var q = new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
+            if (UseQueue)
+                return new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
 
-            return q;
+            else
+                return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: true);
+
+
+
+            //if (CoreAssemblyConfig.UseUnmanaged)
+            //    return new MessageQueue<UnsafeDelimitedMessageWriter>(MaxIndexedMemory, new UnsafeDelimitedMessageWriter());
+            //else
+            //    //return new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
+            //    return new MessageBuffer(MaxIndexedMemory);
         }
 
     }

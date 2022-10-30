@@ -1,8 +1,10 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Net.Security;
 using System.Text;
 using System.Threading;
@@ -22,6 +24,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected SslStream sessionStream;
         protected byte[] receiveBuffer;
         protected byte[] sendBuffer;
+        protected byte[] sendBuffer_;
         protected Guid sessionId;
 
 
@@ -30,6 +33,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         private int sendinProgress;
         private BufferProvider bufferProvider;
         private int SessionClosing=0;
+        private int syncCount;
+
+        internal bool UseQueue = true;
+        private long totalBytesSend;
+        private long totalBytesReceived;
 
         public SslSession(Guid sessionId, SslStream sessionStream, BufferProvider bufferProvider)
         {
@@ -48,13 +56,52 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             receiveBuffer = bufferProvider.GetReceiveBuffer();
             sendBuffer = bufferProvider.GetSendBuffer();
+            sendBuffer_ = sendBuffer;
         }
 
         protected virtual IMessageProcessQueue CreateMessageQueue()
         {
-            return new MessageQueue<PlainMessageWriter>(MaxIndexedMemory, new PlainMessageWriter());
-        }
+            if (UseQueue)
+                return new MessageQueue<PlainMessageWriter>(MaxIndexedMemory, new PlainMessageWriter());
+            else
+                return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: false);
 
+
+                //if (CoreAssemblyConfig.UseUnmanaged)
+                //    return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
+                //else
+                //    return new MessageQueue<PlainMessageWriter>(MaxIndexedMemory, new PlainMessageWriter());
+        }
+        public void SendAsync(byte[] buffer, int offset, int count)
+        {
+            if (IsSessionClosing())
+                return;
+
+            lock (sendLock)
+            {
+                // I dont want to interlock compare exchange here due to expense. it isnt critical because we have the exit lock
+                if (Interlocked.CompareExchange(ref sendinProgress, 1, 1) == 1)
+                {
+                    if (messageQueue.TryEnqueueMessage(buffer, offset, count))
+                        return;
+                    // At this point queue is saturated, shall we drop?
+                    else if (DropOnCongestion)
+                        return;
+                    // Otherwise we will wait semaphore
+                }
+            }
+            try
+            {
+                SendSemaphore.Wait();
+            }
+            catch { return; }
+            Interlocked.Exchange(ref sendinProgress, 1);
+
+            // you have to push it to queue because queue also does the processing.
+            messageQueue.TryEnqueueMessage(buffer,offset,count);
+            messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+            WriteOnSessionStream(amountWritten);
+        }
         public void SendAsync(byte[] buffer)
         {
             if (IsSessionClosing())
@@ -97,6 +144,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 HandleError("While attempting to send an error occured", ex);
             }
+            Interlocked.Add(ref totalBytesSend, count);
         }
 
         private void Sent_(IAsyncResult ar)
@@ -206,11 +254,20 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 EndSession();
             }
+            Interlocked.Add(ref totalBytesReceived, amountRead);
 
             // Stack overflow prevention.
             if (ar.CompletedSynchronously)
             {
-                ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(),null);
+                //syncCount++;
+                //if (syncCount > 1000)
+                //{
+                //    Interlocked.Exchange(ref syncCount, 0);
+                    ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(), null);
+                //}
+                //else
+                //    Receive();
+
                 return;
             }
             Receive();
@@ -225,9 +282,9 @@ namespace NetworkLibrary.TCP.SSL.Base
         #region Closure
         protected virtual void HandleError(string context, Exception e)
         {
-#if DEBUG
-            throw e;
-#endif
+//#if DEBUG
+//            throw e;
+//#endif
             MiniLogger.Log(MiniLogger.LogLevel.Error,"Context : "+context+" Message : "+ e.Message) ;
             EndSession();
         }
@@ -244,8 +301,10 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 sessionStream.Close();
                 sessionStream.Dispose();
+               
                 SendSemaphore.Dispose();
                 OnSessionClosed?.Invoke(sessionId);
+                messageQueue = null;
                 Dispose();
             }
            
@@ -261,7 +320,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 }
                 disposedValue = true;
                 bufferProvider.ReturnReceiveBuffer(ref receiveBuffer);
-                bufferProvider.ReturnSendBuffer(ref sendBuffer);
+                bufferProvider.ReturnSendBuffer(ref sendBuffer_);
             }
         }
 
@@ -269,6 +328,15 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        public SessionStatistics GetSessionStatistics()
+        {
+            return new SessionStatistics(messageQueue.CurrentIndexedMemory,
+                (float)(messageQueue.CurrentIndexedMemory / MaxIndexedMemory),
+                totalBytesSend,
+                totalBytesReceived,
+                messageQueue.TotalMessageDispatched);
         }
         #endregion
     }

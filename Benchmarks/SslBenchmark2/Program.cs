@@ -129,16 +129,16 @@ namespace ConsoleTest
                 }
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgServer);
                 if (count == 502)
                 {
-                    server.SendBytesToClient(id, new byte[502]);
+                    server.SendBytesToClient(in id, new byte[502]);
                     return;
                 }
 
-                server.SendBytesToClient(id, response);
+                server.SendBytesToClient(in id, response);
             }
 
         }

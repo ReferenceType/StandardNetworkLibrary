@@ -13,6 +13,7 @@ namespace NetworkLibrary.Components
         /// <param name="bytes"></param>
         /// <returns>true if message is enqueued.</returns>
         bool TryEnqueueMessage(byte[] bytes);
+        bool TryEnqueueMessage(byte[] bytes, int offset,int count);
 
         /// <summary>
         /// Flushes the queue if there is anything to flush.
@@ -28,5 +29,8 @@ namespace NetworkLibrary.Components
         /// </summary>
         /// <returns></returns>
         bool IsEmpty();
+
+        int CurrentIndexedMemory { get; }
+        long TotalMessageDispatched { get; }
     }
 }

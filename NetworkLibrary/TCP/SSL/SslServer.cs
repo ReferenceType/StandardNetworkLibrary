@@ -1,4 +1,6 @@
-﻿using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.TCP.Base;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,6 +12,8 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using static NetworkLibrary.TCP.Base.AsyncTcpServer;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
@@ -17,15 +21,20 @@ namespace NetworkLibrary.TCP.SSL.Base
     {
         public BytesRecieved OnBytesReceived;
         public ClientAccepted OnClientAccepted;
+        public ClientDisconnected OnClientDisconnected;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
         // this returns bool
         public ClientConnectionRequest OnClientRequestedConnection;
 
         internal ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+        internal ConcurrentDictionary<Guid, SessionStats> Stats { get; } = new ConcurrentDictionary<Guid, SessionStats>();
+
 
         private Socket ServerSocket;
         private X509Certificate2 certificate;
+        private TcpStatisticsPublisher sp;
+
         public BufferProvider BufferProvider { get; private set; }
         public bool Stopping { get; private set; }
 
@@ -37,8 +46,10 @@ namespace NetworkLibrary.TCP.SSL.Base
             BufferProvider = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
             OnClientRequestedConnection = (socket) => true;
             RemoteCertificateValidationCallback += DefaultValidationCallback;
+           
+            sp = new TcpStatisticsPublisher(Sessions, 3000);
         }
-
+       
         public override void StartServer()
         {
 
@@ -95,14 +106,31 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private void EndAuthenticate(IAsyncResult ar)
         {
-            ((SslStream)ar.AsyncState).EndAuthenticateAsServer(ar);
+            try
+            {
+                ((SslStream)ar.AsyncState).EndAuthenticateAsServer(ar);
+            }
+            catch (Exception e)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + e.Message);
+                ((SslStream)ar.AsyncState).Close();
+                return;
+            }
             var sessionId = Guid.NewGuid();
             var ses = CreateSession(sessionId, (SslStream)ar.AsyncState, BufferProvider);
             ses.OnBytesRecieved += HandleBytesReceived;
+            ses.OnSessionClosed += HandeDeadSession;
             ses.StartSession();
             Sessions.TryAdd(sessionId, ses);
 
             OnClientAccepted?.Invoke(sessionId);
+        }
+
+        private void HandeDeadSession(Guid id)
+        {
+            OnClientDisconnected?.Invoke(id);
+            if(Sessions.TryRemove(id, out _))
+                Console.WriteLine("Removed "+id);
         }
 
         internal virtual IAsyncSession CreateSession(Guid guid, SslStream sslStream, BufferProvider bufferProvider)
@@ -110,6 +138,13 @@ namespace NetworkLibrary.TCP.SSL.Base
             var ses = new SslSession(guid, sslStream, bufferProvider);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             ses.DropOnCongestion = DropOnBackPressure;
+
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
+
             return ses;
         }
 
@@ -118,9 +153,16 @@ namespace NetworkLibrary.TCP.SSL.Base
             OnBytesReceived?.Invoke(arg1, arg2, arg3, arg4);
         }
 
-        public override void SendBytesToClient(Guid clientId, byte[] bytes)
+        public override void SendBytesToClient(in Guid clientId, byte[] bytes)
         {
-            Sessions[clientId].SendAsync(bytes);
+            if(Sessions.ContainsKey(clientId))
+                Sessions[clientId].SendAsync(bytes);
+        }
+
+        public void SendBytesToClient(in Guid clientId, byte[] bytes, int offset, int count)
+        {
+            if (Sessions.ContainsKey(clientId))
+                Sessions[clientId].SendAsync(bytes, offset, count);
         }
 
         public override void SendBytesToAllClients(byte[] bytes)
@@ -149,6 +191,11 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 session.EndSession();
             }
+        }
+
+        public override void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid, SessionStats> sessionStats)
+        {
+            sp.GetStatistics(out generalStats, out sessionStats);
         }
     }
 }

@@ -10,6 +10,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
 {
     public class SslByteMessageClient : SslClient
     {
+       
         public SslByteMessageClient(X509Certificate2 certificate) : base(certificate)
         {
         }
@@ -20,6 +21,12 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
             var ses =  new SslByteMessageSession(guid, sslStream, bufferProvider);
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
+
             return ses;
         }
     }

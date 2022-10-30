@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.TCP.SSL.Custom;
 using System.Net.Security;
+using NetworkLibrary.TCP;
 
 namespace UnitTests
 {
@@ -99,7 +100,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response= new byte[count];
@@ -194,7 +195,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 
@@ -220,6 +221,7 @@ namespace UnitTests
         [TestMethod]
         public void CustomSSlMessageRushConsistencyTest()
         {
+            //CoreAssemblyConfig.UseUnmanaged = false;
             const int numMsg = 10000;
             int clAmount = 100;
             int completionCount = clAmount;
@@ -304,7 +306,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -404,7 +406,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 
@@ -526,7 +528,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -637,7 +639,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 

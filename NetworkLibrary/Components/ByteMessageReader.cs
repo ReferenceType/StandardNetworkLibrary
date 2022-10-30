@@ -36,8 +36,9 @@ namespace NetworkLibrary.Components
             Guid = guid;
 
             headerBuffer = new byte[HeaderLenght];
-            internalBufer = new byte[bufferSize];
             originalCapacity = bufferSize;
+            internalBufer = new byte[originalCapacity];
+
             currentMsgBufferPosition = 0;
         }
 
@@ -125,7 +126,7 @@ namespace NetworkLibrary.Components
                 // read byte frame and determine next msg.
                 if (remaining >= 4)
                 {
-                    AppendHeader(incomingBytes, offset);
+                    expectedMsgLenght = BitConverter.ToInt32(incomingBytes, offset);
                     currentExpectedByteLenght = expectedMsgLenght;
                     offset += 4;
                     remaining -= 4;
@@ -148,6 +149,10 @@ namespace NetworkLibrary.Components
                 }
             }
 
+            if (internalBufer.Length < expectedMsgLenght)
+            {
+                internalBufer = new byte[expectedMsgLenght];
+            }
             // we got the header, but we have a partial msg.
             if (remaining > 0)
             {
@@ -181,7 +186,7 @@ namespace NetworkLibrary.Components
             }
             if (currentHeaderBufferPosition == HeaderLenght)
             {
-                expectedMsgLenght = BitConverter.ToInt32(headerBuffer, 0);
+                expectedMsgLenght = BitConverter.ToInt32(headerBuffer, offset);
                 if (internalBufer.Length < expectedMsgLenght)
                 {
                     internalBufer = new byte[expectedMsgLenght];
@@ -193,9 +198,9 @@ namespace NetworkLibrary.Components
         private int AppendHeader(byte[] buffer, int offset)
         {
             expectedMsgLenght = BitConverter.ToInt32(buffer, offset);
-            if (this.internalBufer.Length < expectedMsgLenght)
+            if (internalBufer.Length < expectedMsgLenght)
             {
-                this.internalBufer = new byte[expectedMsgLenght];
+                internalBufer = new byte[expectedMsgLenght];
             }
             return expectedMsgLenght;
         }
@@ -206,10 +211,10 @@ namespace NetworkLibrary.Components
             currentHeaderBufferPosition = 0;
             currentMsgBufferPosition = 0;
             expectedMsgLenght = 0;
-            if (v && internalBufer.Length > originalCapacity)
-            {
-                internalBufer = new byte[originalCapacity];
-            }
+            //if (v && internalBufer.Length > originalCapacity)
+            //{
+            //    internalBufer = new byte[originalCapacity];
+            //}
         }
 
         private void FreeMemory()

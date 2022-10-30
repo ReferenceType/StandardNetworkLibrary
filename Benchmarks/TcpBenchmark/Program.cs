@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.TCP.ByteMessage;
+﻿using NetworkLibrary.TCP;
+using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
@@ -11,7 +12,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-
 namespace ConsoleTest
 {
 
@@ -19,15 +19,17 @@ namespace ConsoleTest
     {
         static void Main(string[] args)
         {
-            TcpTest();
+            //TcpTest();
+            TcpTest2();
 
         }
+
 
         private static void TcpTest()
         {
             // dont change.
             int NumFinishedClients = 0;
-
+            //CoreAssemblyConfig.UseUnmanaged=true;
             MiniLogger.AllLog+=(string log)=>Console.WriteLine(log);
 
             int totMsgClient = 0;
@@ -51,6 +53,8 @@ namespace ConsoleTest
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
             server.StartServer();
+
+            server.GatherConfig = ScatterGatherConfig.UseQueue;
 
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
@@ -101,10 +105,15 @@ namespace ConsoleTest
             {
                 ShowStatus();
             }
+            server.ShutdownServer();
+            foreach (var client1 in clients)
+            {
+                client1.Disconnect();
+            }
             //----- End --- 
             void ShowStatus()
             {
-                Console.WriteLine("Press E to Exit");
+                Console.WriteLine("\nPress E to Exit\n");
 
                 Console.WriteLine("Total Messages on server: " + totMsgServer);
                 Console.WriteLine("Total Messages on clients: " + totMsgClient);
@@ -138,9 +147,154 @@ namespace ConsoleTest
 
                     }
                 }
+               
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            {
+                Interlocked.Increment(ref totMsgServer);
+                if (count == 502)
+                {
+                    server.SendBytesToClient(in id, new byte[502]);
+                    return;
+                }
+                
+                // response = new byte[32000];
+                server.SendBytesToClient(in id, response);
+            }
+
+        }
+
+        private static void TcpTest2()
+        {
+            // dont change.
+            int NumFinishedClients = 0;
+            MiniLogger.AllLog += (string log) => Console.WriteLine(log);
+
+            long totMsgClient = 0;
+            long totMsgServer = 0;
+            long lastTimeStamp = 1;
+            int clientAmount = 100;
+            const int numMsg = 1000;
+            var message = new byte[32];
+            var response = new byte[32];
+
+            bool done = false;
+            int port = 20011;
+            ByteMessageTcpServer server = new ByteMessageTcpServer(port, clientAmount * 3);
+            List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
+
+            Stopwatch sw2 = new Stopwatch();
+            AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
+
+            server.MaxIndexedMemoryPerClient = 128000;
+            server.ClientSendBufsize = 128000;
+            server.ClientReceiveBufsize = 128000;
+            server.DropOnBackPressure = false;
+            server.OnBytesReceived += OnServerReceviedMessage;
+            server.StartServer();
+
+            Task[] toWait = new Task[clientAmount];
+            for (int i = 0; i < clientAmount; i++)
+            {
+                var client = new ByteMessageTcpClient();
+                client.BufferManager = server.BufferManager;
+                client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
+
+                client.DropOnCongestion = false;
+                client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
+
+                toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", port);
+                clients.Add(client);
+            }
+
+            Task.WaitAll(toWait);
+
+            // -----------------------  Bechmark ---------------------------
+            Console.WriteLine("Press any key to start");
+            Console.Read();
+            sw2.Start();
+
+            // We parallely send the messages here
+            Parallel.ForEach(clients, client =>
+            {
+                for (int i = 0; i < numMsg; i++)
+                {
+                    client.SendAsync(message);
+
+                }
+
+            });
+
+            Task.Run(async () =>
+            {
+                while (!done)
+                {
+                    await Task.Delay(2000);
+                    //ShowStatus();
+                }
+                
+            });
+
+            // -------- Messages are sent by clients ------ 
+
+            Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
+                "ms. Press enter to see status");
+            Console.ReadLine();
+
+            Console.WriteLine("Press e to Exit");
+            while (Console.ReadLine() != "e")
+            {
+                ShowStatus();
+            }
+
+            done = true;
+            server.ShutdownServer();
+            foreach (var client1 in clients)
+            {
+                client1.Disconnect();
+            }
+            //----- End --- 
+            void ShowStatus()
+            {
+                Console.WriteLine("Press E to Exit");
+
+                Console.WriteLine("Total Messages on server: " + totMsgServer);
+                Console.WriteLine("Total Messages on clients: " + totMsgClient);
+
+                lastTimeStamp = sw2.ElapsedMilliseconds;
+                Console.WriteLine("Elapsed " + lastTimeStamp);
+
+                var elapsedSeconds = (double)lastTimeStamp / 1000;
+                var messagePerSecond = totMsgClient / elapsedSeconds;
+
+                Console.WriteLine(" Request-Response Per second " + (totMsgClient / elapsedSeconds).ToString("N1"));
+                Console.WriteLine("Data transmissıon rate Inbound " + (message.Length * messagePerSecond / 1000000).ToString("N1") + " Megabytes/s");
+                Console.WriteLine("Data transmissıon rate Outbound " + (response.Length * messagePerSecond / 1000000).ToString("N1") + " Megabytes/s");
+            }
+
+            void OnClientReceivedMessage(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
+            {
+                Interlocked.Increment(ref totMsgClient);
+                client.SendAsync(response);
+                if (count == 502)
+                {
+                    lastTimeStamp = (int)sw2.ElapsedMilliseconds;
+                    Interlocked.Increment(ref NumFinishedClients);
+
+                    if (Volatile.Read(ref NumFinishedClients) == clientAmount)
+                    {
+                        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
+                        ShowStatus();
+                        sw2.Stop();
+                        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
+
+                    }
+                }
+
+            }
+
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgServer);
                 if (count == 502)
@@ -148,11 +302,13 @@ namespace ConsoleTest
                     server.SendBytesToClient(id, new byte[502]);
                     return;
                 }
-                // response = new byte[32000];
-                server.SendBytesToClient(id, response);
-            }
 
+                // response = new byte[32000];
+                //server.SendBytesToClient(id, arg2,offset,count);
+               server.SendBytesToClient(id, response);
+            }
         }
+
 
     }
 

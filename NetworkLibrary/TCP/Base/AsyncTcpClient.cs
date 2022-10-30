@@ -13,11 +13,11 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public class AsyncTpcClient : TcpClientBase
+    public class AsyncTpcClient : TcpClientBase,IDisposable
     {
         #region Fields & Props
 
-        public BytesRecieved OnBytesReceived;
+        //public BytesRecieved OnBytesReceived;
        
 
         private BufferProvider bufferManager;
@@ -122,6 +122,11 @@ namespace NetworkLibrary.TCP.Base
             ses.maxIndexedMemory = MaxIndexedMemory;
             ses.dropOnCongestion = DropOnCongestion;
             ses.OnSessionClosed+=(id)=>OnDisconnected?.Invoke();
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
             return ses;
         }
 
@@ -141,13 +146,10 @@ namespace NetworkLibrary.TCP.Base
 
         #endregion Send & Receive
 
+        // Fix this
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
             string msg = "An error Occured While " + context +
-                " associated port: "
-                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port +
-                "IP: "
-                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Address.ToString() +
                 " Error: " + Enum.GetName(typeof(SocketError), e.SocketError);
 
             MiniLogger.Log(MiniLogger.LogLevel.Error, msg);
@@ -159,8 +161,22 @@ namespace NetworkLibrary.TCP.Base
             // session will fire OnDisconnected;
             session.EndSession();
             IsConnected = false;
-            
         }
 
+        public void Dispose()
+        {
+            if (IsConnected)
+            {
+                try
+                {
+                    Disconnect();
+                    clientSocket?.Dispose();
+
+                }
+                catch { }
+            }
+            
+            bufferManager?.Dispose();
+        }
     }
 }

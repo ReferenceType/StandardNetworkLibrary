@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.TCP.Base;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -7,6 +8,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Collections.Specialized.BitVector32;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
@@ -14,7 +16,7 @@ namespace NetworkLibrary.TCP.SSL.Base
     {
         #region Fields & Props
 
-        public BytesRecieved OnBytesReceived;
+        //public BytesRecieved OnBytesReceived;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
         protected Socket clientSocket;
@@ -99,9 +101,8 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
-
             sslStream.AuthenticateAsClient(domainName,
-                new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
+            new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
 
             clientSession = CreateSession(Guid.NewGuid(), sslStream, BufferProvider);
             clientSession.OnBytesRecieved += HandleBytesReceived;
@@ -143,6 +144,11 @@ namespace NetworkLibrary.TCP.SSL.Base
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.OnSessionClosed +=(id)=> OnDisconnected?.Invoke();
 
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
+
             return ses;
         }
 
@@ -154,6 +160,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         public override void SendAsync(byte[] bytes)
         {
             clientSession.SendAsync(bytes);
+        }
+
+        public void SendAsync(byte[] buffer, int offset, int count)
+        {
+            clientSession.SendAsync(buffer,offset,count);
         }
 
         public override void Disconnect()

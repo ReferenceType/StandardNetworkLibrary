@@ -18,6 +18,14 @@ using NetworkLibrary.Utils;
 using System.Security.Cryptography;
 using NetworkLibrary.TCP.SSL.Custom;
 using System.Security.Cryptography.X509Certificates;
+using NetworkLibrary.Components;
+using Protobuff;
+using NetworkLibrary.TCP;
+using System.Runtime.InteropServices;
+using System.Net.Security;
+using Protobuff.P2P;
+using System.Security;
+using System.Numerics;
 
 namespace ConsoleTest
 {
@@ -42,10 +50,19 @@ namespace ConsoleTest
 
         static void Main(string[] args)
         {
+            MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            //EnvelopeTest();
+            RelayTest();
+            //ByteCopyTest();
+            //BitConverterTest();
+            //ByteCopyTest2();
+            //ProtoTest();
+            //SecureProtoTest();
+            //MessageParserInliningTest();
             //AesTest();
             //SSlTest2();
             //SSlTest();
-            TcpTest();
+            //TcpTest();
             
             //UdpTest();
             //UdpTest2();
@@ -54,6 +71,390 @@ namespace ConsoleTest
            
             
         }
+
+        private static void EnvelopeTest()
+        {
+            ConcurrentProtoSerialiser s = new ConcurrentProtoSerialiser();
+            MessageEnvelope msg = new MessageEnvelope()
+            {
+                Header = "Test",
+
+            };
+            MessageEnvelope msg2 = new MessageEnvelope()
+            {
+                Header = "pay",
+
+            };
+
+            var payload = new byte[1123];
+            var env = s.EnvelopeAndSerialiseMessage(msg, msg2);
+            var val = s.DeserialiseEnvelopedMessage(env,0,env.Length);
+            var val1 = s.DeserialiseOnlyEnvelope(env,0,env.Length);
+            var val2 = s.DeserialiseOnlyPayload<MessageEnvelope>(env,0,env.Length);
+
+        }
+
+        
+
+        private static void BitConverterTest()
+        {
+            int num = 1234567890;
+            byte[] h0 = BitConverter.GetBytes(num);
+            sw.Start();
+            for (int i = 0; i < 200000000; i++)
+            {
+                m2(h0,0);
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+            Console.ReadLine();
+            int m1(byte[] h, int offset)
+            {
+                return BitConverter.ToInt32(h, offset);
+            }
+            int m2(byte[] h, int offset)
+            {
+                if(BitConverter.IsLittleEndian)
+                    return (int)(h[offset] | h[offset + 1] << 8 | h[offset + 2] << 16 | h[offset + 3] << 24);
+                else
+                    return (int)(h[offset+3] | h[offset + 2] << 8 | h[offset + 1] << 16 | h[offset] << 24);
+
+
+            }
+        }
+
+        private static void RelayTest()
+        {
+            MessageEnvelope testMessage = new MessageEnvelope()
+            {
+                Header = "Test",
+                Payload = new byte[32]
+            };
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+
+            long TotUdp = 0;
+            var server = new SecureProtoRelayServer(20011, 1000, scert);
+            Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(3000);
+                    server.GetTcpStatistics(out SessionStats generalStats, out _);
+                    server.GetUdpStatistics(out UdpStatistics generalStatsUdp, out _);
+                    Console.WriteLine(generalStats.ToString());
+                    Console.WriteLine(generalStatsUdp.ToString());
+                }
+
+            });
+
+            var clients = new List<RelayClient>();
+            for (int i = 0; i < 2; i++)
+            {
+                var client = new RelayClient(cert);
+                client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
+                client.OnUdpMessageReceived += (reply) => ClientUdpReceived(client, reply);
+                client.OnPeerRegistered += (peerId) => OnPeerRegistered(client,peerId);
+
+                client.Connect("127.0.0.1", 20011);
+                clients.Add(client);
+                //Thread.Sleep(1000);
+            }
+            Thread.Sleep(3000);
+            //clients[0].Disconnect();
+            while (!clients[0].RequestHolePunch(clients[0].Peers.First()))
+            {
+
+            }
+            Task.Run(async () =>
+            {
+                return;
+                foreach (var client in clients)
+                {
+                    foreach (var peer in client.Peers)
+                    {
+                        while (true)
+                        {
+                            await client.SendRequestAndWaitResponse(peer, testMessage, 1000);
+                        }
+                    }
+                }
+            });
+            Parallel.ForEach(clients,  (client) =>
+            {
+                
+                for (int i = 0; i < 1; i++)
+                {
+                    return;
+                    foreach (var peer in client.Peers)
+                    {
+                        //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
+                        client.SendAsyncMessage(peer, testMessage); 
+
+                        //client.SendUpMesssage(peer, testMessage);
+                    }
+                }
+
+            });
+            //clients[0].SendUpMesssage(clients[0].Peers.First(), new byte[32], "testData");
+            while (Console.ReadLine()!="e")
+            {
+                Console.WriteLine(totMsgCl);
+                Console.WriteLine(TotUdp);
+            }
+
+            void OnPeerRegistered(RelayClient client, Guid peerId)
+            {
+               // Console.WriteLine(peerId);
+                return;
+                for (int i = 0; i < 1; i++)
+                {
+                    client.SendAsyncMessage(peerId, testMessage);
+                    client.SendUpMesssage(peerId, testMessage);
+                }
+
+            }
+            void ClientMsgReceived(RelayClient client, MessageEnvelope reply)
+            {
+                Interlocked.Increment(ref totMsgCl);
+                client.SendAsyncMessage(reply.From, reply);
+
+            }
+
+           
+            void ClientUdpReceived(RelayClient client, MessageEnvelope reply)
+            {
+                Interlocked.Increment(ref TotUdp);
+                
+                client.SendUpMesssage(reply.From, reply);
+                //client.SendUpMesssage(reply.From, new byte[32], "testData");
+
+            }
+        }
+
+        //private static void SecureProtoTest()
+        //{
+        //    CoreAssemblyConfig.UseUnmanaged = true;
+        //    int totMsgCl = 0;
+        //    int totMsgsw = 0;
+        //    Stopwatch sw = new Stopwatch();
+        //    MessageEnvelope msg = new MessageEnvelope()
+        //    {
+        //        Header = "Test",
+        //        Payload = new byte[2]
+
+        //    };
+
+        //    MessageEnvelope end = new MessageEnvelope()
+        //    {
+        //        Header = "Stop"
+        //    };
+
+        //    var scert = new X509Certificate2("server.pfx", "greenpass");
+        //    var cert = new X509Certificate2("client.pfx", "greenpass");
+
+        //    var server = new SecureProtoServer(20008, 100, scert);
+        //    server.OnStatusMessageReceived += ServerStsReceived;
+        //    server.OnRequestReceived += ServerRequestReceived;
+
+        //    var clients = new List<SecureProtoClient>();
+        //    for (int i = 0; i < 100; i++)
+        //    {
+        //        var client = new SecureProtoClient(cert);
+        //        client.OnStatusMessageReceived += (reply) => ClientStsReceived(client, reply);
+        //        client.OnRequestReceived += (reply) => ClientReqReceived(client, reply);
+
+        //        client.Connect("127.0.0.1", 20008);
+        //        clients.Add(client);
+        //    }
+        //    Task.Run(async () =>
+        //    {
+        //        while (true)
+        //        {
+        //            await Task.Delay(10000);
+        //            Console.WriteLine("client {0} server {1}", totMsgCl, totMsgsw);
+
+        //        }
+
+        //    });
+        //    sw.Start();
+        //    Parallel.ForEach(clients, client =>
+        //    {
+        //        for (int i = 0; i < 50000; i++)
+        //        {
+        //            client.SendRequestMessage(msg);
+        //        }
+        //        //client.SendStatusMessage(end);
+
+        //    });
+
+        //    //var resp = clients[0].SendMessageAndWaitResponse(msg).Result;
+        //    while (Console.ReadLine() != "e")
+        //    {
+        //        Console.WriteLine("client {0} server {1}", totMsgCl, totMsgsw);
+        //    }
+        //    Console.ReadLine();
+
+
+        //    void ServerStsReceived(in Guid arg1, MessageEnvelope arg2)
+        //    {
+        //        Interlocked.Increment(ref totMsgsw);
+        //        server.SendStatusMessage(arg1, arg2);
+        //    }
+
+        //    void ClientStsReceived(SecureProtoClient client, MessageEnvelope reply)
+        //    {
+        //        //Interlocked.Increment(ref totMsgCl);
+        //        //if (reply.Header.Equals("Stop"))
+        //        //{
+        //        //    Console.WriteLine(sw.ElapsedMilliseconds);
+        //        //}
+        //    }
+
+        //    void ServerRequestReceived(in Guid arg1, MessageEnvelope arg2)
+        //    {
+        //        Interlocked.Increment(ref totMsgsw);
+
+        //        //server.SendResponseMessage(arg1, arg2.Id, arg2);
+        //        server.SendRequestMessage(arg1, arg2);
+        //    }
+
+        //    void ClientReqReceived(SecureProtoClient client, MessageEnvelope message)
+        //    {
+        //        Interlocked.Increment(ref totMsgCl);
+
+        //        //client.SendResponseMessage( message.Id,message);
+        //        client.SendRequestMessage(message);
+        //    }
+        //}
+
+        private static void ByteCopyTest()
+        {
+           byte[] bytes = new byte[128000];
+            sw.Start();
+            for (int i = 0; i < 100000000; i++)
+            {
+                copyBlock();
+                //ByteCopy.ToArray(bytes, 0, 32);
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+            Console.ReadLine();
+
+            byte[] copyspan()
+            {
+                ReadOnlySpan<byte> span = new ReadOnlySpan<byte>(bytes, 0, 32);
+                return span.ToArray();
+            }
+            byte[] copyBlock()
+            {
+                var result = new byte[32];
+                Buffer.BlockCopy(bytes, 0, result, 0, 32);
+                return result;
+            }
+
+
+
+
+        }
+
+        //private static void ProtoTest()
+        //{
+        //    CoreAssemblyConfig.UseUnmanaged=false;
+        //    int totMsgCl = 0;
+        //    int totMsgsw = 0;
+        //    Stopwatch sw = new Stopwatch();
+        //    MessageEnvelope msg = new MessageEnvelope()
+        //    {
+        //        Header = "Test",
+        //        Payload = new byte[2]
+                
+        //    };
+           
+        //    MessageEnvelope end = new MessageEnvelope()
+        //    {
+        //        Header = "Stop"
+        //    };
+
+        //    ProtoServer server = new ProtoServer(20008, 100);
+        //    server.OnStatusMessageReceived += ServerStsReceived;
+        //    server.OnRequestReceived += ServerRequestReceived;
+
+        //    var clients = new List<ProtoClient>();
+        //    for (int i = 0; i < 100; i++)
+        //    {
+        //        var client = new ProtoClient();
+        //        client.OnStatusMessageReceived +=(reply)=> ClientStsReceived(client,reply);
+        //        client.OnRequestReceived +=(reply)=> ClientReqReceived(client,reply);
+
+        //        client.Connect("127.0.0.1", 20008);
+        //        clients.Add(client);
+        //    }
+        //    Task.Run(async () =>
+        //    {
+        //        while (true)
+        //        {
+        //            await Task.Delay(10000);
+        //            Console.WriteLine("client {0} server {1}", totMsgCl, totMsgsw);
+
+        //        }
+
+        //    });
+        //    sw.Start();
+        //    Parallel.ForEach(clients, client =>
+        //    {
+        //        for (int i = 0; i < 1000; i++)
+        //        {
+        //            client.SendRequestMessage(msg);
+        //        }
+        //        //client.SendStatusMessage(end);
+
+        //    });
+
+        //    //var resp = clients[0].SendMessageAndWaitResponse(msg).Result;
+        //    while (Console.ReadLine() != "e")
+        //    {
+        //        Console.WriteLine("client {0} server {1}",totMsgCl,totMsgsw);
+        //    }
+        //    Console.ReadLine();
+
+
+        //    void ServerStsReceived(in Guid arg1, MessageEnvelope arg2)
+        //    {
+        //        Interlocked.Increment(ref totMsgsw);
+        //        server.SendStatusMessage(arg1,arg2);
+        //    }
+
+        //    void ClientStsReceived(ProtoClient client, MessageEnvelope reply)
+        //    {
+        //        //Interlocked.Increment(ref totMsgCl);
+        //        //if (reply.Header.Equals("Stop"))
+        //        //{
+        //        //    Console.WriteLine(sw.ElapsedMilliseconds);
+        //        //}
+        //    }
+
+        //    void ServerRequestReceived(in Guid arg1, MessageEnvelope arg2)
+        //    {
+        //        Interlocked.Increment(ref totMsgsw);
+
+        //        //server.SendResponseMessage(arg1, arg2.Id, arg2);
+        //        server.SendRequestMessage(arg1, arg2);
+        //    }
+
+        //    void ClientReqReceived(ProtoClient client, MessageEnvelope message)
+        //    {
+        //        Interlocked.Increment(ref totMsgCl);
+
+        //        //client.SendResponseMessage( message.Id,message);
+        //        client.SendRequestMessage(message);
+        //    }
+
+        //}
+
+       
+
+       
 
         private static void UdpTest2()
         {
@@ -109,7 +510,7 @@ namespace ConsoleTest
                 Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
             }
 
-            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
+            void ServerReceived(in Guid arg1, byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgServer);
                 if(arg4 == 502)
@@ -154,8 +555,9 @@ namespace ConsoleTest
             SslByteMessageClient client = new SslByteMessageClient(cert);
 
             client.OnBytesReceived += ClientReceived;
-            client.Connect("127.0.0.1", 2008);
+            client.RemoteCertificateValidationCallback += A;
 
+            client.Connect("127.0.0.1", 2008);
             for (int i = 0; i < 10000000; i++)
             {
                 client.SendAsync(req);
@@ -168,7 +570,7 @@ namespace ConsoleTest
                 Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
             }
 
-            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
+            void ServerReceived(in Guid arg1, byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgServer);
                 server.SendBytesToClient(arg1, resp);
@@ -182,6 +584,10 @@ namespace ConsoleTest
             }
         }
 
+        private static bool A(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+           return true;
+        }
 
         private static void UdpTestMc()
         {
@@ -296,7 +702,7 @@ namespace ConsoleTest
             Console.WriteLine("totmeg client rec: " + totMsgCl);
             Console.ReadLine();
         }
-        static void UdpSWBytsRec(IPEndPoint endpoint, byte[] bytes)
+        static void UdpSWBytsRec(IPEndPoint endpoint, byte[] bytes, int offset, int count)
         {
             Interlocked.Increment(ref totMsgsw);
         }
@@ -485,7 +891,7 @@ namespace ConsoleTest
 
         }
 
-        private static void SWOnMsgRecieved(Guid arg1, byte[] arg2, int offset, int count)
+        private static void SWOnMsgRecieved(in Guid arg1, byte[] arg2, int offset, int count)
         {
            
             //server.SendBytesToClient(arg1, resp);

@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -13,7 +14,7 @@ using System.Threading.Tasks;
 /// This class provides contigious send and receive buffer, this was to optimise GC because the send and receive buffers are pinned
 /// by the WSA calls.
 /// </summary>
-public class BufferProvider
+public class BufferProvider:IDisposable
 {
     private  byte[][] sendBuffers ;
 
@@ -23,10 +24,15 @@ public class BufferProvider
 
     private  ConcurrentBag<int> availableIndexesRB = new ConcurrentBag<int>();
 
+    private List<GCHandle> pinHandels = new List<GCHandle>();
+
+    private int disposedStatus = 0;
+
     internal BufferProvider(int numSendBuffers, int sendBufSizes,int numRecvBuffers,int recvBufSizes)
     {
         InitContigiousReceiveBuffers(numRecvBuffers, recvBufSizes);
         InitContigiousSendBuffers(numSendBuffers, sendBufSizes);
+        
     }
 
     public bool IsExhausted()
@@ -42,6 +48,8 @@ public class BufferProvider
         for (int i = 0; i < numBuffers; i++)
         {
             var bufer = new byte[bufferSize];
+            //var handle = GCHandle.Alloc(bufer, GCHandleType.Pinned);
+            //pinHandels.Add(handle);
 
             sendBuffers[i]= bufer;
             availableIndexesSB.Add(i);
@@ -55,6 +63,8 @@ public class BufferProvider
         for (int i = 0; i < numBuffers; i++)
         {
             var bufer = new byte[bufferSize];
+            //var handle = GCHandle.Alloc(bufer, GCHandleType.Pinned);
+            //pinHandels.Add(handle);
 
             receiveBuffers[i] = bufer;
             availableIndexesRB.Add(i);
@@ -102,8 +112,9 @@ public class BufferProvider
             throw new InvalidOperationException("Buffer Doesnt belong here");
 
         availableIndexesRB.Add(idx);
-
     }
+
+    
 
     public bool VerifyAvailableSBIndexes()
     {
@@ -126,5 +137,16 @@ public class BufferProvider
         return true;
     }
 
+    public void Dispose()
+    {
+        if(Interlocked.CompareExchange(ref disposedStatus, 1, 0) == 0)
+        {
+            foreach (var handle in pinHandels)
+            {
+                handle.Free();
+            }
+        }
+        
+    }
 }
 

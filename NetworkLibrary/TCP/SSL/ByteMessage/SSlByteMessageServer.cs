@@ -18,6 +18,12 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         {
             var ses =  new SslByteMessageSession(guid, sslStream, bufferProvider);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
+
             return ses;
         }
     }

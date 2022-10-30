@@ -1,4 +1,6 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components.MessageProcessor.Unmanaged;
 using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Generic;
@@ -38,12 +40,37 @@ namespace NetworkLibrary.TCP.ByteMessage
 
         protected override IMessageProcessQueue CreateMessageBuffer()
         {
-            var proccesor = new DelimitedMessageWriter();
-            var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+            if (UseQueue)
+            {
+                var proccesor = new DelimitedMessageWriter();
+                var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+                return q;
+            }
+            else
+            {
+                return new MessageBuffer(maxIndexedMemory);
+            }
 
+            //if (CoreAssemblyConfig.UseUnmanaged)
+            //{
+            //    //var proccesor = new UnsafeDelimitedMessageWriter();
+            //    //var q = new MessageQueue<UnsafeDelimitedMessageWriter>(maxIndexedMemory, proccesor);
+            //    //return q;
+            //    var proccesor = new DelimitedMessageWriter();
+            //    var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+            //    return q;
+
+            //}
+            //else
+            //{
+            //    //var proccesor = new DelimitedMessageWriter();
+            //    //var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+            //    //return q;
+            //    return new MessageBuffer(maxIndexedMemory);
+
+            //}
             //q.SetMessageProcessor(proccesor);
-            return q;
-           
+
         }
 
 

@@ -8,7 +8,7 @@ namespace NetworkLibrary.Components
 {
     internal sealed class DelimitedMessageWriter : IMessageProcessor
     {
-        public byte[] Buffer { get; private set; }
+        private byte[] bufferInternal;
         private int offset;
         private int origialOffset;
         public int count;
@@ -20,10 +20,9 @@ namespace NetworkLibrary.Components
         int pendingRemaining;
         private bool writeHeaderOnflush;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetBuffer(ref byte[] buffer, int offset)
         {
-            Buffer = buffer;
+            bufferInternal = buffer;
             this.offset = offset;
             origialOffset = offset;
             count = 0;
@@ -35,12 +34,23 @@ namespace NetworkLibrary.Components
         {
             if (IsHoldingMessage)
                 throw new InvalidOperationException("You can not process new message before heldover message is fully flushed");
-            if (Buffer.Length - offset >= 36)
+            else if (bufferInternal.Length - offset >= 5)
             {
-                Buffer[offset] = (byte)message.Length;
-                Buffer[offset + 1] = (byte)(message.Length >> 8);
-                Buffer[offset + 2] = (byte)(message.Length >> 16);
-                Buffer[offset + 3] = (byte)(message.Length >> 24);
+                if (BitConverter.IsLittleEndian)
+                {
+                    bufferInternal[offset] = (byte)message.Length;
+                    bufferInternal[offset + 1] = (byte)(message.Length >> 8);
+                    bufferInternal[offset + 2] = (byte)(message.Length >> 16);
+                    bufferInternal[offset + 3] = (byte)(message.Length >> 24);
+                }
+                else
+                {
+                    bufferInternal[offset+3] = (byte)message.Length;
+                    bufferInternal[offset + 2] = (byte)(message.Length >> 8);
+                    bufferInternal[offset + 1] = (byte)(message.Length >> 16);
+                    bufferInternal[offset] = (byte)(message.Length >> 24);
+                }
+               
                 offset += 4;
                 count += 4;
             }
@@ -55,9 +65,9 @@ namespace NetworkLibrary.Components
 
             }
 
-            if (Buffer.Length - offset >= message.Length)
+            if (bufferInternal.Length - offset >= message.Length)
             {
-                System.Buffer.BlockCopy(message, 0, Buffer, offset, message.Length);
+                System.Buffer.BlockCopy(message, 0, bufferInternal, offset, message.Length);
                 offset += message.Length;
                 count += message.Length;
                 return true;
@@ -80,17 +90,27 @@ namespace NetworkLibrary.Components
             if (writeHeaderOnflush)
             {
                 writeHeaderOnflush = false;
-                Buffer[offset] = (byte)pendingMessage.Length;
-                Buffer[offset + 1] = (byte)(pendingMessage.Length >> 8);
-                Buffer[offset + 2] = (byte)(pendingMessage.Length >> 16);
-                Buffer[offset + 3] = (byte)(pendingMessage.Length >> 24);
+                if (BitConverter.IsLittleEndian)
+                {
+                    bufferInternal[offset] = (byte)pendingMessage.Length;
+                    bufferInternal[offset + 1] = (byte)(pendingMessage.Length >> 8);
+                    bufferInternal[offset + 2] = (byte)(pendingMessage.Length >> 16);
+                    bufferInternal[offset + 3] = (byte)(pendingMessage.Length >> 24);
+                }
+                else
+                {
+                    bufferInternal[offset + 3] = (byte)pendingMessage.Length;
+                    bufferInternal[offset + 2] = (byte)(pendingMessage.Length >> 8);
+                    bufferInternal[offset + 1] = (byte)(pendingMessage.Length >> 16);
+                    bufferInternal[offset] = (byte)(pendingMessage.Length >> 24);
+                }
                 offset += 4;
                 count += 4;
 
             }
-            if (pendingRemaining <= Buffer.Length - offset)
+            if (pendingRemaining <= bufferInternal.Length - offset)
             {
-                System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, Buffer, offset, pendingRemaining);
+                System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, bufferInternal, offset, pendingRemaining);
                 offset += pendingRemaining;
                 count += pendingRemaining;
 
@@ -102,19 +122,18 @@ namespace NetworkLibrary.Components
             }
             else
             {
-                System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, Buffer, offset, Buffer.Length - offset);
-                count += (Buffer.Length - offset);
+                System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, bufferInternal, offset, bufferInternal.Length - offset);
+                count += (bufferInternal.Length - offset);
 
-                pendingMessageOffset += (Buffer.Length - offset);
-                pendingRemaining -= (Buffer.Length - offset);
+                pendingMessageOffset += (bufferInternal.Length - offset);
+                pendingRemaining -= (bufferInternal.Length - offset);
                 return false;
             }
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
         public void GetBuffer(out byte[] Buffer, out int offset, out int count)
         {
-            Buffer = this.Buffer;
+            Buffer = this.bufferInternal;
             offset = origialOffset;
             count = this.count;
         }

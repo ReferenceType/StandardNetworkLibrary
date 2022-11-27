@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -10,31 +11,57 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.UDP
 {
-    public class AsyncUdpClient
+    public class AsyncUdpClient:IDisposable
     {
         public delegate void BytesRecieved(byte[] bytes, int offset, int count);
 
         public BytesRecieved OnBytesRecieved;
 
-        public Action OnError;
+        public Action<Exception> OnError;
         public Action OnConnected;
         private Socket clientSocket;
+       
         public bool Connected { get; private set; } = false;
+        public int ReceiveBufferSize
+        {
+            get => receiveBufferSize;
+            set
+            {
+                clientSocket.ReceiveBufferSize = value; receiveBufferSize = value;
+            }
+        }
+        public int SocketSendBufferSize
+        {
+            get => socketSendBufferSize; 
+            set
+            {
+                clientSocket.SendBufferSize = value; socketSendBufferSize = value;
+            }
+        }
+
+        public EndPoint LocalEndpoint => clientSocket.LocalEndPoint;
+
         private EndPoint remoteEndPoint;
 
-        public int ReceiveBufferSize = 1280000;
-        public int SocketSendBufferSize = 128000;
+        private int receiveBufferSize = 12800000;
+        private int socketSendBufferSize = 128000000;
 
         protected byte[] recieveBuffer;
+        private IAsyncResult activeRec;
 
         public AsyncUdpClient()
         {
-            recieveBuffer = new byte[ReceiveBufferSize];
+            recieveBuffer = new byte[65500];
             clientSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+
             clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
             clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            clientSocket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.PacketInformation, true);
+
             clientSocket.ReceiveBufferSize = ReceiveBufferSize;
             clientSocket.SendBufferSize = SocketSendBufferSize;
+            clientSocket.Blocking = false;
+
             remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
         }
 
@@ -44,17 +71,37 @@ namespace NetworkLibrary.UDP
             clientSocket.Bind(bindPoint);
         }
 
-        public void SetRemoteEnd(string ip, int port)
+        public void Bind()
         {
-            remoteEndPoint = new IPEndPoint(IPAddress.Parse(ip), port);
-            Receive();
+            var bindPoint = new IPEndPoint(IPAddress.Any, 0);
+            clientSocket.Bind(bindPoint);
 
         }
+
+        public void Bind(int port)
+        {
+            var bindPoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), port);
+            clientSocket.Bind(bindPoint);
+
+        }
+        public void SetRemoteEnd(string ip, int port,bool receive = true)
+        {
+            if(IPAddress.TryParse(ip, out var ipAdress))
+            {
+                remoteEndPoint = new IPEndPoint(ipAdress, port);
+                if (receive)
+                    Receive();
+            }
+          
+
+        }
+
         public void Connect(string IP, int port)
         {
             remoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
             clientSocket.Connect(remoteEndPoint);
             Connected = true;
+            clientSocket.Blocking = false;
             clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
         }
 
@@ -62,9 +109,33 @@ namespace NetworkLibrary.UDP
         private void Receive()
         {
             if (clientSocket.Connected)
-                clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
+            {
+                try
+                {
+                    clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
+
+                }
+                catch (Exception e)
+                {
+                    OnError?.Invoke(e);
+                }
+            }
+
             else
-                clientSocket.BeginReceiveFrom(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, ref remoteEndPoint, EndRecieveFrom, null);
+            {
+                try
+                {
+                    //EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
+                    activeRec = clientSocket.BeginReceiveFrom(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, ref remoteEndPoint, EndRecieveFrom, null);
+
+                }
+                catch (Exception e )
+                {
+                    OnError?.Invoke(e);
+
+                }
+
+            }
 
         }
         private void EndRecieve(IAsyncResult ar)
@@ -72,11 +143,11 @@ namespace NetworkLibrary.UDP
             int amount = 0;
             try
             {
-                 amount = clientSocket.EndReceive(ar);
+                amount = clientSocket.EndReceive(ar);
             }
-            catch (SocketException)
+            catch (SocketException e)
             {
-                OnError?.Invoke();
+                OnError?.Invoke(e);
                 return;
             };
             HandleBytesReceived(recieveBuffer, 0, amount);
@@ -91,12 +162,12 @@ namespace NetworkLibrary.UDP
             int amount = 0;
             try
             {
-                amount = clientSocket.EndReceiveFrom(ar,ref remoteEndPoint);
+                amount = clientSocket.EndReceiveFrom(ar, ref remoteEndPoint);
             }
-            catch (SocketException) 
+            catch (Exception e)
             {
-                OnError?.Invoke();
-                return; 
+                OnError?.Invoke(e);
+                return;
             };
             HandleBytesReceived(recieveBuffer, 0, amount);
 
@@ -113,29 +184,25 @@ namespace NetworkLibrary.UDP
         }
 
 
+        public virtual void SendAsync(byte[] bytes,int offset,int count)
+        {
+            //clientSocket.BeginSendTo(bytes,offset,count,SocketFlags.None,remoteEndPoint,(IAsyncResult ar)=>clientSocket.EndSendTo(ar),null);
+
+            try
+            {
+                clientSocket.SendTo(bytes, offset, count, SocketFlags.None, remoteEndPoint);
+
+            }
+            catch (Exception e)
+            {
+            }
+        }
         public void SendAsync(byte[] bytes)
         {
-            SendAsyncInternal(bytes);
+            SendAsync(bytes, 0, bytes.Length);
         }
 
-        protected virtual void SendAsyncInternal(byte[] bytes)
-        {
-            if (clientSocket.Connected)
-                clientSocket.BeginSend(bytes, 0, bytes.Length, SocketFlags.None, EndSend, null);
-            else
-                clientSocket.BeginSendTo(bytes, 0, bytes.Length, SocketFlags.None, remoteEndPoint, EndSendTo, null);
-        }
-        private void EndSend(IAsyncResult ar)
-        {
-            clientSocket.EndSend(ar);
-        }
-
-        private void EndSendTo(IAsyncResult ar)
-        {
-            clientSocket.EndSendTo(ar);
-        }
-
-
+      
 
         public void JoinMulticastGroup(IPAddress multicastAddr)
         {
@@ -146,7 +213,10 @@ namespace NetworkLibrary.UDP
                 mcOpt);
         }
 
-        
-
+        public void Dispose()
+        {
+            clientSocket.Close();
+            clientSocket.Dispose();
+        }
     }
 }

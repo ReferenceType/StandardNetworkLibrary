@@ -1,9 +1,12 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NetworkLibrary;
+using NetworkLibrary.TCP;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +29,6 @@ namespace UnitTests
         [TestMethod]
         public void DisconnectTest()
         {
-
             int totMsgCl = 0;
             int totMsgsw = 0;
             int totDisconnectRequest = 0;
@@ -36,7 +38,7 @@ namespace UnitTests
             const int numMsg = 100;
             int clAmount = 100;
 
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008,200);
+            ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
@@ -61,7 +63,6 @@ namespace UnitTests
             }
 
             Task.WaitAll(toWait);
-
             // Deploy timed disconnections.
             foreach (var client in clients)
             {
@@ -93,7 +94,7 @@ namespace UnitTests
                 client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 server.SendBytesToClient(id, response);
@@ -103,19 +104,13 @@ namespace UnitTests
             testCompletionEvent.WaitOne(12000);
 
             long waitcount = 0;
-            while (server.Sessions.Count != 0|| waitcount<1000000)
+            while (server.Sessions.Count != 0&& waitcount<1000000)
             {
                 waitcount++;
                 Thread.SpinWait(100);
             }
+            var a = BufferPool.RentBuffer(128000);
 
-            if (!server.BufferManager.VerifyAvailableRBIndexes())
-            {
-                server.BufferManager.VerifyAvailableRBIndexes();
-            }
-            Assert.AreEqual(0, server.Sessions.Count);
-            Assert.IsTrue(server.BufferManager.VerifyAvailableRBIndexes());
-            Assert.IsTrue(server.BufferManager.VerifyAvailableSBIndexes());
             server.ShutdownServer();
         }
 

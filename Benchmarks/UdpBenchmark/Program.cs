@@ -19,13 +19,13 @@ internal class Program
     static void UdpTest()
     {
         MiniLogger.AllLog+=(string log)=>Console.WriteLine(log);
-        int clAmount = 1000;
+        int clAmount = 100;
         int timeClientsComplete=0;
         int timeServerComplete=0;
 
         AsyncUdpServer sw = new AsyncUdpServer(2008);
-        sw.SocketSendBufferSize = 128000000;
-        sw.SocketReceiveBufferSize = 128000000;
+        sw.SocketSendBufferSize = 1280000000;
+        sw.SocketReceiveBufferSize = 1280000000;
 
         sw.StartServer();
         sw.OnBytesRecieved += UdpSWBytsRec;
@@ -36,10 +36,10 @@ internal class Program
         {
             AsyncUdpClient cl = new AsyncUdpClient();
 
-            cl.SocketSendBufferSize = 64000;
-            cl.ReceiveBufferSize = 64000;
+            //cl.SocketSendBufferSize = 128000000;
+            //cl.ReceiveBufferSize = 12800000;
 
-            cl.OnBytesRecieved += ClientBytesRecieved;
+            cl.OnBytesRecieved +=(bytes,offset,count)=> ClientBytesRecieved(cl,bytes,offset,count);
             cl.Connect("127.0.0.1", 2008);
 
             cl.SendAsync(new byte[32]);
@@ -49,67 +49,68 @@ internal class Program
         Thread.Sleep(2222);
         Console.WriteLine("Test Starting");
 
-        var bytes_ = new byte[32000];
-        int nummsg = 500;
+        var bytes_ = new byte[63000];
+        int nummsg = 5000;
 
         var t = new Thread(() =>
         {
-            sw1.Start();
-            foreach (var client in clients)
+        sw1.Start();
+            for (int i = 0; i < nummsg; i++)
+            //Parallel.For(0, nummsg, (i) =>
             {
-                for (int i = 0; i < nummsg; i++)
+                foreach (var client in clients)
                 {
                     client.SendAsync(bytes_);
                 }
-            }/*);*/
-            sw1.Stop();
+            }
+            //);
+            //sw1.Stop();
+            
             timeClientsComplete = (int)sw1.ElapsedMilliseconds;
             Console.WriteLine("Done Clients " + timeClientsComplete);
-        });
-
-        var t2 = new Thread(() =>
-        {
-            sw2.Start();
-            for (int j = 0; j < nummsg; j++)
-            {
-                sw.SendBytesToAllClients(bytes_);
-            }
-            sw2.Stop();
-            timeServerComplete = (int)sw2.ElapsedMilliseconds;
-            Console.WriteLine("Done Clients " + timeServerComplete);
+            PrintResults();
 
         });
-       
+        sw2.Start();
 
         t.Start();
-        t2.Start();
-
-        t.Join();
-        t2.Join();
-
-        
-        Console.WriteLine("Done all");
-        Console.ReadLine();
-
-        Console.WriteLine("Total Message Server received: " + totMsgsw);
-        Console.WriteLine("Total Message Clients received: " + totMsgCl);
-
-        var totMBytesTransferedByClients = (((double)totMsgCl * (double)bytes_.Length)) / 1000000;
-        Console.WriteLine("Total Sucessfull Data Transfer Rate Clients: " + totMBytesTransferedByClients/((float)timeClientsComplete/1000));
-
-        var totMBytesTransferedByServer = (((double)totMsgsw * (double)bytes_.Length)) / 1000000;
-        Console.WriteLine("Total Sucessfull Data Transfer Rate Server: " + totMBytesTransferedByServer /((float)timeServerComplete/1000));
-
-        Console.ReadLine();
-
-
-        void UdpSWBytsRec(IPEndPoint endpoint, byte[] bytes)
+       // t.Join();
+        //t2.Join();
+        while (Console.ReadLine() != "e")
         {
+           PrintResults();
+        }
+       
+
+        Console.ReadLine();
+
+        void PrintResults()
+        {
+            timeClientsComplete = (int)sw1.ElapsedMilliseconds;
+            timeServerComplete = (int)sw2.ElapsedMilliseconds;
+
+            Console.WriteLine("Total Message Server received: " + totMsgsw);
+            Console.WriteLine("Total Message Clients received: " + totMsgCl);
+
+            var totMBytesTransferedByClients = (((double)totMsgsw * (double)bytes_.Length)) / 1000000;
+            Console.WriteLine("Total Sucessfull Data Transfer Rate Clients: " + totMBytesTransferedByClients / ((float)timeClientsComplete / 1000));
+
+            var totMBytesTransferedByServer = (((double)totMsgCl * (double)bytes_.Length)) / 1000000;
+            Console.WriteLine("Total Sucessfull Data Transfer Rate Server: " + totMBytesTransferedByServer / ((float)timeServerComplete / 1000));
+        }
+
+
+        void UdpSWBytsRec(IPEndPoint endpoint, byte[] bytes,int offset, int count)
+        {
+            sw.SendBytesToClient(endpoint, bytes,offset,count);
+
             Interlocked.Increment(ref totMsgsw);
         }
 
-        void ClientBytesRecieved(byte[] bytes, int offset, int count)
+        void ClientBytesRecieved(AsyncUdpClient cl, byte[] bytes, int offset, int count)
         {
+            cl.SendAsync(bytes,offset,count);
+
             Interlocked.Increment(ref totMsgCl);
         }
     }

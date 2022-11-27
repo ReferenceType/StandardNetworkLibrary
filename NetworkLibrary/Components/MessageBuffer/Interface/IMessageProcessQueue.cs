@@ -5,7 +5,7 @@ using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    internal interface IMessageProcessQueue
+    internal interface IMessageProcessQueue:IDisposable
     {
         /// <summary>
         /// Enqueues the message if there is enough space available
@@ -13,6 +13,7 @@ namespace NetworkLibrary.Components
         /// <param name="bytes"></param>
         /// <returns>true if message is enqueued.</returns>
         bool TryEnqueueMessage(byte[] bytes);
+        bool TryEnqueueMessage(byte[] bytes, int offset,int count);
 
         /// <summary>
         /// Flushes the queue if there is anything to flush.
@@ -28,5 +29,10 @@ namespace NetworkLibrary.Components
         /// </summary>
         /// <returns></returns>
         bool IsEmpty();
+
+        void Flush();
+
+        int CurrentIndexedMemory { get; }
+        long TotalMessageDispatched { get; }
     }
 }

@@ -1,17 +1,32 @@
-﻿using System;
+﻿using NetworkLibrary.Components.Statistics;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
+public enum ScatterGatherConfig
+{
+    UseQueue,
+    UseBuffer
+}
 namespace NetworkLibrary.TCP.Base
 {
     public abstract class TcpServerBase
     {
+
+        /// <summary>
+        /// Use queue if your messages are from static resources such a a byte[] without segmentation.
+        /// Use buffer if your messsages are mainly from segment of byte[] i.e. buffer, offset, count.
+        /// </summary>
+        public ScatterGatherConfig GatherConfig = ScatterGatherConfig.UseQueue;
+
         /// <summary>
         /// Client accepted callback delegate with session id as Guid
         /// </summary>
         /// <param name="guid"></param>
-        public delegate void ClientAccepted(Guid guid);
+        public delegate void ClientAccepted( Guid guid);
 
         /// <summary>
         /// Bytes received callback delegate with client session Id
@@ -20,7 +35,7 @@ namespace NetworkLibrary.TCP.Base
         /// <param name="bytes"></param>
         /// <param name="offset"></param>
         /// <param name="count"></param>
-        public delegate void BytesRecieved(Guid guid, byte[] bytes, int offset, int count);
+        public delegate void BytesRecieved(in Guid guid, byte[] bytes, int offset, int count);
 
         /// <summary>
         /// Connection Request callback delegate
@@ -30,10 +45,12 @@ namespace NetworkLibrary.TCP.Base
         public delegate bool ClientConnectionRequest(Socket acceptedSocket);
 
         /// <summary>
-        /// Max number clients that the server can concurrently serve.
-        /// You cannot change this after server is started.
+        /// Client is disconnected.
         /// </summary>
-        public int MaxClients { get; internal set; } = 1000;
+        /// <param name="guid"></param>
+        public delegate void ClientDisconnected(Guid guid);
+
+        
 
         /// <summary>
         /// Client send buffer size
@@ -80,6 +97,10 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         public abstract void StartServer();
 
+        public abstract void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid,SessionStats> sessionStats);
+
+        public abstract IPEndPoint GetSessionEndpoint(Guid sessionId);
+
         /// <summary>
         /// Shuts down the server. 
         /// Shutdown disposes all client resources.
@@ -97,12 +118,13 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         /// <param name="id"></param>
         /// <param name="bytes"></param>
-        public abstract void SendBytesToClient(Guid id, byte[] bytes);
+        public abstract void SendBytesToClient(in Guid id, byte[] bytes);
 
         /// <summary>
         /// Multicats message to all clients.
         /// </summary>
         /// <param name="bytes"></param>
         public abstract void SendBytesToAllClients(byte[] bytes);
+
     }
 }

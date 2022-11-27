@@ -1,4 +1,6 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components.MessageProcessor.Unmanaged;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Generic;
@@ -11,7 +13,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
     {
         ByteMessageReader reader;
 
-        public SslByteMessageSession(Guid sessionId, SslStream sessionStream, BufferProvider bufferProvider) : base(sessionId, sessionStream, bufferProvider)
+        public SslByteMessageSession(Guid sessionId, SslStream sessionStream ) : base(sessionId, sessionStream)
         {
             reader = new ByteMessageReader(sessionId);
             reader.OnMessageReady += HandleMessage;
@@ -28,9 +30,11 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
 
         protected override IMessageProcessQueue CreateMessageQueue()
         {
-            var q = new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
+            if (UseQueue)
+                return new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
 
-            return q;
+            else
+                return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: true);
         }
 
     }

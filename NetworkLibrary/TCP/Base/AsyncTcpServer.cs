@@ -1,7 +1,6 @@
 ﻿using System;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
-using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +9,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
+using NetworkLibrary.Components.Statistics;
 
 namespace NetworkLibrary.TCP.Base
 {
@@ -23,9 +22,10 @@ namespace NetworkLibrary.TCP.Base
         public BytesRecieved OnBytesReceived;
         public ClientConnectionRequest OnClientAccepting = (socket) => true;
 
-        public BufferProvider BufferManager { get; private set; }
+        //public BufferProvider BufferManager { get; private set; }
         protected Socket ServerSocket;
-      
+        private TcpStatisticsPublisher sc;
+
         internal ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
 
         public int SessionCount=>Sessions.Count;
@@ -33,22 +33,21 @@ namespace NetworkLibrary.TCP.Base
 
         #endregion
 
-        public AsyncTcpServer(int port = 20008, int maxClients = 100)
+        public AsyncTcpServer(int port = 20008)
         {
             ServerPort = port;
-            MaxClients = maxClients;
         }
 
         #region Start
         public override void StartServer()
         {
-            BufferManager = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
+            //BufferManager = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
 
             ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             ServerSocket.NoDelay = NaggleNoDelay;
             ServerSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
             ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
-            ServerSocket.Listen(MaxClients);
+            ServerSocket.Listen(10000);
 
 
             SocketAsyncEventArgs e = new SocketAsyncEventArgs();
@@ -57,7 +56,12 @@ namespace NetworkLibrary.TCP.Base
             {
                 Accepted(null, e);
             }
+            sc = new TcpStatisticsPublisher(Sessions, 3000);
+
+
+
         }
+
 
         #endregion Start
 
@@ -80,8 +84,7 @@ namespace NetworkLibrary.TCP.Base
                 return;
             }
 
-            if (BufferManager.IsExhausted())
-                return;
+          
 
             if (!HandleConnectionRequest(acceptedArg))
             {
@@ -89,7 +92,7 @@ namespace NetworkLibrary.TCP.Base
             }
             
             Guid clientGuid = Guid.NewGuid();
-            var session = CreateSession(acceptedArg, clientGuid, BufferManager);
+            var session = CreateSession(acceptedArg, clientGuid);
 
             session.OnBytesRecieved += (sessionId, bytes, offset, count) => { HandleBytesRecieved(sessionId, bytes, offset, count); };
             session.OnSessionClosed += (sessionId) => { HandleDeadSession(sessionId); };
@@ -118,13 +121,19 @@ namespace NetworkLibrary.TCP.Base
         #endregion Accept
 
         #region Create Session
-        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            var session = new TcpSession(e, sessionId, bufferManager);
+            var session = new TcpSession(e, sessionId);
             session.socketSendBufferSize = ClientSendBufsize;
             session.socketRecieveBufferSize = ClientReceiveBufsize;
             session.maxIndexedMemory = MaxIndexedMemoryPerClient;
             session.dropOnCongestion = DropOnBackPressure;
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                session.UseQueue = true;
+            else
+                session.UseQueue = false;
+
             return session;
         }
         #endregion
@@ -138,15 +147,21 @@ namespace NetworkLibrary.TCP.Base
             });
         }
 
-        public override void SendBytesToClient(Guid id, byte[] bytes)
+        public override void SendBytesToClient(in Guid id, byte[] bytes)
         {
-            Sessions[id].SendAsync(bytes);
+            if(Sessions.TryGetValue(id,out var session))
+                session.SendAsync(bytes);
+        }
+        public void SendBytesToClient(in Guid id, byte[] bytes, int offset, int count)
+        {
+            if (Sessions.TryGetValue(id, out var session))
+                session.SendAsync(bytes,offset,count);
         }
 
 
-        protected virtual void HandleBytesRecieved(Guid guid, byte[] bytes, int offset, int count)
+        protected virtual void HandleBytesRecieved(in Guid guid, byte[] bytes, int offset, int count)
         {
-            OnBytesReceived?.Invoke(guid, bytes, offset, count);
+            OnBytesReceived?.Invoke(in guid, bytes, offset, count);
         }
 
         #endregion
@@ -172,8 +187,13 @@ namespace NetworkLibrary.TCP.Base
         public override void ShutdownServer()
         {
             Stopping = true;
-            ServerSocket.Close();
-            ServerSocket.Dispose();
+            try
+            {
+                ServerSocket.Close();
+                ServerSocket.Dispose();
+            }
+            catch { }
+           
 
             foreach (var session in Sessions)
             {
@@ -183,14 +203,24 @@ namespace NetworkLibrary.TCP.Base
                 }
                 catch { }
             }
-
-            BufferManager=null;
             GC.Collect();
 
         }
 
+        public override void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid, SessionStats> sessionStats)
+        {
+            sc.GetStatistics(out generalStats, out sessionStats);
+        }
 
-       
+        public override IPEndPoint GetSessionEndpoint(Guid sessionId)
+        {
+            if(Sessions.TryGetValue(sessionId, out var session))
+            {
+                return session.RemoteEndpoint;
+            }
+
+            return null;
+        }
     }
 
 

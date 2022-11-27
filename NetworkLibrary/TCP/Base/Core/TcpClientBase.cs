@@ -8,6 +8,12 @@ namespace NetworkLibrary.TCP.Base
     public abstract class TcpClientBase
     {
         /// <summary>
+        /// Use queue if your messages are from static resources such a a byte[] without segmentation.
+        /// Use buffer if your messsages are mainly from segment of byte[] i.e. buffer, offset, count.
+        /// </summary>
+        public ScatterGatherConfig GatherConfig = ScatterGatherConfig.UseQueue;
+
+        /// <summary>
         /// Callback delegate of bytes recieved
         /// </summary>
         /// <param name="bytes"></param>
@@ -18,17 +24,23 @@ namespace NetworkLibrary.TCP.Base
         /// <summary>
         /// Fires when client is connected;
         /// </summary>
-        public Action OnConnected;
+        public Action OnConnected { get; set; }
 
         /// <summary>
         /// Fires when connection is failed when the connection is initiated with <see cref="ConnectAsync(string, int)"/>
         /// </summary>
-        public Action<Exception> OnConnectFailed;
+        public Action<Exception> OnConnectFailed { get; set; }
 
         /// <summary>
         /// Fires when client is disconnected.
         /// </summary>
-        public Action OnDisconnected;
+        public Action OnDisconnected { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public BytesRecieved OnBytesReceived { get; set; }
+
 
         /// <summary>
         /// Send buffer size option to set on the socket
@@ -100,6 +112,14 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         /// <param name="buffer"></param>
         public abstract void SendAsync(byte[] buffer);
+
+        /// <summary>
+        /// Sends or enqueues mesage asyncronously
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        public abstract void SendAsync(byte[] buffer, int offset, int count);
 
         /// <summary>
         /// Disconnects the client.

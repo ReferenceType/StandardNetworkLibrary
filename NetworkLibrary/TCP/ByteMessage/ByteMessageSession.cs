@@ -1,4 +1,6 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components.MessageProcessor.Unmanaged;
 using NetworkLibrary.TCP.Base;
 using System;
 using System.Collections.Generic;
@@ -11,7 +13,7 @@ namespace NetworkLibrary.TCP.ByteMessage
     internal class ByteMessageSession : TcpSession
     {
         ByteMessageReader messageManager= null;
-        public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager) : base(acceptedArg, sessionId, bufferManager)
+        public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
         }
 
@@ -38,12 +40,16 @@ namespace NetworkLibrary.TCP.ByteMessage
 
         protected override IMessageProcessQueue CreateMessageBuffer()
         {
-            var proccesor = new DelimitedMessageWriter();
-            var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+            if (UseQueue)
+            {
+                var q = new MessageQueue<UnsafeDelimitedMessageWriter>(maxIndexedMemory, new UnsafeDelimitedMessageWriter());
+                return q;
+            }
+            else
+            {
+                return new MessageBuffer(maxIndexedMemory);
+            }
 
-            //q.SetMessageProcessor(proccesor);
-            return q;
-           
         }
 
 

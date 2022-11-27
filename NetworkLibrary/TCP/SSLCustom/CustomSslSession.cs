@@ -13,7 +13,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
         //AesDecryptor processor;
         private AesMessageDecryptor decr;
 
-        internal CustomSslSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager,byte[] aesKey) : base(acceptedArg, sessionId, bufferManager)
+        internal CustomSslSession(SocketAsyncEventArgs acceptedArg, Guid sessionId,byte[] aesKey) : base(acceptedArg, sessionId)
         {
             encryptor = new AesAlgorithm(aesKey, aesKey);
             decr =new AesMessageDecryptor(encryptor);

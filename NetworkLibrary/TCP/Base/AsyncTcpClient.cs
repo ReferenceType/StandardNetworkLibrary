@@ -13,24 +13,9 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public class AsyncTpcClient : TcpClientBase
+    public class AsyncTpcClient : TcpClientBase,IDisposable
     {
         #region Fields & Props
-
-        public BytesRecieved OnBytesReceived;
-       
-
-        private BufferProvider bufferManager;
-        public BufferProvider BufferManager
-        {
-            get => bufferManager;
-            set
-            {
-                if (IsConnecting)
-                    throw new InvalidOperationException("Setting buffer manager is not supported after conection is initiated.");
-                bufferManager = value;
-            }
-        }
 
         private Socket clientSocket;
         private TaskCompletionSource<bool> connectedCompletionSource;
@@ -94,12 +79,7 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void HandleConnected(SocketAsyncEventArgs e)
         {
-            if (bufferManager == null)
-            {
-                bufferManager = new BufferProvider(1, SocketSendBufferSize, 1, SocketRecieveBufferSize);
-            }
-            
-            session = CreateSession(e, Guid.NewGuid(), bufferManager);
+            session = CreateSession(e, Guid.NewGuid());
 
             session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
             session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
@@ -114,14 +94,19 @@ namespace NetworkLibrary.TCP.Base
 
         #region Create Session Dependency
 
-        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            var ses = new TcpSession(e, sessionId, bufferManager);
+            var ses = new TcpSession(e, sessionId);
             ses.socketSendBufferSize = SocketSendBufferSize;
             ses.socketRecieveBufferSize = SocketRecieveBufferSize;
             ses.maxIndexedMemory = MaxIndexedMemory;
             ses.dropOnCongestion = DropOnCongestion;
             ses.OnSessionClosed+=(id)=>OnDisconnected?.Invoke();
+
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
             return ses;
         }
 
@@ -133,6 +118,11 @@ namespace NetworkLibrary.TCP.Base
             if (connected)
                 session?.SendAsync(buffer);
         }
+        public override void SendAsync(byte[] buffer, int offset, int count)
+        {
+            if (connected)
+                session?.SendAsync(buffer,offset,count);
+        }
 
         protected virtual void HandleBytesRecieved(byte[] bytes, int offset, int count)
         {
@@ -141,13 +131,10 @@ namespace NetworkLibrary.TCP.Base
 
         #endregion Send & Receive
 
+        // Fix this
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
             string msg = "An error Occured While " + context +
-                " associated port: "
-                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port +
-                "IP: "
-                + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Address.ToString() +
                 " Error: " + Enum.GetName(typeof(SocketError), e.SocketError);
 
             MiniLogger.Log(MiniLogger.LogLevel.Error, msg);
@@ -159,8 +146,22 @@ namespace NetworkLibrary.TCP.Base
             // session will fire OnDisconnected;
             session.EndSession();
             IsConnected = false;
-            
         }
 
+        public void Dispose()
+        {
+            if (IsConnected)
+            {
+                try
+                {
+                    Disconnect();
+                    clientSocket?.Dispose();
+
+                }
+                catch { }
+            }
+            
+            //bufferManager?.Dispose();
+        }
     }
 }

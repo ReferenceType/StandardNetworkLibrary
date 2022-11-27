@@ -1,8 +1,9 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components
 {
-    internal interface IMessageProcessor
+    internal interface IMessageProcessor:IDisposable
     {
         // heldover
 
@@ -24,7 +25,7 @@ namespace NetworkLibrary.Components
         /// <summary>
         /// Flushes a heldover message into buffer set by <see cref="SetBuffer"/>.
         /// </summary>
-        /// <returns>true if heldover message is completel flushed, false if the messages isnt fullt processed.</returns>
+        /// <returns>true if heldover message is completel flushed, false if the messages isnt fully processed.</returns>
         bool Flush();
 
         /// <summary>

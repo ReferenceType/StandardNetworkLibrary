@@ -13,6 +13,9 @@ using System.Threading.Tasks;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using System.Security.Cryptography.X509Certificates;
 using System.Net.Security;
+using NetworkLibrary.TCP;
+using NetworkLibrary;
+using NetworkLibrary.Components.Statistics;
 
 namespace SslBenchmark
 {
@@ -26,21 +29,22 @@ namespace SslBenchmark
         }
         private static void Bench()
         {
+            BufferPool.ForceGCOnCleanup = true;
+            Random rng = new Random(42);
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
-
             int NumFinishedClients = 0;
             int totMsgClient = 0;
             int totMsgServer = 0;
             int lastTimeStamp = 1;
             int clientAmount = 100;
-            const int numMsg = 10000;
-            var message = new byte[3200];
-            var response = new byte[3200];
+            const int numMsg = 1000;
+            var message = new byte[32];
+            var response = new byte[32];
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            SslByteMessageServer server = new SslByteMessageServer(2008, clientAmount * 2, scert);
+            SslByteMessageServer server = new SslByteMessageServer(2008, scert);
             List<SslByteMessageClient> clients = new List<SslByteMessageClient>();
 
             Stopwatch sw2 = new Stopwatch();
@@ -48,18 +52,20 @@ namespace SslBenchmark
 
             
 
-            server.MaxIndexedMemoryPerClient = 1280000000;
+            server.MaxIndexedMemoryPerClient = 128000000;
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
             server.RemoteCertificateValidationCallback += ValidateCertAsServer;
+            server.GatherConfig = ScatterGatherConfig.UseQueue;
+            Console.Read();
             server.StartServer();
-
+            Console.Read();
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
             {
                 var client = new SslByteMessageClient(ccert);
                 client.RemoteCertificateValidationCallback += ValidateCertAsClient;
-                client.BufferProvider = server.BufferProvider;
+                client.GatherConfig= ScatterGatherConfig.UseQueue;
                 client.OnBytesReceived += (buffer, offset, count) => OnClientReceivedMessage(client, buffer, offset, count);
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.Connect("127.0.0.1", 2008);
@@ -83,8 +89,9 @@ namespace SslBenchmark
             {
                 for (int i = 0; i < numMsg; i++)
                 {
-                    //message = new byte[32000];
+                    //message = new byte[32];
                     client.SendAsync(message);
+                    //client.Disconnect();
 
                 }
 
@@ -122,17 +129,19 @@ namespace SslBenchmark
                 Console.WriteLine(" Request-Response Per second " + totMsgClient / elapsedSeconds);
                 Console.WriteLine("Data transmissıon rate Inbound " + message.Length * messagePerSecond / 1000000 + " Megabytes/s");
                 Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
+                server.GetStatistics(out SessionStats general, out var _);
+                Console.WriteLine(general.ToString());
             }
 
             void OnClientReceivedMessage(SslByteMessageClient client, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgClient);
-                
+                client.SendAsync(message);
                 if (count == 502)
                 {
                     lastTimeStamp = (int)sw2.ElapsedMilliseconds;
                     Interlocked.Increment(ref NumFinishedClients);
-
+                    return;
                     if(Volatile.Read(ref NumFinishedClients) == clientAmount)
                     {
                         Console.WriteLine("--- All Clients are finished receiving response --- \n");
@@ -144,12 +153,12 @@ namespace SslBenchmark
                 }
             }
 
-            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgServer);
                 if (count == 502)
                 {
-                    server.SendBytesToClient(id, new byte[502]);
+                    server.SendBytesToClient(in id, new byte[502]);
                     return;
                 }
                 // response = new byte[32000];

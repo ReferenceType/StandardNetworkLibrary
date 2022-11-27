@@ -1,7 +1,6 @@
 # .Net Standard Network Library.
 High Performance Network library for Tcp Udp network applications.
 Supported Frameworks .Net Standard 2.0+.
-Tested with clients with up to 1200 km distance.
 ## Features
 - Tcp and SSL high performance server & clients. Supports native byte message protocol with 4 byte int size header.
 - Udp server client model with AES encyrption support.
@@ -23,9 +22,9 @@ TODO one day when i have the time..
 # Sample Code 
 ## Base Byte Message TCP Server Client
 ```c#
-        static void Main(string[] args)
+        private static void ExampleByteMessage()
         {
-            ByteMessageTcpServer server = new ByteMessageTcpServer(20008, maxClients:100);
+            ByteMessageTcpServer server = new ByteMessageTcpServer(20008);
             server.OnBytesReceived += ServerBytesReceived;
             server.StartServer();
 
@@ -33,25 +32,24 @@ TODO one day when i have the time..
             client.OnBytesReceived += ClientBytesReceived;
             client.Connect("127.0.0.1", 20008);
 
-            client.SendAsync(ASCIIEncoding.ASCII.GetBytes("Hello I'm a client! this message will reach you atomically"));
-            Console.ReadLine();
+            client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
+
+            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
+            }
 
             void ClientBytesReceived(byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
-            }
-
-            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
-            {
-                Console.WriteLine(ASCIIEncoding.ASCII.GetString(bytes, offset, count));
-                server.SendBytesToClient(clientId, ASCIIEncoding.ASCII.GetBytes("Hello I'm the server I got your message"));
+                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
             }
         }
  ```
 ```Console
 output:
-Hello I'm a client! this message will reach you atomically
-Hello I'm the server I got your message
+Hello I'm a client!
+Hello I'm the server
 ```
 ## Secure Proto Client Server
 Declare your type

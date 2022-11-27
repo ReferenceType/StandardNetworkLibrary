@@ -23,19 +23,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected SslStream sslStream;
         internal IAsyncSession clientSession;
         private X509Certificate2 certificate;
-        private BufferProvider bufferProvider;
         #endregion
-
-        public BufferProvider BufferProvider
-        {
-            get => bufferProvider;
-            set
-            {
-                if (IsConnecting)
-                    throw new InvalidOperationException("Setting buffer manager is not supported after conection is initiated.");
-                bufferProvider = value;
-            }
-        }
 
         public SslClient(X509Certificate2 certificate)
         {
@@ -46,38 +34,52 @@ namespace NetworkLibrary.TCP.SSL.Base
         private Socket GetSocket()
         {
             Socket socket  = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            // somehow there is a huge performance impact when you set this buffer sizes.. 
-            //socket.SendBufferSize = SocketSendBufferSize;
-            //socket.ReceiveBufferSize = SocketRecieveBufferSize;
             return socket;
         }
         #region Connect
         public override void Connect(string ip, int port)
         {
-            CheckBufferProvider();
-            IsConnecting = true;
-            clientSocket =  GetSocket();
-          
-            clientSocket.Connect(new IPEndPoint(IPAddress.Parse(ip), port));
-            Connected(ip);
+            try
+            {
+                IsConnecting = true;
+                clientSocket = GetSocket();
+
+                clientSocket.Connect(new IPEndPoint(IPAddress.Parse(ip), port));
+                Connected(ip);
+            }
+            catch{ throw; }
+            finally
+            {
+                IsConnecting = false;
+            }
+           
         }
 
         public override async Task<bool> ConnectAsyncAwaitable(string ip, int port)
         {
-            CheckBufferProvider();
-            IsConnecting = true;
-            clientSocket = GetSocket();
-            
-            await clientSocket.ConnectAsync(ip, port);
+            try
+            {
+                IsConnecting = true;
+                clientSocket = GetSocket();
 
-            Connected(ip);
-            return true;
+                await clientSocket.ConnectAsync(ip, port);
+
+                Connected(ip);
+                return true;
+            }
+            catch { throw; }
+            finally
+            {
+                IsConnecting = false;
+            }
+            
         }
 
         public override void ConnectAsync(string IP, int port)
         {
             Task.Run(async () =>
             {
+                IsConnecting= true;
                 bool result = false;
                 try
                 {
@@ -89,6 +91,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                     OnConnectFailed?.Invoke(ex);
                     return;
                 }
+                finally { IsConnecting = false; }
 
                 if (result)
                     OnConnected?.Invoke();
@@ -104,7 +107,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             sslStream.AuthenticateAsClient(domainName,
             new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
 
-            clientSession = CreateSession(Guid.NewGuid(), sslStream, BufferProvider);
+            clientSession = CreateSession(Guid.NewGuid(), new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientSocket.RemoteEndPoint));
             clientSession.OnBytesRecieved += HandleBytesReceived;
             clientSession.StartSession();
 
@@ -114,13 +117,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         #endregion Connect
 
         #region Validate
-        private void CheckBufferProvider()
-        {
-            if(BufferProvider == null)
-            {
-                BufferProvider = new BufferProvider(1, SendBufferSize, 1, RecieveBufferSize);
-            }
-        }
+        
 
         protected virtual bool ValidateCeriticate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
@@ -138,11 +135,12 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         #endregion Validate
 
-        internal virtual IAsyncSession CreateSession(Guid guid, SslStream sslStream,BufferProvider bufferProvider)
+        internal virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var ses = new SslSession(guid, sslStream, bufferProvider);
+            var ses = new SslSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.OnSessionClosed +=(id)=> OnDisconnected?.Invoke();
+            ses.RemoteEndpoint = tuple.Item2;
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 ses.UseQueue = true;
@@ -162,14 +160,14 @@ namespace NetworkLibrary.TCP.SSL.Base
             clientSession.SendAsync(bytes);
         }
 
-        public void SendAsync(byte[] buffer, int offset, int count)
+        public override void SendAsync(byte[] buffer, int offset, int count)
         {
             clientSession.SendAsync(buffer,offset,count);
         }
 
         public override void Disconnect()
         {
-            clientSession.EndSession();
+            clientSession?.EndSession();
         }
     }
 }

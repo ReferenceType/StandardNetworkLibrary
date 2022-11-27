@@ -13,7 +13,7 @@ namespace NetworkLibrary.TCP.ByteMessage
     internal class ByteMessageSession : TcpSession
     {
         ByteMessageReader messageManager= null;
-        public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, BufferProvider bufferManager) : base(acceptedArg, sessionId, bufferManager)
+        public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
         }
 
@@ -42,34 +42,13 @@ namespace NetworkLibrary.TCP.ByteMessage
         {
             if (UseQueue)
             {
-                var proccesor = new DelimitedMessageWriter();
-                var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
+                var q = new MessageQueue<UnsafeDelimitedMessageWriter>(maxIndexedMemory, new UnsafeDelimitedMessageWriter());
                 return q;
             }
             else
             {
                 return new MessageBuffer(maxIndexedMemory);
             }
-
-            //if (CoreAssemblyConfig.UseUnmanaged)
-            //{
-            //    //var proccesor = new UnsafeDelimitedMessageWriter();
-            //    //var q = new MessageQueue<UnsafeDelimitedMessageWriter>(maxIndexedMemory, proccesor);
-            //    //return q;
-            //    var proccesor = new DelimitedMessageWriter();
-            //    var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
-            //    return q;
-
-            //}
-            //else
-            //{
-            //    //var proccesor = new DelimitedMessageWriter();
-            //    //var q = new MessageQueue<DelimitedMessageWriter>(maxIndexedMemory, proccesor);
-            //    //return q;
-            //    return new MessageBuffer(maxIndexedMemory);
-
-            //}
-            //q.SetMessageProcessor(proccesor);
 
         }
 

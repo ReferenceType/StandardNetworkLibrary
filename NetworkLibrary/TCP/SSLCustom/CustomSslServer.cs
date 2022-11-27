@@ -15,7 +15,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
     {
         
         private X509Certificate2 certificate;
-        public CustomSslServer(int port, X509Certificate2 certificate, int maxClients = 100) : base(port, maxClients)
+        public CustomSslServer(int port, X509Certificate2 certificate) : base(port)
         {
             this.certificate = certificate;
         }
@@ -51,10 +51,10 @@ namespace NetworkLibrary.TCP.SSL.Custom
 
 
         // override create session
-        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId )
         {
 
-            var session = new CustomSslSession(e, sessionId, bufferManager,(byte[])e.UserToken);
+            var session = new CustomSslSession(e, sessionId,(byte[])e.UserToken);
             session.socketSendBufferSize = ClientSendBufsize;
             session.socketRecieveBufferSize = ClientReceiveBufsize;
             session.maxIndexedMemory = MaxIndexedMemoryPerClient;

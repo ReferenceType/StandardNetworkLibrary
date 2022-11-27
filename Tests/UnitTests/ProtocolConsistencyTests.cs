@@ -11,7 +11,7 @@ using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.Utils;
 using System.Security.Cryptography.X509Certificates;
 using NetworkLibrary.TCP.SSL.ByteMessage;
-using NetworkLibrary.TCP.SSL.Custom;
+using NetworkLibrary.TCP.SSL.Custom; 
 using System.Net.Security;
 using NetworkLibrary.TCP;
 
@@ -29,7 +29,7 @@ namespace UnitTests
             int clAmount = 100;
             int completionCount = clAmount;
             int numErrors = 0;
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008,clAmount*2);
+            ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
             ConcurrentDictionary<ByteMessageTcpClient,int> clients = new ConcurrentDictionary<ByteMessageTcpClient,int>();
 
             Stopwatch sw2 = new Stopwatch();
@@ -126,7 +126,7 @@ namespace UnitTests
             int completionCount = clAmount;
             int numErrors = 0;
 
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008, clAmount * 2);
+            ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
             ConcurrentDictionary<ByteMessageTcpClient, int> clients = new ConcurrentDictionary<ByteMessageTcpClient, int>();
 
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
@@ -136,13 +136,14 @@ namespace UnitTests
             server.MaxIndexedMemoryPerClient = 128000000;
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
-
+            server.GatherConfig = ScatterGatherConfig.UseQueue;
             server.StartServer();
-
+            
             Task[] toWait = new Task[clAmount];
             for (int i = 0; i < clAmount; i++)
             {
                 var client = new ByteMessageTcpClient();
+                client.GatherConfig= ScatterGatherConfig.UseQueue;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion = false;
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
@@ -230,7 +231,7 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            var server = new CustomSslServer(2008, scert, clAmount * 2);
+            var server = new CustomSslServer(2008, scert);
             ConcurrentDictionary<CustomSslClient, int> clients = new ConcurrentDictionary<CustomSslClient, int>();
 
 
@@ -335,7 +336,7 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            CustomSslServer server = new CustomSslServer(2008, scert, clAmount * 2 );
+            CustomSslServer server = new CustomSslServer(2008, scert);
             ConcurrentDictionary<CustomSslClient, int> clients = new ConcurrentDictionary<CustomSslClient, int>();
 
 
@@ -440,7 +441,7 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            SslByteMessageServer server = new SslByteMessageServer(2008, clAmount * 2, scert);
+            SslByteMessageServer server = new SslByteMessageServer(2008, scert);
             ConcurrentDictionary<SslByteMessageClient, int> clients = new ConcurrentDictionary<SslByteMessageClient, int>();
 
 
@@ -553,12 +554,12 @@ namespace UnitTests
             int clAmount = 10;
             int completionCount = clAmount;
             int numErrors = 0;
-            MiniLogger.AllLog+=( log)=>Console.WriteLine(log);
+            MiniLogger.AllLog+=(log)=>Console.WriteLine(log);
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            SslByteMessageServer server = new SslByteMessageServer(2008, clAmount * 2, scert);
+            SslByteMessageServer server = new SslByteMessageServer(2008, scert);
             ConcurrentDictionary<SslByteMessageClient, int> clients = new ConcurrentDictionary<SslByteMessageClient, int>();
 
 
@@ -571,12 +572,14 @@ namespace UnitTests
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
             server.RemoteCertificateValidationCallback += ValidateCertAsServer;
+            server.GatherConfig = ScatterGatherConfig.UseQueue;
             server.StartServer();
 
             Task[] toWait = new Task[clAmount];
             for (int i = 0; i < clAmount; i++)
             {
                 var client = new SslByteMessageClient(ccert);
+                client.GatherConfig = ScatterGatherConfig.UseQueue;
                 client.RemoteCertificateValidationCallback += ValidateCertAsClient;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion = false;
@@ -606,7 +609,7 @@ namespace UnitTests
             {
                 for (int i = 0; i < numMsg - 1; i++)
                 {
-                    var msg = new byte[random.Next(505, 1000000)];
+                    var msg = new byte[random.Next(505, 500000)];
                     PrefixWriter.WriteInt32AsBytes(msg, 0, i);
                     client.Key.SendAsync(msg);
                 }

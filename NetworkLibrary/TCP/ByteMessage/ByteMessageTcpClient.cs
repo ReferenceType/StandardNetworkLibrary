@@ -15,9 +15,9 @@ namespace NetworkLibrary.TCP.ByteMessage
         public ByteMessageTcpClient()
         { }
 
-        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            var session = new ByteMessageSession(e, sessionId, bufferManager);
+            var session = new ByteMessageSession(e, sessionId);
             session.socketSendBufferSize = SocketSendBufferSize;
             session.socketRecieveBufferSize = SocketRecieveBufferSize;
             session.maxIndexedMemory = MaxIndexedMemory;

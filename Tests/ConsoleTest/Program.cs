@@ -26,6 +26,10 @@ using System.Net.Security;
 using Protobuff.P2P;
 using System.Security;
 using System.Numerics;
+using NetworkLibrary.UDP.Secure;
+using System.Buffers;
+using Microsoft.Win32;
+using NetworkLibrary.Components.Statistics;
 
 namespace ConsoleTest
 {
@@ -46,11 +50,16 @@ namespace ConsoleTest
         static byte[] resp = new byte[32];
         static bool lastSW=false;
         private static int prev=-1;
+        static Random randomG = new Random();
         private static bool pause;
+
+        static ArrayPool<byte> pool = ArrayPool<byte>.Shared;
 
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            //PoolTest();
+            //UdpProtoTest();
             //EnvelopeTest();
             RelayTest();
             //ByteCopyTest();
@@ -63,36 +72,163 @@ namespace ConsoleTest
             //SSlTest2();
             //SSlTest();
             //TcpTest();
-            
+
             //UdpTest();
             //UdpTest2();
             //UdpTestMc();
-
            
+            
             
         }
 
-        private static void EnvelopeTest()
+        private static void PoolTest()
         {
-            ConcurrentProtoSerialiser s = new ConcurrentProtoSerialiser();
-            MessageEnvelope msg = new MessageEnvelope()
+            Random rng =  new Random(42);
+            sw.Start();
+            AutoResetEvent a =  new AutoResetEvent(false);
+            ConcurrentQueue<byte[]> qq = new ConcurrentQueue<byte[]>();
+
+            Thread t1 = new Thread(() =>
             {
-                Header = "Test",
+                for (int i = 0; i < 10000000; i++)
+                {
 
-            };
-            MessageEnvelope msg2 = new MessageEnvelope()
+                    var buf = BufferPool.RentBuffer(512);
+                    qq.Enqueue(buf);
+                    a.Set();
+
+
+                };
+            });
+            Thread t2 = new Thread(() =>
             {
-                Header = "pay",
 
-            };
+                while (true)
+                {
+                    a.WaitOne();
+                    while (qq.TryDequeue(out var buf))
+                        BufferPool.ReturnBuffer(buf);
+                }
+            });
 
-            var payload = new byte[1123];
-            var env = s.EnvelopeAndSerialiseMessage(msg, msg2);
-            var val = s.DeserialiseEnvelopedMessage(env,0,env.Length);
-            var val1 = s.DeserialiseOnlyEnvelope(env,0,env.Length);
-            var val2 = s.DeserialiseOnlyPayload<MessageEnvelope>(env,0,env.Length);
+            t1.Start();
+            t2.Start();
+            t1.Join();
 
+          
+
+
+                sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+            //for (int i = 0; i < 10000000; i++)
+            //{
+                
+            //}
+
+
+            var buf2 = BufferPool.RentBuffer(rng.Next(257, 100000000));
+
+            Console.ReadLine();
         }
+
+        private static void UdpProtoTest()
+        {
+            var random = new byte[16];
+            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+            rng.GetNonZeroBytes(random);
+
+            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(random, random);
+            ConcurrentAesAlgorithm algo2 = new ConcurrentAesAlgorithm(random, random);
+
+            EncryptedUdpProtoClient client1 = new EncryptedUdpProtoClient(algo);
+            EncryptedUdpProtoClient client2 = new EncryptedUdpProtoClient(algo2);
+
+            client1.Bind(20011);
+            client2.Bind(20012);
+
+            client1.SetRemoteEnd("192.168.1.13", 20012);
+            client2.SetRemoteEnd("95.238.127.208", 20011);
+
+
+
+            byte[] fuck = new byte[20880];
+            for (int i = 0; i < fuck.Length; i++)
+            {
+                fuck[i] = (byte)i;
+            }
+            MessageEnvelope fuckery = new MessageEnvelope();
+            fuckery.Payload = fuck;
+
+            client1.OnMessageReceived += c1;
+            client2.OnMessageReceived += c2;
+            Parallel.For(0, 100, (i) =>
+            {
+                Task.Run(() =>
+                {
+                    client1.SendAsyncMessage(fuckery);
+                });
+            });
+            Parallel.For(0, 100, (i) =>
+            {
+                Task.Run(() =>
+                {
+                    client2.SendAsyncMessage(fuckery);
+                });
+            });
+
+
+            while (Console.ReadLine() !="e")
+            {
+                Console.WriteLine(totMsgCl);
+                Console.WriteLine(totMsgsw);
+            }
+
+            void c2(MessageEnvelope obj)
+            {
+                //Console.WriteLine("2");
+                MessageEnvelope fuckery1 = new MessageEnvelope();
+                fuckery1.Payload = new byte[randomG.Next(500, 32000)];
+                client2.SendAsyncMessage(fuckery1);
+                Task.Run(() => client2.SendAsyncMessage(fuckery));
+
+                totMsgCl++;
+            }
+
+             void c1(MessageEnvelope obj)
+            {
+                //Console.WriteLine("1");
+                MessageEnvelope fuckery1 = new MessageEnvelope();
+                fuckery1.Payload = new byte[randomG.Next(500, 32000)];
+                
+                client1.SendAsyncMessage(fuckery);
+                Task.Run(() => client1.SendAsyncMessage(fuckery));
+                totMsgsw++;
+            }
+        }
+
+       
+
+        //private static void EnvelopeTest()
+        //{
+        //    ConcurrentProtoSerialiser s = new ConcurrentProtoSerialiser();
+        //    MessageEnvelope msg = new MessageEnvelope()
+        //    {
+        //        Header = "Test",
+
+        //    };
+        //    MessageEnvelope msg2 = new MessageEnvelope()
+        //    {
+        //        Header = "pay",
+
+        //    };
+
+        //    var payload = new byte[1123];
+        //    var env = s.EnvelopeAndSerialiseMessage(msg, msg2);
+        //    var val = s.DeserialiseEnvelopedMessage(env,0,env.Length);
+        //    var val1 = s.DeserialiseOnlyEnvelope(env,0,env.Length);
+        //    var val2 = s.DeserialiseOnlyPayload<MessageEnvelope>(env,0,env.Length);
+
+        //}
 
         
 
@@ -149,26 +285,39 @@ namespace ConsoleTest
             });
 
             var clients = new List<RelayClient>();
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 100; i++)
             {
                 var client = new RelayClient(cert);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
                 client.OnUdpMessageReceived += (reply) => ClientUdpReceived(client, reply);
                 client.OnPeerRegistered += (peerId) => OnPeerRegistered(client,peerId);
 
-                client.Connect("127.0.0.1", 20011);
-                clients.Add(client);
+                try
+                {
+                    client.Connect("127.0.0.1", 20011);
+                    clients.Add(client);
+                    client.StartPingService();
+                }
+                catch { }
+               
                 //Thread.Sleep(1000);
             }
-            Thread.Sleep(3000);
-            //clients[0].Disconnect();
-            while (!clients[0].RequestHolePunch(clients[0].Peers.First()))
-            {
+            var client1 = new RelayClient(cert);
+            client1.OnMessageReceived += (reply) => ClientMsgReceived(client1, reply);
+            client1.OnUdpMessageReceived += (reply) => ClientUdpReceived(client1, reply);
+            client1.OnPeerRegistered += (peerId) => OnPeerRegistered(client1, peerId);
 
-            }
+            client1.Connect("127.0.0.1", 20011);
+            clients.Add(client1);
+            Thread.Sleep(3500);
+            //clients[0].Disconnect();
+            //while (!clients[0].RequestHolePunch(clients[0].Peers.First()))
+            //{
+
+            //}
             Task.Run(async () =>
             {
-                return;
+                //return;
                 foreach (var client in clients)
                 {
                     foreach (var peer in client.Peers)
@@ -182,16 +331,17 @@ namespace ConsoleTest
             });
             Parallel.ForEach(clients,  (client) =>
             {
+                //return;
                 
                 for (int i = 0; i < 1; i++)
                 {
-                    return;
+                    //return;
                     foreach (var peer in client.Peers)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
                         client.SendAsyncMessage(peer, testMessage); 
 
-                        //client.SendUpMesssage(peer, testMessage);
+                        //client.SendUdpMesssage(peer, testMessage);
                     }
                 }
 
@@ -210,7 +360,7 @@ namespace ConsoleTest
                 for (int i = 0; i < 1; i++)
                 {
                     client.SendAsyncMessage(peerId, testMessage);
-                    client.SendUpMesssage(peerId, testMessage);
+                    client.SendUdpMesssage(peerId, testMessage);
                 }
 
             }
@@ -225,8 +375,15 @@ namespace ConsoleTest
             void ClientUdpReceived(RelayClient client, MessageEnvelope reply)
             {
                 Interlocked.Increment(ref TotUdp);
-                
-                client.SendUpMesssage(reply.From, reply);
+
+                //client.SendUpMesssage(reply.From, reply);
+                //reply.Payload = new byte[randomG.Next(500, 32000)];
+                client.SendUdpMesssage(client.Peers.First(), reply);
+                //Task.Run(() =>
+                //{
+                //    client.SendUdpMesssage(client.Peers.First(), reply);
+
+                //});
                 //client.SendUpMesssage(reply.From, new byte[32], "testData");
 
             }
@@ -547,7 +704,7 @@ namespace ConsoleTest
             byte[] resp = new byte[32];
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
-            var server = new SslByteMessageServer(2008, 2, scert);
+            var server = new SslByteMessageServer(2008, scert);
             server.OnBytesReceived += ServerReceived;
             server.StartServer();
 
@@ -721,7 +878,7 @@ namespace ConsoleTest
             var msg1 = new byte[32];
             int clAmount = 10;
 
-            server = new ByteMessageTcpServer(2008,clAmount*2);
+            server = new ByteMessageTcpServer(2008);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
             server.MaxIndexedMemoryPerClient = 1280000000;
             server.DropOnBackPressure = false;
@@ -734,7 +891,6 @@ namespace ConsoleTest
             {
 
                 var client = new ByteMessageTcpClient();
-                client.BufferManager = server.BufferManager;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion=false;
                 //client.OnConnected += async () =>

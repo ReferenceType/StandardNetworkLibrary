@@ -1,10 +1,12 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Net;
 using System.Net.Security;
 using System.Text;
 using System.Threading;
@@ -20,30 +22,34 @@ namespace NetworkLibrary.TCP.SSL.Base
         public event Action<Guid> OnSessionClosed;
 
         protected IMessageProcessQueue messageQueue;
-        protected SemaphoreSlim SendSemaphore = new SemaphoreSlim(1, 1);
+
+        private Spinlock SendSemaphore = new Spinlock();
+        private Spinlock enqueueLock = new Spinlock();
         protected SslStream sessionStream;
         protected byte[] receiveBuffer;
         protected byte[] sendBuffer;
         protected byte[] sendBuffer_;
         protected Guid sessionId;
 
+        public int SendBufferSize = 128000;
+        public int ReceiveBufferSize = 128000;
+
+        private IPEndPoint RemoteEP;
+        public IPEndPoint RemoteEndpoint { get => RemoteEP; internal set => RemoteEP = value; }
 
         private bool disposedValue;
-        private readonly object sendLock = new object();
-        private int sendinProgress;
-        private BufferProvider bufferProvider;
-        private int SessionClosing=0;
-        private int syncCount;
+        //private readonly object sendLock = new object();
+
+        private int SessionClosing = 0;
 
         internal bool UseQueue = true;
         private long totalBytesSend;
         private long totalBytesReceived;
 
-        public SslSession(Guid sessionId, SslStream sessionStream, BufferProvider bufferProvider)
+        public SslSession(Guid sessionId, SslStream sessionStream)
         {
             this.sessionId = sessionId;
             this.sessionStream = sessionStream;
-            this.bufferProvider = bufferProvider;
         }
         public void StartSession()
         {
@@ -54,51 +60,52 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private void ConfigureBuffers()
         {
-            receiveBuffer = bufferProvider.GetReceiveBuffer();
-            sendBuffer = bufferProvider.GetSendBuffer();
+            receiveBuffer = BufferPool.RentBuffer(ReceiveBufferSize);
+            sendBuffer = BufferPool.RentBuffer(SendBufferSize);
             sendBuffer_ = sendBuffer;
         }
 
         protected virtual IMessageProcessQueue CreateMessageQueue()
         {
             if (UseQueue)
-                return new MessageQueue<PlainMessageWriter>(MaxIndexedMemory, new PlainMessageWriter());
+                return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
             else
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: false);
 
-
-                //if (CoreAssemblyConfig.UseUnmanaged)
-                //    return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
-                //else
-                //    return new MessageQueue<PlainMessageWriter>(MaxIndexedMemory, new PlainMessageWriter());
         }
         public void SendAsync(byte[] buffer, int offset, int count)
         {
             if (IsSessionClosing())
                 return;
 
-            lock (sendLock)
+            enqueueLock.Take();
+            if (SendSemaphore.IsTaken())
             {
-                // I dont want to interlock compare exchange here due to expense. it isnt critical because we have the exit lock
-                if (Interlocked.CompareExchange(ref sendinProgress, 1, 1) == 1)
+                if (messageQueue.TryEnqueueMessage(buffer, offset, count))
                 {
-                    if (messageQueue.TryEnqueueMessage(buffer, offset, count))
-                        return;
-                    // At this point queue is saturated, shall we drop?
-                    else if (DropOnCongestion)
-                        return;
-                    // Otherwise we will wait semaphore
+                    enqueueLock.Release();
+                    return;
                 }
+                // At this point queue is saturated, shall we drop?
+                else if (DropOnCongestion)
+                {
+                    enqueueLock.Release();
+                    return;
+                }
+
+                // Otherwise we will wait semaphore
             }
-            try
+            enqueueLock.Release();
+
+            SendSemaphore.Take();
+            if (IsSessionClosing())
             {
-                SendSemaphore.Wait();
+                SendSemaphore.Release();
+                return;
             }
-            catch { return; }
-            Interlocked.Exchange(ref sendinProgress, 1);
 
             // you have to push it to queue because queue also does the processing.
-            messageQueue.TryEnqueueMessage(buffer,offset,count);
+            messageQueue.TryEnqueueMessage(buffer, offset, count);
             messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
         }
@@ -107,25 +114,31 @@ namespace NetworkLibrary.TCP.SSL.Base
             if (IsSessionClosing())
                 return;
 
-            lock (sendLock)
+            // avoiding try finally;
+            enqueueLock.Take();
+            if (SendSemaphore.IsTaken())
             {
-                // I dont want to interlock compare exchange here due to expense. it isnt critical because we have the exit lock
-                if (Interlocked.CompareExchange(ref sendinProgress,1,1)==1)
+                if (messageQueue.TryEnqueueMessage(buffer))
                 {
-                    if (messageQueue.TryEnqueueMessage(buffer))
-                        return;
-                    // At this point queue is saturated, shall we drop?
-                    else if (DropOnCongestion)
-                        return;
-                    // Otherwise we will wait semaphore
+                    enqueueLock.Release();
+                    return;
                 }
+                // At this point queue is saturated, shall we drop?
+                else if (DropOnCongestion)
+                {
+                    enqueueLock.Release();
+                    return;
+                }
+                // Otherwise we will wait semaphore
             }
-            try
+            enqueueLock.Release();
+
+            SendSemaphore.Take();
+            if (IsSessionClosing())
             {
-                SendSemaphore.Wait();
+                SendSemaphore.Release();
+                return;
             }
-            catch { return; }
-            Interlocked.Exchange(ref sendinProgress, 1);
 
             // you have to push it to queue because queue also does the processing.
             messageQueue.TryEnqueueMessage(buffer);
@@ -151,14 +164,14 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (ar.CompletedSynchronously)
             {
-                ThreadPool.UnsafeQueueUserWorkItem((s) => Sent(ar),null);
+                ThreadPool.UnsafeQueueUserWorkItem((s) => Sent(ar), null);
             }
             else
             {
                 Sent(ar);
             }
         }
-       
+
         private void Sent(IAsyncResult ar)
         {
             if (IsSessionClosing())
@@ -168,7 +181,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 sessionStream.EndWrite(ar);
             }
-            catch(Exception e) 
+            catch (Exception e)
             {
                 HandleError("While attempting to end async send operation on ssl socket, an error occured", e);
                 return;
@@ -183,26 +196,22 @@ namespace NetworkLibrary.TCP.SSL.Base
             // here there was nothing to flush
             bool flush = false;
 
-            lock (sendLock)
+            enqueueLock.Take();
+            // ask again safely
+            if (messageQueue.IsEmpty())
             {
-                // ask again safely
-                if (messageQueue.IsEmpty())
-                {
-                    Interlocked.Exchange(ref sendinProgress, 0);
-                    //try
-                    //{
-                        SendSemaphore.Release();
-                    //}
-                    //catch { }
+                messageQueue.Flush();
 
-                    return;
-                }
-                else
-                {
-                    flush = true;
-                }
+                SendSemaphore.Release();
+                enqueueLock.Release();
+                return;
+            }
+            else
+            {
+                flush = true;
 
             }
+            enqueueLock.Release();
 
             // something got into queue just before i exit, we need to flush it
             if (flush)
@@ -223,7 +232,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 sessionStream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, Received, null);
 
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 HandleError("White receiving from SSL socket an error occured", ex);
             }
@@ -234,15 +243,15 @@ namespace NetworkLibrary.TCP.SSL.Base
             if (IsSessionClosing())
                 return;
 
-            int amountRead=0;
+            int amountRead = 0;
             try
             {
                 amountRead = sessionStream.EndRead(ar);
 
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                HandleError("While receiving from SSL socket an exception occured ",e);
+                HandleError("While receiving from SSL socket an exception occured ", e);
                 return;
             }
 
@@ -259,15 +268,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             // Stack overflow prevention.
             if (ar.CompletedSynchronously)
             {
-                //syncCount++;
-                //if (syncCount > 1000)
-                //{
-                //    Interlocked.Exchange(ref syncCount, 0);
-                    ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(), null);
-                //}
-                //else
-                //    Receive();
-
+                ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(), null);
                 return;
             }
             Receive();
@@ -282,10 +283,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         #region Closure
         protected virtual void HandleError(string context, Exception e)
         {
-//#if DEBUG
-//            throw e;
-//#endif
-            MiniLogger.Log(MiniLogger.LogLevel.Error,"Context : "+context+" Message : "+ e.Message) ;
+            MiniLogger.Log(MiniLogger.LogLevel.Error, "Context : " + context + " Message : " + e.Message);
             EndSession();
         }
 
@@ -297,17 +295,17 @@ namespace NetworkLibrary.TCP.SSL.Base
         // This method is Idempotent
         public void EndSession()
         {
-            if(Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
+            if (Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
             {
                 sessionStream.Close();
                 sessionStream.Dispose();
-               
-                SendSemaphore.Dispose();
+
+                // SendSemaphore.Dispose();
                 OnSessionClosed?.Invoke(sessionId);
                 messageQueue = null;
                 Dispose();
             }
-           
+
         }
 
         protected virtual void Dispose(bool disposing)
@@ -319,15 +317,15 @@ namespace NetworkLibrary.TCP.SSL.Base
                     sessionStream.Dispose();
                 }
                 disposedValue = true;
-                bufferProvider.ReturnReceiveBuffer(ref receiveBuffer);
-                bufferProvider.ReturnSendBuffer(ref sendBuffer_);
+                BufferPool.ReturnBuffer(receiveBuffer);
+                BufferPool.ReturnBuffer(sendBuffer_);
+                messageQueue?.Dispose();
             }
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
-            GC.SuppressFinalize(this);
         }
 
         public SessionStatistics GetSessionStatistics()

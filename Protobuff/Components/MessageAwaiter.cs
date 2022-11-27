@@ -12,6 +12,7 @@ using Protobuff;
 
 namespace Protobuff
 {
+    #region Ignore
     public sealed class ReusableAwaiter<T> : INotifyCompletion
 {
     private Action _continuation = null;
@@ -176,6 +177,8 @@ namespace Protobuff
             }
         }
     }
+
+    #endregion
     internal class MessageAwaiter
     {
         MessageEnvelope timeoutResponse;
@@ -189,11 +192,10 @@ namespace Protobuff
             };
         }
 
-        public async Task<MessageEnvelope> RegisterWait(Guid messageId, int timeoutMs)
+        public async ValueTask<MessageEnvelope> RegisterWait(Guid messageId, int timeoutMs)
         {
             awaitingMessages[messageId] = new TaskCompletionSource<MessageEnvelope>();
             var pending = awaitingMessages[messageId].Task;
-            //var result = Task.WhenAny(pending, Task.Delay(timeout));
 
             MessageEnvelope returnMessage = null;
             if (await Task.WhenAny(pending, Task.Delay(timeoutMs)) == pending)
@@ -214,8 +216,8 @@ namespace Protobuff
 
         public void ResponseArrived(MessageEnvelope envelopedMessage)
         {
-            if(awaitingMessages.TryGetValue(envelopedMessage.MessageId, out var completionSource))
-                completionSource.SetResult(envelopedMessage);
+            if(envelopedMessage.MessageId!=null && awaitingMessages.TryGetValue(envelopedMessage.MessageId, out var completionSource))
+                completionSource.TrySetResult(envelopedMessage);
         }
 
         internal bool IsWaiting(in Guid messageId)

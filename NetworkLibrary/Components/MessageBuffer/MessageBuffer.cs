@@ -9,16 +9,19 @@ namespace NetworkLibrary.Components.MessageBuffer
 {
     internal class MessageBuffer:IMessageProcessQueue
     {
-        private MemoryStream s1 =  new MemoryStream();
-        private MemoryStream s2 = new MemoryStream();
         private int currentIndexedMemory;
+
         public int CurrentIndexedMemory { get => currentIndexedMemory; }
         public int MaxIndexedMemory;
 
-        
         public long TotalMessageDispatched { get; private set; }
+
+        private PooledMemoryStream writeStream = new PooledMemoryStream();
+        private PooledMemoryStream flushStream = new PooledMemoryStream();
         private readonly object loki =  new object();
         private bool writeLengthPrefix;
+        private bool disposedValue;
+
         public MessageBuffer(int maxIndexedMemory, bool writeLengthPrefix = true)
         {
             this.writeLengthPrefix = writeLengthPrefix;
@@ -27,12 +30,15 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool IsEmpty()
         {
-            return s1.Position == 0;
+          
+                return writeStream.Position == 0;
+
+            
         }
 
         public bool TryEnqueueMessage(byte[] bytes)
         {
-            if (CurrentIndexedMemory < MaxIndexedMemory)
+            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
             {
                 lock (loki)
                 {
@@ -40,13 +46,12 @@ namespace NetworkLibrary.Components.MessageBuffer
                     if (writeLengthPrefix)
                     {
                         var len = BitConverter.GetBytes(bytes.Length);
-
                         Interlocked.Add(ref currentIndexedMemory, 4);
-                        s1.Write(len, 0, 4);
+                        writeStream.Write(len, 0, 4);
 
                     }
 
-                    s1.Write(bytes, 0, bytes.Length);
+                    writeStream.Write(bytes, 0, bytes.Length);
                     Interlocked.Add(ref currentIndexedMemory, bytes.Length);
 
                     return true;
@@ -58,7 +63,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryEnqueueMessage(byte[] bytes, int offset, int count)
         {
-            if (CurrentIndexedMemory < MaxIndexedMemory)
+            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
             {
                 lock (loki)
                 {
@@ -69,11 +74,11 @@ namespace NetworkLibrary.Components.MessageBuffer
                         var len = BitConverter.GetBytes(count);
 
                         Interlocked.Add(ref currentIndexedMemory, 4);
-                        s1.Write(len, 0, 4);
+                        writeStream.Write(len, 0, 4);
 
                     }
 
-                    s1.Write(bytes, offset, count);
+                    writeStream.Write(bytes, offset, count);
                     Interlocked.Add(ref currentIndexedMemory, count);
                     return true;
                 }
@@ -92,17 +97,46 @@ namespace NetworkLibrary.Components.MessageBuffer
 
             lock (loki)
             {
-                var st = s1;
-                s1 = s2;
-                s2 = st;
+                var temp = writeStream;
+                writeStream = flushStream;
+                flushStream = temp;
+
+                buffer = flushStream.GetBuffer();
+                amountWritten = (int)flushStream.Position;
+
+                Interlocked.Add(ref currentIndexedMemory, -amountWritten);
+                flushStream.Position = 0;
+
+                return true;
             }
-            buffer = s2.GetBuffer();
-            amountWritten = (int)s2.Position;
-            Interlocked.Add(ref currentIndexedMemory, -amountWritten);
-            s2.Position = 0;
-            return true;
+
+            
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    writeStream.Dispose();
+                    flushStream.Dispose();
+                }
+                disposedValue = true;
+            }
         }
 
        
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public void Flush()
+        {
+            flushStream.Flush();   
+        }
     }
 }

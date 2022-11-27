@@ -13,7 +13,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
     {
         ByteMessageReader reader;
 
-        public SslByteMessageSession(Guid sessionId, SslStream sessionStream, BufferProvider bufferProvider) : base(sessionId, sessionStream, bufferProvider)
+        public SslByteMessageSession(Guid sessionId, SslStream sessionStream ) : base(sessionId, sessionStream)
         {
             reader = new ByteMessageReader(sessionId);
             reader.OnMessageReady += HandleMessage;
@@ -35,14 +35,6 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
 
             else
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: true);
-
-
-
-            //if (CoreAssemblyConfig.UseUnmanaged)
-            //    return new MessageQueue<UnsafeDelimitedMessageWriter>(MaxIndexedMemory, new UnsafeDelimitedMessageWriter());
-            //else
-            //    //return new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
-            //    return new MessageBuffer(MaxIndexedMemory);
         }
 
     }

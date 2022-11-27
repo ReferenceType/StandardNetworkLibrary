@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NetworkLibrary;
 using NetworkLibrary.TCP;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
@@ -28,7 +29,6 @@ namespace UnitTests
         [TestMethod]
         public void DisconnectTest()
         {
-            //CoreAssemblyConfig.UseUnmanaged = true;
             int totMsgCl = 0;
             int totMsgsw = 0;
             int totDisconnectRequest = 0;
@@ -38,7 +38,7 @@ namespace UnitTests
             const int numMsg = 100;
             int clAmount = 100;
 
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008,200);
+            ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
@@ -63,7 +63,6 @@ namespace UnitTests
             }
 
             Task.WaitAll(toWait);
-            var a = server.BufferManager;
             // Deploy timed disconnections.
             foreach (var client in clients)
             {
@@ -110,14 +109,8 @@ namespace UnitTests
                 waitcount++;
                 Thread.SpinWait(100);
             }
+            var a = BufferPool.RentBuffer(128000);
 
-            if (!server.BufferManager.VerifyAvailableRBIndexes())
-            {
-                server.BufferManager.VerifyAvailableRBIndexes();
-            }
-            Assert.AreEqual(0, server.Sessions.Count);
-            Assert.IsTrue(server.BufferManager.VerifyAvailableRBIndexes());
-            Assert.IsTrue(server.BufferManager.VerifyAvailableSBIndexes());
             server.ShutdownServer();
         }
 

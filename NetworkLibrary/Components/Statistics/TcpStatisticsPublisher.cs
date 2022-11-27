@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using static NetworkLibrary.TCP.Base.AsyncTcpServer;
 
-namespace NetworkLibrary.Components
+namespace NetworkLibrary.Components.Statistics
 {
     public class SessionStats
     {
@@ -29,7 +29,7 @@ namespace NetworkLibrary.Components
         {
 
         }
-        
+
         public SessionStats(SessionStatistics refstats)
         {
             PendingBytes = refstats.PendingBytes;
@@ -48,9 +48,9 @@ namespace NetworkLibrary.Components
             lastTimeStamp = currentTimestamp;
             currentTimestamp = elapsedMilliseconds;
 
-            SendRate = (float)((refstats.TotalBytesSent - TotalBytesSent) / (double)(1+(currentTimestamp - lastTimeStamp)))/1000;
-            ReceiveRate = (float)((refstats.TotalBytesReceived - TotalBytesReceived) / (double)(1+(currentTimestamp - lastTimeStamp)))/1000;
-            MessageDispatchRate = (float)((refstats.TotalMessageDispatched - TotalMessageDispatched) / (double)(1 + (currentTimestamp - lastTimeStamp)))*1000;
+            SendRate = (float)((refstats.TotalBytesSent - TotalBytesSent) / (double)(1 + (currentTimestamp - lastTimeStamp))) / 1000;
+            ReceiveRate = (float)((refstats.TotalBytesReceived - TotalBytesReceived) / (double)(1 + (currentTimestamp - lastTimeStamp))) / 1000;
+            MessageDispatchRate = (float)((refstats.TotalMessageDispatched - TotalMessageDispatched) / (double)(1 + (currentTimestamp - lastTimeStamp))) * 1000;
 
             PendingBytes = refstats.PendingBytes;
             CongestionLevel = refstats.CongestionLevel;
@@ -76,14 +76,14 @@ namespace NetworkLibrary.Components
 
         public override string ToString()
         {
-            return String.Format("\nTCP : Total Pending: {0} Total Congestion: {1}  Total Sent: {2}   Total Received: {3}  " +
+            return string.Format("\nTCP : Total Pending: {0} Total Congestion: {1}  Total Sent: {2}   Total Received: {3}  " +
                 "\nTotal SendRate: {4} MBs/s, Total ReceiveRate: {5}MBs/s  Total Message Send Rate: {6}"
-                   ,PendingBytes,
+                   , PendingBytes,
                    CongestionLevel.ToString("P"),
                    TcpStatisticsPublisher.BytesToString(TotalBytesSent),
                    TcpStatisticsPublisher.BytesToString(TotalBytesReceived),
-                   SendRate.ToString("N1"),
-                   ReceiveRate.ToString("N1"),
+                   SendRate.ToString("N3"),
+                   ReceiveRate.ToString("N3"),
                    MessageDispatchRate.ToString("N1"));
         }
     }
@@ -105,37 +105,21 @@ namespace NetworkLibrary.Components
             TotalMessageDispatched = totalMessageSent;
         }
 
-        
+
     }
     internal class TcpStatisticsPublisher
     {
-        internal ConcurrentDictionary<Guid, SessionStats> Stats { get; } = new ConcurrentDictionary<Guid, SessionStats>(); 
+        internal ConcurrentDictionary<Guid, SessionStats> Stats { get; } = new ConcurrentDictionary<Guid, SessionStats>();
         internal readonly ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
         private SessionStats generalStats = new SessionStats();
         private Stopwatch sw = new Stopwatch();
         static string[] dataSuffix = { "B", "KB", "MB", "GB", "TB", "PB", "EB" };
 
-        public TcpStatisticsPublisher(in ConcurrentDictionary<Guid, IAsyncSession> sessions,int publushFrequencyMs)
+        public TcpStatisticsPublisher(in ConcurrentDictionary<Guid, IAsyncSession> sessions, int publushFrequencyMs)
         {
             Sessions = sessions;
             sw.Start();
-            //Task.Run(async () =>
-            //{
-            //    while (true)
-            //    {
-            //        try
-            //        {
-            //            await Task.Delay(publushFrequencyMs);
-            //            GetSessionStats();
-            //            PublishSessionStats();
-            //        }
-            //        catch
-            //        {
 
-            //        }
-                   
-            //    }
-            //});
         }
 
         private void GetSessionStats()
@@ -152,7 +136,7 @@ namespace NetworkLibrary.Components
                 if (Stats.ContainsKey(session.Key))
                 {
                     var val = session.Value.GetSessionStatistics();
-                    Stats[session.Key].Update(val,sw.ElapsedMilliseconds);
+                    Stats[session.Key].Update(val, sw.ElapsedMilliseconds);
                 }
                 else
                 {
@@ -172,39 +156,9 @@ namespace NetworkLibrary.Components
             generalStats.CongestionLevel /= count;
 
         }
-        private void PublishSessionStats()
-        {
-      
-            int count = 0;
 
-            foreach (var item in Stats)
-            {
-                //generalStats.PendingBytes += item.Value.PendingBytes;
-                //generalStats.CongestionLevel += item.Value.CongestionLevel;
-                //generalStats.TotalBytesSent+= item.Value.TotalBytesSent;
-                //generalStats.TotalBytesReceived+=item.Value.TotalBytesReceived;
-                //generalStats.SendRate+=item.Value.SendRate;
-                //generalStats.ReceiveRate += item.Value.ReceiveRate;
-                //generalStats.MessageDispatchRate += item.Value.MessageDispatchRate;
-                //count++;
 
-            }
-            //generalStats.CongestionLevel /= count;
-
-            //Console.WriteLine(String.Format("\nServser Sum : Total Pending: {0} Total Congestion: {1}  Total Sent: {2}   Total Received: {3}  " +
-            //    "\nTotal SendRate: {4} MBs/s, Total ReceiveRate: {5}MBs/s  Total Message Send Rate: {6}"
-            //       , generalStats.PendingBytes,
-            //       generalStats.CongestionLevel.ToString("P"),
-            //       BytesToString(generalStats.TotalBytesSent),
-            //       BytesToString(generalStats.TotalBytesReceived),
-            //       generalStats.SendRate.ToString("N1"),
-            //       generalStats.ReceiveRate.ToString("N1"),
-            //       generalStats.TotalMessageDispatched.ToString("N1")
-            //       )); ;
-           
-        }
-        
-       public static String BytesToString(long byteCount)
+        public static string BytesToString(long byteCount)
         {
             if (byteCount == 0)
                 return "0" + dataSuffix[0];
@@ -219,7 +173,7 @@ namespace NetworkLibrary.Components
         {
             GetSessionStats();
             generalStats = this.generalStats;
-            sessionStats = this.Stats;
+            sessionStats = Stats;
         }
     }
 

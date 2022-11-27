@@ -10,7 +10,7 @@ namespace NetworkLibrary.Utils
         public delegate T ConstructorCallback();
         public ConstructorCallback HowToConstruct;
 
-        private ConcurrentBag<T> pool= new ConcurrentBag<T>();
+        public readonly ConcurrentBag<T> pool= new ConcurrentBag<T>();
 
         public T RentObject()
         {

@@ -1,7 +1,8 @@
-﻿using NetworkLibrary.Components;
+﻿using NetworkLibrary.Components.Statistics;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -14,9 +15,13 @@ namespace NetworkLibrary.TCP.Base
 {
     public abstract class TcpServerBase
     {
-       
 
+        /// <summary>
+        /// Use queue if your messages are from static resources such a a byte[] without segmentation.
+        /// Use buffer if your messsages are mainly from segment of byte[] i.e. buffer, offset, count.
+        /// </summary>
         public ScatterGatherConfig GatherConfig = ScatterGatherConfig.UseQueue;
+
         /// <summary>
         /// Client accepted callback delegate with session id as Guid
         /// </summary>
@@ -45,11 +50,7 @@ namespace NetworkLibrary.TCP.Base
         /// <param name="guid"></param>
         public delegate void ClientDisconnected(Guid guid);
 
-        /// <summary>
-        /// Max number clients that the server can concurrently serve.
-        /// You cannot change this after server is started.
-        /// </summary>
-        public int MaxClients { get; internal set; } = 1000;
+        
 
         /// <summary>
         /// Client send buffer size
@@ -97,6 +98,8 @@ namespace NetworkLibrary.TCP.Base
         public abstract void StartServer();
 
         public abstract void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid,SessionStats> sessionStats);
+
+        public abstract IPEndPoint GetSessionEndpoint(Guid sessionId);
 
         /// <summary>
         /// Shuts down the server. 

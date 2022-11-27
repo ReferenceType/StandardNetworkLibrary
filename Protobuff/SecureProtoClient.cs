@@ -1,6 +1,8 @@
-﻿using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
+using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
 using System;
@@ -20,59 +22,51 @@ namespace Protobuff
         private SslByteMessageClient client;
 
         public Action<MessageEnvelope> OnMessageReceived;
-        //public Action<MessageEnvelope> OnRequestReceived;
-        //public Action<MessageEnvelope> OnResponseReceived;
 
         public Action OnDisconnected;
 
         private ConcurrentProtoSerialiser serialiser;
         private MessageAwaiter awaiter;
-        private ConcurrentBag<MemoryStream> streamPool = new ConcurrentBag<MemoryStream>();
+        private SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
+        // hook to override default cb.
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => client.RemoteCertificateValidationCallback;
 
         public SecureProtoClient(X509Certificate2 certificate)
         {
-            streamPool.Add(new MemoryStream());
-
             client = new SslByteMessageClient(certificate);
             client.OnBytesReceived += BytesReceived;
             client.OnDisconnected += Disconnected;
-            client.OnConnected += Connected;
             client.MaxIndexedMemory = 1280000000;
 
-            client.RemoteCertificateValidationCallback += DefaultValidayionCallback;
+            client.RemoteCertificateValidationCallback += DefaultValidationCallback;
             client.GatherConfig = ScatterGatherConfig.UseBuffer;
 
             serialiser = new ConcurrentProtoSerialiser();
             awaiter = new MessageAwaiter();
         }
 
-        private bool DefaultValidayionCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        private bool DefaultValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;
         }
-        private MemoryStream RentStream()
+        private PooledMemoryStream RentStream()
         {
-            if (!streamPool.TryTake(out var stream))
-            {
-                stream = new MemoryStream();
-            }
-            return stream;
+            return streamPool.RentStream();
         }
-        private void ReturnStream(MemoryStream stream)
+        private void ReturnStream(PooledMemoryStream stream)
         {
-            stream.Position = 0;
-            streamPool.Add(stream);
+            streamPool.ReturnStream(stream);
         }
         public void Connect(string host, int port)
         {
             client.Connect(host, port);
         }
-
-        private void Connected()
+        public Task<bool> ConnectAsync(string host, int port)
         {
+            return client.ConnectAsyncAwaitable(host, port);
         }
+
         public void Disconnect()
         {
             client.Disconnect();
@@ -82,61 +76,52 @@ namespace Protobuff
         {
             OnDisconnected?.Invoke();
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message)
         {
             var stream = RentStream();
+
             if (message.Payload != null)
                 serialiser.EnvelopeMessageWithBytes(stream, message, message.Payload, 0, message.Payload.Length);
             else
                 serialiser.EnvelopeMessageWithBytes(stream, message, null, 0, 0);
 
             client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-
             ReturnStream(stream);
-            //var bytes = serialiser.SerialiseEnvelopedMessage(message);
-            //client.SendAsync(bytes);
+            
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message, byte[] buffer, int offset, int count)
         {
             var stream = RentStream();
             serialiser.EnvelopeMessageWithBytes(stream, message,buffer, offset, count);
             client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
             ReturnStream(stream);
-            //byte[] bytes = serialiser.EnvelopeAndSerialiseMessage(message, buffer, offset, count);
-            //client.SendAsync(bytes);
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
-        public void SendAsyncMessage<T>(MessageEnvelope message, T payload) where T : class
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SendAsyncMessage<T>(MessageEnvelope message, T payload) where T : IProtoMessage
         {
             var stream = RentStream();
             serialiser.EnvelopeMessageWithInnerMessage(stream, message, payload);
             client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
             ReturnStream(stream);
-            //byte[] bytes = serialiser.EnvelopeAndSerialiseMessage(message, payload);
-            //client.SendAsync(bytes);
         }
-
-       
 
         public async Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeoutMs = 10000)
         {
             message.MessageId = Guid.NewGuid();
-
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(message);
             return await result;
         }
 
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message,T payload, int timeoutMs = 10000) where T : class
+        public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message,T payload, int timeoutMs = 10000) where T : IProtoMessage
         {
             message.MessageId = Guid.NewGuid();
-
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(message,payload);
@@ -146,7 +131,6 @@ namespace Protobuff
         public async Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
         {
             message.MessageId = Guid.NewGuid();
-
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(message, buffer,offset,count);
@@ -155,10 +139,9 @@ namespace Protobuff
 
         private void BytesReceived(byte[] bytes, int offset, int count)
         {
-            //MessageEnvelope message = serialiser.Deserialize<MessageEnvelope>(bytes, offset, count);
             MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-
-
+            if (message == null)
+                return;
             if (awaiter.IsWaiting(message.MessageId))
                 awaiter.ResponseArrived(message);
             else

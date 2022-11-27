@@ -7,6 +7,10 @@ namespace NetworkLibrary.TCP.Base
 {
     public abstract class TcpClientBase
     {
+        /// <summary>
+        /// Use queue if your messages are from static resources such a a byte[] without segmentation.
+        /// Use buffer if your messsages are mainly from segment of byte[] i.e. buffer, offset, count.
+        /// </summary>
         public ScatterGatherConfig GatherConfig = ScatterGatherConfig.UseQueue;
 
         /// <summary>
@@ -108,6 +112,14 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         /// <param name="buffer"></param>
         public abstract void SendAsync(byte[] buffer);
+
+        /// <summary>
+        /// Sends or enqueues mesage asyncronously
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        public abstract void SendAsync(byte[] buffer, int offset, int count);
 
         /// <summary>
         /// Disconnects the client.

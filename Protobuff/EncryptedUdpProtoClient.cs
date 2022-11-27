@@ -13,28 +13,27 @@ using System.Text;
 
 namespace Protobuff
 {
-    internal class EncryptedUdpProtoClient:SecureUdpClient
+    internal class EncryptedUdpProtoClient : SecureUdpClient
     {
-        //SecureUdpClient encryptedUdpClient;
         public Action<MessageEnvelope> OnMessageReceived;
-        ConcurrentProtoSerialiser serialiser =  new ConcurrentProtoSerialiser();
-        MemoryStreamPool streamPool = new MemoryStreamPool();
+        ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
+        SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
-        public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm):base(algorithm)
+        public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm) : base(algorithm)
         {
 
         }
 
-       
+
         protected override void HandleDecrypedBytes(byte[] buffer, int offset, int count)
         {
-            var msg = serialiser.DeserialiseEnvelopedMessage(buffer,offset,count);
+            var msg = serialiser.DeserialiseEnvelopedMessage(buffer, offset, count);
             OnMessageReceived?.Invoke(msg);
-            // base.HandleBytesReceived(buffer, offset, count);
         }
 
         public void SendAsyncMessage(MessageEnvelope message)
         {
+
             var serialisationStream = streamPool.RentStream();
 
             if (message.Payload == null)
@@ -45,26 +44,30 @@ namespace Protobuff
             SendAsync(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
             streamPool.ReturnStream(serialisationStream);
+
         }
-        public void SendAsyncMessage<T>(MessageEnvelope message, T innerMessage) where T : class
+        public void SendAsyncMessage<T>(MessageEnvelope message, T innerMessage) where T : IProtoMessage
         {
+
             var serialisationStream = streamPool.RentStream();
 
-            serialiser.EnvelopeMessageWithInnerMessage(serialisationStream,message, innerMessage);
+            serialiser.EnvelopeMessageWithInnerMessage(serialisationStream, message, innerMessage);
             SendAsync(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
             streamPool.ReturnStream(serialisationStream);
 
 
         }
-        public void SendAsyncMessage(MessageEnvelope message, byte[] payload ,int offset, int count)
+        public void SendAsyncMessage(MessageEnvelope message, byte[] payload, int offset, int count)
         {
+
             var serialisationStream = streamPool.RentStream();
 
-            serialiser.EnvelopeMessageWithBytes(serialisationStream, message, payload,offset,count);
+            serialiser.EnvelopeMessageWithBytes(serialisationStream, message, payload, offset, count);
             SendAsync(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
             streamPool.ReturnStream(serialisationStream);
+
 
         }
     }

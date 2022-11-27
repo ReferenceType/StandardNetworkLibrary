@@ -14,7 +14,6 @@ internal class Program
 
     private static void EchoBench()
     {
-        CoreAssemblyConfig.UseUnmanaged = true;
         long totMsgCl = 0;
         long totMsgsw = 0;
         Stopwatch sw = new Stopwatch();
@@ -29,12 +28,15 @@ internal class Program
         {
             Header = "Stop"
         };
+        ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
 
-        ProtoServer server = new ProtoServer(20008, 100);
+       
+
+        var server = new ProtoServer(20008, 100);
         server.OnMessageReceived += ServerStsReceived;
 
         var clients = new List<ProtoClient>();
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 100; i++)
         {
             var client = new ProtoClient();
             client.OnMessageReceived += (reply) => ClientStsReceived(client, reply);
@@ -42,7 +44,7 @@ internal class Program
             client.Connect("127.0.0.1", 20008);
             clients.Add(client);
         }
-        
+
         Task.Run(async () =>
         {
             long elapsedPrev = sw.ElapsedMilliseconds;
@@ -53,13 +55,13 @@ internal class Program
                 await Task.Delay(2000);
                 long elapsedCurr = sw.ElapsedMilliseconds;
                 int deltaT = (int)(elapsedCurr - elapsedPrev);
-                Console.WriteLine("Elapsed: "+elapsedCurr);
+                Console.WriteLine("Elapsed: " + elapsedCurr);
                 Console.WriteLine("client total message {0} server total message {1}", totMsgCl, totMsgsw);
-                float throughput = (totMsgCl-totMsgClPrev + totMsgsw-totMsgswPrev) / (deltaT/1000);
+                float throughput = (totMsgCl - totMsgClPrev + totMsgsw - totMsgswPrev) / (deltaT / 1000);
 
                 Console.WriteLine("Throughput :" + throughput.ToString("N1"));
                 elapsedPrev = elapsedCurr;
-                totMsgswPrev =  totMsgsw;
+                totMsgswPrev = totMsgsw;
                 totMsgClPrev = totMsgCl;
 
             }
@@ -68,7 +70,7 @@ internal class Program
         sw.Start();
         Parallel.ForEach(clients, client =>
         {
-            for (int i = 0; i < 10000; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 client.SendAsyncMessage(msg);
             }
@@ -101,12 +103,11 @@ internal class Program
             }
         }
 
-       
+
     }
 
     static void BurstBench()
     {
-        CoreAssemblyConfig.UseUnmanaged = true;
         int totMsgCl = 0;
         int totMsgsw = 0;
         Stopwatch sw = new Stopwatch();

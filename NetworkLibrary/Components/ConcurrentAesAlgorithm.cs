@@ -7,29 +7,35 @@ namespace NetworkLibrary.Components
 {
     public class ConcurrentAesAlgorithm
     {
-        ConcurrentBag<AesAlgorithm> algobag = new ConcurrentBag<AesAlgorithm>();
+        private readonly ConcurrentBag<AesAlgorithm> algorithmPool = new ConcurrentBag<AesAlgorithm>();
         private readonly byte[] key;
         private readonly byte[] IV;
         public ConcurrentAesAlgorithm(byte[] key, byte[] IV)
         {
             this.key = key;
             this.IV = IV;
-            algobag.Add(new AesAlgorithm(key, IV));
+            algorithmPool.Add(new AesAlgorithm(key, IV));
         }
 
-        private AesAlgorithm GetAlgorithm()
+        private AesAlgorithm RentAlgorithm()
         {
-            if (!algobag.TryTake(out var cry))
+            if (!algorithmPool.TryTake(out var cry))
             {
                 cry = new AesAlgorithm(key, IV);
             }
             return cry;
         }
+
+        private void ReturnAlgorithm(AesAlgorithm alg)
+        {
+            algorithmPool.Add(alg);
+
+        }
         public byte[] Decrypt(byte[]bytes)=>Decrypt(bytes,0,bytes.Length);
         public byte[] Decrypt(byte[] bytes, int offset, int count)
         {
 
-            var cry = GetAlgorithm();
+            var cry = RentAlgorithm();
             byte[] res;
             try
             {
@@ -41,12 +47,12 @@ namespace NetworkLibrary.Components
                 cry.Dispose();
                 throw;
             }
-            algobag.Add(cry);
+            ReturnAlgorithm(cry);
             return res;
         }
         public int DecryptInto(byte[] source, int sourceOffset, int sourceCount, byte[] output, int outputOffset)
         {
-            var cry = GetAlgorithm();
+            var cry = RentAlgorithm();
             int res;
             try
             {
@@ -58,14 +64,14 @@ namespace NetworkLibrary.Components
                 cry.Dispose();
                 throw;
             }
-            algobag.Add(cry);
+            ReturnAlgorithm(cry);
             return res;
         }
 
         public byte[] Encrypt(byte[] bytes) => Encrypt(bytes, 0, bytes.Length);
         public byte[] Encrypt(byte[] bytes, int offset, int count)
         {
-            var cry = GetAlgorithm();
+            var cry = RentAlgorithm();
             byte[] res;
             try
             {
@@ -77,13 +83,13 @@ namespace NetworkLibrary.Components
                 cry.Dispose();
                 throw;
             }
-            algobag.Add(cry);
+            ReturnAlgorithm(cry);
             return res;
 
         }
         public int EncryptInto(byte[] source, int sourceOffset, int sourceCount, byte[] output, int outputOffset)
         {
-            var cry = GetAlgorithm();
+            var cry = RentAlgorithm();
             int res;
             try
             {
@@ -95,7 +101,7 @@ namespace NetworkLibrary.Components
                 cry.Dispose();
                 throw;
             }
-            algobag.Add(cry);
+            ReturnAlgorithm(cry);
             return res;
         }
 

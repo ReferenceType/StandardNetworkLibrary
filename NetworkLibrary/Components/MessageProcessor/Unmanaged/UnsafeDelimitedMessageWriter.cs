@@ -131,5 +131,10 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
             offset = origialOffset;
             count = this.count;
         }
+
+        public void Dispose()
+        {
+            bufferInternal= null;
+        }
     }
 }

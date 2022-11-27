@@ -13,11 +13,12 @@ namespace NetworkLibrary.Components
 
         private int currentMsgBufferPosition;
         private int currentHeaderBufferPosition;
+
         private int expectedMsgLenght;
         private int currentExpectedByteLenght;
 
         private int originalCapacity;
-       
+
         private enum OperationState
         {
             AwaitingMsgHeader,
@@ -37,7 +38,7 @@ namespace NetworkLibrary.Components
 
             headerBuffer = new byte[HeaderLenght];
             originalCapacity = bufferSize;
-            internalBufer = new byte[originalCapacity];
+            internalBufer = BufferPool.RentBuffer(BufferPool.MinBufferSize);
 
             currentMsgBufferPosition = 0;
         }
@@ -51,7 +52,7 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void HandleBytes(byte[] incomingBytes, int offset, int count)
         {
-            if(currentState== OperationState.AwaitingMsgHeader)
+            if (currentState == OperationState.AwaitingMsgHeader)
             {
                 HandleHeader(incomingBytes, offset, count);
             }
@@ -71,7 +72,7 @@ namespace NetworkLibrary.Components
                 else
                     AppendHeader(incomingBytes, offset);
 
-                // perfect msg -- i do a hot path here
+                // perfect msg - a hot path here
                 if (count - currentExpectedByteLenght == expectedMsgLenght)
                 {
                     MessageReady(incomingBytes, currentExpectedByteLenght, expectedMsgLenght);
@@ -117,7 +118,7 @@ namespace NetworkLibrary.Components
                     AppendMessageChunk(incomingBytes, offset, currentExpectedByteLenght);
                     MessageReady(internalBufer, 0, currentMsgBufferPosition);
                     // call with false if mem no concern.
-                    Reset();
+                    Reset(true);
                 }
 
                 offset += currentExpectedByteLenght;
@@ -151,7 +152,8 @@ namespace NetworkLibrary.Components
 
             if (internalBufer.Length < expectedMsgLenght)
             {
-                internalBufer = new byte[expectedMsgLenght];
+                BufferPool.ReturnBuffer(internalBufer);
+                internalBufer = BufferPool.RentBuffer(expectedMsgLenght);
             }
             // we got the header, but we have a partial msg.
             if (remaining > 0)
@@ -171,17 +173,27 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void AppendMessageChunk(byte[] bytes, int offset, int count)
         {
-            Buffer.BlockCopy(bytes, offset, internalBufer, currentMsgBufferPosition, count);
+            //Buffer.BlockCopy(bytes, offset, internalBufer, currentMsgBufferPosition, count);
+
+            unsafe
+            {
+                fixed (byte* destination = &internalBufer[currentMsgBufferPosition])
+                {
+                    fixed (byte* message_ = &bytes[offset])
+                        Buffer.MemoryCopy(message_, destination, count,count);
+                }
+            }
+            
             currentMsgBufferPosition += count;
         }
-       
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void AppendHeaderChunk(byte[] headerPart, int offset, int count)
         {
             for (int i = 0; i < count; i++)
             {
-                headerBuffer[currentHeaderBufferPosition++] = headerPart[i+offset];
+                headerBuffer[currentHeaderBufferPosition++] = headerPart[i + offset];
 
             }
             if (currentHeaderBufferPosition == HeaderLenght)
@@ -189,7 +201,8 @@ namespace NetworkLibrary.Components
                 expectedMsgLenght = BitConverter.ToInt32(headerBuffer, offset);
                 if (internalBufer.Length < expectedMsgLenght)
                 {
-                    internalBufer = new byte[expectedMsgLenght];
+                    BufferPool.ReturnBuffer(internalBufer);
+                    internalBufer = BufferPool.RentBuffer(expectedMsgLenght);
                 }
             }
         }
@@ -200,29 +213,28 @@ namespace NetworkLibrary.Components
             expectedMsgLenght = BitConverter.ToInt32(buffer, offset);
             if (internalBufer.Length < expectedMsgLenght)
             {
-                internalBufer = new byte[expectedMsgLenght];
+                BufferPool.ReturnBuffer(internalBufer);
+                internalBufer = BufferPool.RentBuffer(expectedMsgLenght);
             }
             return expectedMsgLenght;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void Reset(bool v = false)
+        private void Reset(bool freeMemory = false)
         {
             currentHeaderBufferPosition = 0;
             currentMsgBufferPosition = 0;
             expectedMsgLenght = 0;
-            //if (v && internalBufer.Length > originalCapacity)
-            //{
-            //    internalBufer = new byte[originalCapacity];
-            //}
+            if (freeMemory && internalBufer.Length > originalCapacity * 2)
+            {
+                FreeMemory();
+            }
         }
 
         private void FreeMemory()
         {
-            if (internalBufer.Length > originalCapacity)
-            {
-                internalBufer = new byte[originalCapacity];
-            }
+            BufferPool.ReturnBuffer(internalBufer);
+            internalBufer = BufferPool.RentBuffer(originalCapacity);
         }
         #endregion
     }

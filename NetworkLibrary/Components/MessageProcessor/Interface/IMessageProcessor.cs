@@ -1,8 +1,9 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components
 {
-    internal interface IMessageProcessor
+    internal interface IMessageProcessor:IDisposable
     {
         // heldover
 

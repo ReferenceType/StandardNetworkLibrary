@@ -2,6 +2,7 @@
 using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -16,12 +17,12 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         }
 
 
-        internal override IAsyncSession CreateSession(Guid guid, SslStream sslStream, BufferProvider bufferProvider)
+        internal override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var ses =  new SslByteMessageSession(guid, sslStream, bufferProvider);
+            var ses =  new SslByteMessageSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
-
+            ses.RemoteEndpoint = tuple.Item2;
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 ses.UseQueue = true;
             else

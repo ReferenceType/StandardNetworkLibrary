@@ -1,4 +1,4 @@
-﻿using NetworkLibrary.Components;
+﻿using NetworkLibrary.Components.Statistics;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -12,7 +12,7 @@ using System.Xml.Schema;
 
 namespace NetworkLibrary.UDP
 {
-    
+
     public class AsyncUdpServer
     {
         public delegate void ClientAccepted(SocketAsyncEventArgs ClientSocket);
@@ -26,7 +26,7 @@ namespace NetworkLibrary.UDP
         protected ConcurrentDictionary<IPEndPoint, UdpStatistics> Statistics = new ConcurrentDictionary<IPEndPoint, UdpStatistics>();
 
         protected int port = 0;
-        private UdpStatisticsPublisher sp;
+        private UdpStatisticsPublisher stats;
         protected EndPoint serverEndpoint;
         protected EndPoint multicastEndpoint;
 
@@ -69,11 +69,11 @@ namespace NetworkLibrary.UDP
             ServerSocket.Bind(serverEndpoint);
             ServerSocket.Blocking = false;
             this.port = port;
-            sp = new UdpStatisticsPublisher(Statistics);
+            stats = new UdpStatisticsPublisher(Statistics);
         }
         public void GetStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)
         {
-            sp.GetStatistics(out generalStats,out sessionStats);
+            stats.GetStatistics(out generalStats,out sessionStats);
         }
         // 239.0.0.0 to 239.255.255.255
         public void SetMulticastAddress(string Ip, int port) => multicastEndpoint = new IPEndPoint(IPAddress.Parse(Ip), port);
@@ -152,10 +152,10 @@ namespace NetworkLibrary.UDP
 
         void HandleBytesReceived(IPEndPoint clientRemoteEndpoint, byte[] buffer, int offset, int count)
         {
-            if (Statistics.ContainsKey(clientRemoteEndpoint))
+            if (Statistics.TryGetValue(clientRemoteEndpoint, out var stats))
             {
-                Statistics[clientRemoteEndpoint].TotalBytesReceived += count;
-                Statistics[clientRemoteEndpoint].TotalDatagramReceived += 1;
+                stats.TotalBytesReceived += count;
+                stats.TotalDatagramReceived += 1;
             }
            
             OnBytesRecieved?.Invoke(clientRemoteEndpoint, buffer, offset, count);
@@ -164,10 +164,6 @@ namespace NetworkLibrary.UDP
         }
         public void SendBytesToAllClients(byte[] bytes)
         {
-            //Parallel.ForEach(RegisteredClients, client =>
-            //{
-            //    SendBytesToClient(client.Key, bytes);
-            //});
             foreach (var client in RegisteredClients)
             {
                 SendBytesToClient(client.Key, bytes, 0, bytes.Length);
@@ -177,9 +173,6 @@ namespace NetworkLibrary.UDP
         public void SendBytesToClient(IPEndPoint clientEndpoint, byte[] bytes, int offset, int count)
         {
             
-
-            //if (ServerSocket.Poll(0, SelectMode.SelectWrite))
-
             try
             {
                 ServerSocket.SendTo(bytes, offset, count, SocketFlags.None, clientEndpoint);
@@ -191,9 +184,6 @@ namespace NetworkLibrary.UDP
                 Statistics[clientEndpoint].TotalMessageDropped+=1;
 
             }
-
-
-
         }
 
         public void RemoveClient(IPEndPoint endPoint)

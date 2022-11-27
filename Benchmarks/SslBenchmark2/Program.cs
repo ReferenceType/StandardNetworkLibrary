@@ -41,7 +41,7 @@ namespace ConsoleTest
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            CustomSslServer server = new CustomSslServer(2008, scert, clientAmount * 2 );
+            CustomSslServer server = new CustomSslServer(2008, scert);
             List<CustomSslClient> clients = new List<CustomSslClient>();
 
             Stopwatch sw2 = new Stopwatch();
@@ -58,7 +58,6 @@ namespace ConsoleTest
             for (int i = 0; i < clientAmount; i++)
             {
                 var client = new CustomSslClient(ccert);
-                client.BufferManager = server.BufferManager;
                 client.OnBytesReceived += ( byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();

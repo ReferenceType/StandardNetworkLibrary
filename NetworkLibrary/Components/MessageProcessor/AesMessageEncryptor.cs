@@ -126,5 +126,10 @@ namespace NetworkLibrary.Components
             offset = originalOffset;
             count=this.count;
         }
+
+        public void Dispose()
+        {
+            algorithm.Dispose();
+        }
     }
 }

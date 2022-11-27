@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Utils;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.Utils;
 using ProtoBuf;
 using ProtoBuf.Meta;
 using Protobuff;
@@ -16,10 +17,10 @@ namespace Protobuff
     public class ConcurrentProtoSerialiser
     {
 
-        private ConcurrentBag<MemoryStream> streamPool = new ConcurrentBag<MemoryStream>();
+        private ConcurrentBag<PooledMemoryStream> streamPool = new ConcurrentBag<PooledMemoryStream>();
         public ConcurrentProtoSerialiser()
         {
-            streamPool.Add(new MemoryStream());
+            streamPool.Add(new PooledMemoryStream());
 
         }
 
@@ -27,16 +28,16 @@ namespace Protobuff
 
         public byte[] Serialize<T>(T record)
         {
-            if (!streamPool.TryTake(out MemoryStream serialisationStream))
+            if (!streamPool.TryTake(out PooledMemoryStream serialisationStream))
             {
-                serialisationStream = new MemoryStream();
+                serialisationStream = new PooledMemoryStream();
             }
 
             Serializer.Serialize(serialisationStream, record);
             var buffer = serialisationStream.GetBuffer();
             var ret = ByteCopy.ToArray(buffer, 0, (int)serialisationStream.Position);
-            serialisationStream.Position = 0;
 
+            serialisationStream.Flush();
             streamPool.Add(serialisationStream);
                 return ret;
             
@@ -48,17 +49,16 @@ namespace Protobuff
         {
             var serialisationStream = new MemoryStream(buffer, offset, buffer.Length, writable: true);
             Serializer.Serialize(serialisationStream, record);
-           // buffer = serialisationStream.GetBuffer();
             count = (int)serialisationStream.Position;
 
             return true;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
-        public T Deserialize<T>(byte[] data) where T : class
+        public T Deserialize<T>(byte[] data) where T : IProtoMessage
         {
             if (null == data) 
-                return null;
+                return default;
 
             ReadOnlySpan<byte> seq = new ReadOnlySpan<byte>(data);
             return Serializer.Deserialize<T>(seq);                
@@ -66,24 +66,17 @@ namespace Protobuff
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T Deserialize<T>(byte[] data, int offset, int count) where T : class
+        public T Deserialize<T>(byte[] data, int offset, int count) where T : IProtoMessage
         {
             if (null == data)
-                return null;
+                return default;
 
             ReadOnlySpan<byte> seq = new ReadOnlySpan<byte>(data, offset, count);
             return Serializer.Deserialize<T>(seq);
         }
 
-        //public MessageEnvelope EnvelopeMessage<T>(MessageEnvelope empyEnvelope,T payload)
-        //{
-        //    empyEnvelope.Payload = Serialize(payload);
-        //    return empyEnvelope;
-        //}
-        
-
-
-        public T UnpackEnvelopedMessage<T>(MessageEnvelope fullEnvelope) where T : class
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T UnpackEnvelopedMessage<T>(MessageEnvelope fullEnvelope) where T : IProtoMessage
         {
             return Deserialize<T>(fullEnvelope.Payload);
         }
@@ -109,7 +102,6 @@ namespace Protobuff
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-
         public MessageEnvelope DeserialiseOnlyEnvelope(byte[] buffer, int offset, int count)
         {
             ushort secondStart = BitConverter.ToUInt16(buffer, offset + 0);
@@ -123,8 +115,8 @@ namespace Protobuff
             var envelope = Serializer.Deserialize<MessageEnvelope>(seq);
             return envelope;
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T DeserialiseOnlyPayload<T>(byte[] buffer, int offset, int count)
         {
             ushort secondStart = BitConverter.ToUInt16(buffer, offset);
@@ -147,7 +139,7 @@ namespace Protobuff
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public byte[] SerialiseEnvelopedMessage(MessageEnvelope message)
+        internal byte[] SerialiseEnvelopedMessage(MessageEnvelope message)
         {
             if (message.Payload == null)
                 return EnvelopeAndSerialiseMessage(message, null, 0, 0);
@@ -156,25 +148,31 @@ namespace Protobuff
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public byte[] EnvelopeAndSerialiseMessage<T>(MessageEnvelope empyEnvelope, T payload) where T : class
+        internal byte[] EnvelopeAndSerialiseMessage<T>(MessageEnvelope empyEnvelope, T payload) where T : IProtoMessage
         {
-            if (!streamPool.TryTake(out MemoryStream serialisationStream))
+            if (!streamPool.TryTake(out PooledMemoryStream serialisationStream))
             {
-                serialisationStream = new MemoryStream();
+                serialisationStream = new PooledMemoryStream();
             }
             EnvelopeMessageWithInnerMessage(serialisationStream, empyEnvelope, payload);
             var ret = ByteCopy.ToArray(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
+            serialisationStream.Flush();
             streamPool.Add(serialisationStream);
             return ret;
 
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EnvelopeMessageWithInnerMessage<T>(MemoryStream serialisationStream, MessageEnvelope empyEnvelope, T payload) where T : class
+        internal void EnvelopeMessageWithInnerMessage<T>(Stream serialisationStream, MessageEnvelope empyEnvelope, T payload) where T : IProtoMessage
         {
             serialisationStream.Position = 2;
             Serializer.Serialize(serialisationStream, empyEnvelope);
+
+            if (serialisationStream.Position >= ushort.MaxValue)
+            {
+                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+            }
             ushort oldpos = (ushort)serialisationStream.Position;//msglen +2
 
             if (payload == null)
@@ -198,29 +196,34 @@ namespace Protobuff
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public byte[] EnvelopeAndSerialiseMessage(MessageEnvelope empyEnvelope, byte[] payloadBuffer, int offset, int count)
+        internal byte[] EnvelopeAndSerialiseMessage(MessageEnvelope empyEnvelope, byte[] payloadBuffer, int offset, int count)
         {
-            if (!streamPool.TryTake(out MemoryStream serialisationStream))
+            if (!streamPool.TryTake(out PooledMemoryStream serialisationStream))
             {
-                serialisationStream = new MemoryStream();
+                serialisationStream = new PooledMemoryStream();
             }
             EnvelopeMessageWithBytes( serialisationStream,  empyEnvelope, payloadBuffer, offset, count);
             var ret = ByteCopy.ToArray(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
+            serialisationStream.Flush();
             streamPool.Add(serialisationStream);
             return ret;
 
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void EnvelopeMessageWithBytes(MemoryStream serialisationStream, MessageEnvelope empyEnvelope, byte[] payloadBuffer, int offset, int count)
+        internal void EnvelopeMessageWithBytes(Stream serialisationStream, MessageEnvelope empyEnvelope, byte[] payloadBuffer, int offset, int count)
         {
-            
-            //empyEnvelope.Payload = null;
-
+        
             serialisationStream.Position = 2;
             Serializer.Serialize(serialisationStream, empyEnvelope);
-            ushort oldpos = (ushort)serialisationStream.Position;//msglen +4
+
+            if (serialisationStream.Position >= ushort.MaxValue)
+            {
+                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+            }
+
+            ushort oldpos = (ushort)serialisationStream.Position;//msglen +2
 
             if (payloadBuffer == null)
             {

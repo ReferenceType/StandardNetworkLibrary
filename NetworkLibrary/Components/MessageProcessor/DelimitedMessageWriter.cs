@@ -137,5 +137,10 @@ namespace NetworkLibrary.Components
             offset = origialOffset;
             count = this.count;
         }
+
+        public void Dispose()
+        {
+           bufferInternal= null;
+        }
     }
 }

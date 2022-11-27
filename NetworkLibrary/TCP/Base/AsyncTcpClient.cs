@@ -17,21 +17,6 @@ namespace NetworkLibrary.TCP.Base
     {
         #region Fields & Props
 
-        //public BytesRecieved OnBytesReceived;
-       
-
-        private BufferProvider bufferManager;
-        public BufferProvider BufferManager
-        {
-            get => bufferManager;
-            set
-            {
-                if (IsConnecting)
-                    throw new InvalidOperationException("Setting buffer manager is not supported after conection is initiated.");
-                bufferManager = value;
-            }
-        }
-
         private Socket clientSocket;
         private TaskCompletionSource<bool> connectedCompletionSource;
 
@@ -94,12 +79,7 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void HandleConnected(SocketAsyncEventArgs e)
         {
-            if (bufferManager == null)
-            {
-                bufferManager = new BufferProvider(1, SocketSendBufferSize, 1, SocketRecieveBufferSize);
-            }
-            
-            session = CreateSession(e, Guid.NewGuid(), bufferManager);
+            session = CreateSession(e, Guid.NewGuid());
 
             session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
             session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
@@ -114,9 +94,9 @@ namespace NetworkLibrary.TCP.Base
 
         #region Create Session Dependency
 
-        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId, BufferProvider bufferManager)
+        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            var ses = new TcpSession(e, sessionId, bufferManager);
+            var ses = new TcpSession(e, sessionId);
             ses.socketSendBufferSize = SocketSendBufferSize;
             ses.socketRecieveBufferSize = SocketRecieveBufferSize;
             ses.maxIndexedMemory = MaxIndexedMemory;
@@ -137,6 +117,11 @@ namespace NetworkLibrary.TCP.Base
         {
             if (connected)
                 session?.SendAsync(buffer);
+        }
+        public override void SendAsync(byte[] buffer, int offset, int count)
+        {
+            if (connected)
+                session?.SendAsync(buffer,offset,count);
         }
 
         protected virtual void HandleBytesRecieved(byte[] bytes, int offset, int count)
@@ -176,7 +161,7 @@ namespace NetworkLibrary.TCP.Base
                 catch { }
             }
             
-            bufferManager?.Dispose();
+            //bufferManager?.Dispose();
         }
     }
 }

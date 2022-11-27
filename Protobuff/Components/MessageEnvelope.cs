@@ -1,4 +1,5 @@
 ﻿using ProtoBuf;
+using Protobuff.Components;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,20 +9,13 @@ namespace Protobuff
     
     // lenght cant be more than 64kb
     [ProtoContract]
-    public class MessageEnvelope
+    public class MessageEnvelope : IProtoMessage
     {
         public const string RequestTimeout = "RequestTimedOut";
         public const string RequestCancelled = "RequestCancelled";
-        //[ProtoContract]
-        //public enum MessageTypes
-        //{
-        //    Status,
-        //    Request,
-        //    Response
-        //}
 
-        //[ProtoMember(1)]
-        //public MessageTypes MessageType { get; internal set; }
+        [ProtoMember(1)]
+        public DateTime TimeStamp { get; set; }
 
         [ProtoMember(2)]
         public Guid MessageId { get; set; }

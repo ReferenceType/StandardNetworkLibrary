@@ -1,4 +1,5 @@
 ﻿using ProtoBuf;
+using Protobuff.Components;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -8,7 +9,16 @@ using System.Text;
 namespace Protobuff.P2P
 {
     [ProtoContract]
-    public class PeerList<T>
+    public class PeerInfo: IProtoMessage
+    {
+        [ProtoMember(1)]
+        public string IP;
+        [ProtoMember(2)]
+        public int Port;
+    }
+
+    [ProtoContract]
+    public class PeerList<T>: IProtoMessage
     {
         [ProtoMember(1)]
         public Dictionary<Guid,T> PeerIds;
@@ -30,11 +40,11 @@ namespace Protobuff.P2P
         public const string RegisteryAck = "RegisteryAck";
 
         public const string HolePunchRequest = "HolePunchRequest";
-        public const string SendFirstMsgHolePunch = "SendFirstMsg";
+        public const string RegisterHolePunchEndpoint = "SendFirstMsg";
         public const string EndpointTransfer = "EndpointTransfer";
         public const string HolePunchRegister = "HolePunchRegister";
 
-        public static MessageEnvelope MakeRelaySatusMessage(Guid fromId,Guid toId, byte[] payload)
+        public static MessageEnvelope MakeRelayMessage(Guid fromId,Guid toId, byte[] payload)
         {
             var msg = new MessageEnvelope()
             {
@@ -59,18 +69,7 @@ namespace Protobuff.P2P
 
         }
 
-        public static MessageEnvelope MakeRelayResponseMessage(Guid requestId, Guid fromId, Guid toId, byte[] payload)
-        {
-            var msg = new MessageEnvelope()
-            {
-                MessageId = requestId,
-                From = fromId,
-                To = toId,
-                Payload = payload
-            };
-            return msg;
-
-        }
+     
 
 
     }

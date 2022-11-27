@@ -1,4 +1,6 @@
-﻿using NetworkLibrary.TCP;
+﻿using NetworkLibrary;
+using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.TCP;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.Utils;
 using System;
@@ -27,6 +29,7 @@ namespace ConsoleTest
 
         private static void TcpTest()
         {
+            BufferPool.ForceGCOnCleanup = false;
             // dont change.
             int NumFinishedClients = 0;
             //CoreAssemblyConfig.UseUnmanaged=true;
@@ -41,13 +44,13 @@ namespace ConsoleTest
             var response = new byte[32];
 
 
-            ByteMessageTcpServer server = new ByteMessageTcpServer(2008, clientAmount*2);
+            ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-            server.MaxIndexedMemoryPerClient = 1280000000;
+            server.MaxIndexedMemoryPerClient = 12800000;
             server.ClientSendBufsize = 128000;
             server.ClientReceiveBufsize = 128000;
             server.DropOnBackPressure = false;
@@ -60,9 +63,8 @@ namespace ConsoleTest
             for (int i = 0; i < clientAmount; i++)
             {
                 var client = new ByteMessageTcpClient();
-                client.BufferManager = server.BufferManager;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
-
+                client.GatherConfig = ScatterGatherConfig.UseQueue;
                 client.DropOnCongestion = false;
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
@@ -167,6 +169,7 @@ namespace ConsoleTest
 
         private static void TcpTest2()
         {
+
             // dont change.
             int NumFinishedClients = 0;
             MiniLogger.AllLog += (string log) => Console.WriteLine(log);
@@ -180,25 +183,26 @@ namespace ConsoleTest
             var response = new byte[32];
 
             bool done = false;
-            int port = 20011;
-            ByteMessageTcpServer server = new ByteMessageTcpServer(port, clientAmount * 3);
+            int port = 20007;
+            ByteMessageTcpServer server = new ByteMessageTcpServer(port);
             List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
-            server.MaxIndexedMemoryPerClient = 128000;
+            server.MaxIndexedMemoryPerClient = 128000000;
             server.ClientSendBufsize = 128000;
             server.ClientReceiveBufsize = 128000;
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
             server.StartServer();
+            server.GatherConfig = ScatterGatherConfig.UseQueue;
 
             Task[] toWait = new Task[clientAmount];
             for (int i = 0; i < clientAmount; i++)
             {
                 var client = new ByteMessageTcpClient();
-                client.BufferManager = server.BufferManager;
+                client.GatherConfig = ScatterGatherConfig.UseQueue;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
 
                 client.DropOnCongestion = false;
@@ -221,20 +225,12 @@ namespace ConsoleTest
                 for (int i = 0; i < numMsg; i++)
                 {
                     client.SendAsync(message);
-
                 }
+
 
             });
 
-            Task.Run(async () =>
-            {
-                while (!done)
-                {
-                    await Task.Delay(2000);
-                    //ShowStatus();
-                }
-                
-            });
+           
 
             // -------- Messages are sent by clients ------ 
 
@@ -271,7 +267,11 @@ namespace ConsoleTest
                 Console.WriteLine(" Request-Response Per second " + (totMsgClient / elapsedSeconds).ToString("N1"));
                 Console.WriteLine("Data transmissıon rate Inbound " + (message.Length * messagePerSecond / 1000000).ToString("N1") + " Megabytes/s");
                 Console.WriteLine("Data transmissıon rate Outbound " + (response.Length * messagePerSecond / 1000000).ToString("N1") + " Megabytes/s");
+                server.GetStatistics(out SessionStats general, out var _);
+                Console.WriteLine(general.ToString());
             }
+
+            //--------------- Msg Handlers ---------------------
 
             void OnClientReceivedMessage(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
             {

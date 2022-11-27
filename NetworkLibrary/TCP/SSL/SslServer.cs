@@ -1,4 +1,4 @@
-﻿using NetworkLibrary.Components;
+﻿using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
@@ -9,6 +9,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -31,34 +32,31 @@ namespace NetworkLibrary.TCP.SSL.Base
         internal ConcurrentDictionary<Guid, SessionStats> Stats { get; } = new ConcurrentDictionary<Guid, SessionStats>();
 
 
-        private Socket ServerSocket;
+        private Socket serverSocket;
         private X509Certificate2 certificate;
-        private TcpStatisticsPublisher sp;
+        private TcpStatisticsPublisher statisticsPublisher;
 
-        public BufferProvider BufferProvider { get; private set; }
         public bool Stopping { get; private set; }
 
-        public SslServer(int port, int maxClients, X509Certificate2 certificate)
+        public SslServer(int port, X509Certificate2 certificate)
         {
-            MaxClients = maxClients;
             ServerPort = port;
             this.certificate = certificate;
-            BufferProvider = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
             OnClientRequestedConnection = (socket) => true;
             RemoteCertificateValidationCallback += DefaultValidationCallback;
            
-            sp = new TcpStatisticsPublisher(Sessions, 3000);
+            statisticsPublisher = new TcpStatisticsPublisher(Sessions, 3000);
         }
        
         public override void StartServer()
         {
 
-            ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            ServerSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
-            ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
+            serverSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            serverSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
+            serverSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
 
-            ServerSocket.Listen(MaxClients);
-            ServerSocket.BeginAccept(Accepted, null);
+            serverSocket.Listen(10000);
+            serverSocket.BeginAccept(Accepted, null);
         }
 
         private void Accepted(IAsyncResult ar)
@@ -68,17 +66,18 @@ namespace NetworkLibrary.TCP.SSL.Base
             Socket clientsocket = null;
             try
             {
-                clientsocket = ServerSocket.EndAccept(ar);
+                clientsocket = serverSocket.EndAccept(ar);
 
             }
             catch (ObjectDisposedException) { return; }
+
             if (ar.CompletedSynchronously)
             {
-                ThreadPool.UnsafeQueueUserWorkItem(s => ServerSocket.BeginAccept(Accepted, null), null);
+                ThreadPool.UnsafeQueueUserWorkItem(s => serverSocket.BeginAccept(Accepted, null), null);
             }
             else
             {
-                ServerSocket.BeginAccept(Accepted, null);
+                serverSocket.BeginAccept(Accepted, null);
             }
             if (!ValidateConnection(clientsocket))
             {
@@ -86,7 +85,21 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
 
             var sslStream = new SslStream(new NetworkStream(clientsocket, true), false, ValidateCeriticate);
-            sslStream.BeginAuthenticateAsServer(certificate, true, System.Security.Authentication.SslProtocols.Tls12, false, EndAuthenticate, sslStream);
+            try
+            {
+                sslStream.BeginAuthenticateAsServer(certificate,
+                                               true,
+                                               System.Security.Authentication.SslProtocols.Tls12,
+                                               false,
+                                               EndAuthenticate,
+                                               new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientsocket.RemoteEndPoint));
+            }
+            catch(Exception ex) 
+            when(ex is AuthenticationException || ex is ObjectDisposedException)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + ex.Message);
+            }
+
         }
         protected virtual bool ValidateConnection(Socket clientsocket)
         {
@@ -108,16 +121,21 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             try
             {
-                ((SslStream)ar.AsyncState).EndAuthenticateAsServer(ar);
+                ((ValueTuple<SslStream, IPEndPoint>)ar.AsyncState).Item1.EndAuthenticateAsServer(ar);
             }
             catch (Exception e)
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + e.Message);
-                ((SslStream)ar.AsyncState).Close();
+                try
+                {
+                    ((SslStream)ar.AsyncState).Close();
+
+                }
+                catch { }
                 return;
             }
             var sessionId = Guid.NewGuid();
-            var ses = CreateSession(sessionId, (SslStream)ar.AsyncState, BufferProvider);
+            var ses = CreateSession(sessionId, (ValueTuple<SslStream, IPEndPoint>)ar.AsyncState );
             ses.OnBytesRecieved += HandleBytesReceived;
             ses.OnSessionClosed += HandeDeadSession;
             ses.StartSession();
@@ -133,12 +151,12 @@ namespace NetworkLibrary.TCP.SSL.Base
                 Console.WriteLine("Removed "+id);
         }
 
-        internal virtual IAsyncSession CreateSession(Guid guid, SslStream sslStream, BufferProvider bufferProvider)
+        internal virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var ses = new SslSession(guid, sslStream, bufferProvider);
+            var ses = new SslSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             ses.DropOnCongestion = DropOnBackPressure;
-
+            ses.RemoteEndpoint = tuple.Item2;
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 ses.UseQueue = true;
@@ -155,14 +173,14 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         public override void SendBytesToClient(in Guid clientId, byte[] bytes)
         {
-            if(Sessions.ContainsKey(clientId))
-                Sessions[clientId].SendAsync(bytes);
+            if (Sessions.TryGetValue(clientId, out var session))
+                session.SendAsync(bytes);
         }
 
         public void SendBytesToClient(in Guid clientId, byte[] bytes, int offset, int count)
         {
-            if (Sessions.ContainsKey(clientId))
-                Sessions[clientId].SendAsync(bytes, offset, count);
+            if(Sessions.TryGetValue(clientId, out var session))
+                session.SendAsync(bytes, offset, count);
         }
 
         public override void SendBytesToAllClients(byte[] bytes)
@@ -176,8 +194,8 @@ namespace NetworkLibrary.TCP.SSL.Base
         public override void ShutdownServer()
         {
             Stopping = true;
-            ServerSocket.Close();
-            ServerSocket.Dispose();
+            serverSocket.Close();
+            serverSocket.Dispose();
             foreach (var item in Sessions)
             {
                 item.Value.EndSession();
@@ -195,7 +213,18 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         public override void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid, SessionStats> sessionStats)
         {
-            sp.GetStatistics(out generalStats, out sessionStats);
+            statisticsPublisher.GetStatistics(out generalStats, out sessionStats);
+        }
+
+        public override IPEndPoint GetSessionEndpoint(Guid sessionId)
+        {
+            if (Sessions.TryGetValue(sessionId, out var session))
+            {
+                return session.RemoteEndpoint;
+            }
+
+            return null;
         }
     }
+    
 }

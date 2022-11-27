@@ -6,25 +6,26 @@ using System.Text;
 
 namespace NetworkLibrary.Utils
 {
-    public class MemoryStreamPool : IDisposable
+    public class SharerdMemoryStreamPool:IDisposable
     {
-        ConcurrentObjectPool<MemoryStream> pool = new ConcurrentObjectPool<MemoryStream>();
+        ConcurrentObjectPool<PooledMemoryStream> pool = new ConcurrentObjectPool<PooledMemoryStream>();
         private bool disposedValue;
 
-        public MemoryStream RentStream()
+        public PooledMemoryStream RentStream()
         {
             if (disposedValue)
-                throw new ObjectDisposedException(nameof(MemoryStreamPool));
+                throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
-            return pool.RentObject();
+                return pool.RentObject();
         }
 
-        public void ReturnStream(MemoryStream stream)
+        public void ReturnStream(PooledMemoryStream stream)
         {
             if (disposedValue)
-                throw new ObjectDisposedException(nameof(MemoryStreamPool));
+                throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
-            stream.Position = 0;
+            stream.Flush();
+            
             pool.ReturnObject(stream);
         }
 
@@ -36,7 +37,7 @@ namespace NetworkLibrary.Utils
                 {
                     for (int i = 0; i < pool.pool.Count; i++)
                     {
-                        if (pool.pool.TryTake(out var stram))
+                        if(pool.pool.TryTake(out var stram))
                             stram.Dispose();
                     }
                 }
@@ -48,6 +49,7 @@ namespace NetworkLibrary.Utils
 
         public void Dispose()
         {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }

@@ -8,16 +8,16 @@ namespace NetworkLibrary.Components
 {
     public class AesAlgorithm:IDisposable
     {
-        protected Aes algorithm;
-        protected ICryptoTransform encryptor;
-        protected ICryptoTransform decryptor;
+        private readonly Aes algorithm;
+        private readonly ICryptoTransform encryptor;
+        private readonly ICryptoTransform decryptor;
 
         public int EncryptorInputBlockSize { get => encryptor.InputBlockSize; }
         public int EncryptorOutputBlockSize { get => encryptor.OutputBlockSize; }
         public int DecryptorInputBlockSize { get => decryptor.InputBlockSize; }
         public int DecryptorOutputBlockSize { get => decryptor.OutputBlockSize; }
 
-        private byte[] finalBlock= new byte[0];
+        private readonly byte[] finalBlock= new byte[0];
         public AesAlgorithm(byte[] Key, byte[] IV,string algorithmName = null)
         {
             if(algorithmName == null)

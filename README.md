@@ -6,6 +6,7 @@ Supported Frameworks .Net Standard 2.0+.
 - Udp server client model with AES encyrption support.
 - Protobuf message server client models. Based on raw and encrypted Tcp And Udp servers on core libraries.
 - P2P topology support using protobuf messages by Relay server & client model.
+- Udp holepunching on P2P network
 
 ### Internal Architectural Features
 - Global shared memory pool where each byte array is rented and returned. Each memory user including memory stream backing buffers are rented though the pool.

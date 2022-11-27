@@ -11,6 +11,7 @@ namespace Protobuff
     [ProtoContract]
     public class MessageEnvelope : IProtoMessage
     {
+        public static ConcurrentProtoSerialiser serialiser= new ConcurrentProtoSerialiser();
         public const string RequestTimeout = "RequestTimedOut";
         public const string RequestCancelled = "RequestCancelled";
 
@@ -33,6 +34,11 @@ namespace Protobuff
         public Dictionary<string, string> KeyValuePairs { get; set; }
 
         public byte[] Payload { get; set; }
+
+        public T UnpackPayload<T>() where T : IProtoMessage
+        {
+            return serialiser.UnpackEnvelopedMessage<T>(this);
+        }
 
     }
 }

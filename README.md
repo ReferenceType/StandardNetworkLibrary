@@ -1,34 +1,27 @@
-# .Net Standard Network Library (WIP)
-
-A library intended to be a strong backbone for future developments. Aim is to achieve highest performance with reasonable memory requirements.
-
-No locks, no extra allocations, minimum GC pressure, automatic concurrency.
-
+# .Net Standard Network Library.
+High Performance Network library for Tcp Udp network applications.
 Supported Frameworks .Net Standard 2.0+.
+Tested with clients with up to 1200 km distance.
+## Features
+- Tcp and SSL high performance server & clients. Supports native byte message protocol with 4 byte int size header.
+- Udp server client model with AES encyrption support.
+- Protobuf message server client models. Based on raw and encrypted Tcp And Udp servers on core libraries.
+- P2P topology support using protobuf messages by Relay server & client model.
 
-Not production ready, everything is subject to change. Mostly for experimental purposes yet.
+### Internal Architectural Features
+- Global shared memory pool where each byte array is rented and returned. Each memory user including memory stream backing buffers are rented though the pool.
+Pool`s memory is internally maintained for trimming. Protobuf serialisation also shares this pool. Memory footprint is low and scaleable and low GC pressure.
 
-So far we have:
-- Regular Tcp Sever - Client send and recieves pure bytes, used as base, can be used standalone.
-- Byte Message Server - Client for sending and receiving atomic messages with 4 byte length header.
-- Ssl Client Server model using .Net built in Ssl stream supporting atomic Byte message protocol.
-- A custom Ssl client - server with custom key exchange and AES, only for experimental purposes. This may extend into secure UDP
-- Simple Udp Server-Client work in progress, to be returned here. 
+- System calls for socket send and recieve are expensive. When Tcp based servers are on high load, messages are stiched together to increase throughput, idea is to send multiple messages in one system call. This is only for high load so there is no latency issue on regular traffic. This gather sysytem is configrable and can be based on queue or stream swaps.
 
-This project will be extended to implement Protobuff, HTTP.
 
 
 # Documentation
-TODO
-Development is in progress, design is not finalised.
+TODO one day when i have the time.. 
 
-Helicopter view design involves:
-- SocketAsyncEventArgs based Tcp Server-Client.
-- Contigious send and receive buffers for the reduction of GC overheads due to WSA pinning.
-- A message queue system where the messages are queued if the async operation is pending.
-- Messages are dequeued and processed by the worker thread which comes from operation completion callback.
 
-# Sample Code
+# Sample Code 
+## Base Byte Message TCP Server Client
 ```c#
         static void Main(string[] args)
         {
@@ -60,72 +53,64 @@ output:
 Hello I'm a client! this message will reach you atomically
 Hello I'm the server I got your message
 ```
+## Secure Proto Client Server
+Declare your type
+```c#
+        [ProtoContract]
+        class SamplePayload :IProtoMessage
+        {
+            [ProtoMember(1)]
+            public string sample;
+        }
+```
+``` c#
+  private static async Task ExampleProtoSecure()
+        {
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+
+            SecureProtoServer server = new SecureProtoServer(20008, 100, scert);
+            server.OnMessageReceived += ServerMessageReceived;
+
+            var client = new SecureProtoClient(cert);
+            client.OnMessageReceived += ClientMessageReceived;
+            client.Connect("127.0.0.1", 20008);
+
+            var Payload = new SamplePayload() { sample = "Hello" };
+            var messageEnvelope = new MessageEnvelope();
+
+            // You can just send a message, get replies on ClientMessageReceived.
+            client.SendAsyncMessage(messageEnvelope);
+            client.SendAsyncMessage(messageEnvelope,Payload);
+
+            // Or you can wait for a reply async.
+            MessageEnvelope result = await client.SendMessageAndWaitResponse(messageEnvelope, Payload);
+            var payload = result.UnpackPayload<SamplePayload>();
+
+            void ServerMessageReceived(in Guid clientId, MessageEnvelope message)
+            {
+                server.SendAsyncMessage(in clientId, message);
+            }
+
+            void ClientMessageReceived(MessageEnvelope message)
+            {
+            }
+        }
+```
 # Benchmarks
-Benchmarks are executed in personal laptop with i7 8750H. This section will be updated.
-## TCP ByteMessage Server
-TCP Byte Message Server- Client are sending and receiving byte messages identified by 4 byte header.
-Benchmark is done by parallely requesting to the server by N clients with M Messages, and getting a response for each message.
-The final message is a special one to determine the timestamp of last response recieved by client.
-Byte header is not included on data transfer rate.
 
-I will publish my results with more tests and represent them with graphs in the future. so far this it
+Infinite Echo benchmarks are done by sending set of messages to server and getting echo reply. I will publish more detailed anlysis in future the story isnt so simple.
+Tests are done on my personal laptop with AMD Ryzen 7 5800H.
 
-### Test 1:
-#Clients: 100 | #Messages: 100M | Msg size:32 || Config: Max Mem Per Client: 128000000 | S-R Buffer Sizes 128000
+Preliminary benchmarks are as follows:
+### Tcp Byte Message Server: 100 clients 1000 seed messages (32 bytes + 4 header) each:
 
-- Max Mem Peak : 1.6 gb.
-- Total Messages on server: 100000100
-- Total Messages on clients: 100000100
-- Total Time: 8023 ms
-- Request-Response Per second 12,464,178.
-- Data transmission rate Inbound 398.8537 Megabytes/s
-- Data transmission rate Outbound 398.8537 Megabytes/s
+~30,400,000 echo per second.
 
-### Test 2:
-#Clients:  10,000 | #Messages: 100M | Msg size:32 || Config: Max Mem Per Client: 12800000 | S-R Buffer Sizes 19800
+### SSL Byte message: 100 clients 1000 seed messages(32 bytes + 4 header) each:
 
-- Max Mem Peak : 6.9 gb.
-- Total Messages on server: 100010000
-- Total Messages on clients: 100010000
-- Total Time 10803 ms
-- Request-Response Per second 9,257,613
-- Data transmission rate Inbound 296.24362 Megabytes/s.
-- Data transmission rate Outbound 296.24362 Megabytes/s.
+~ 27,600,000 echo per second.
 
-### Test 3:
-#Clients:  100 | #Messages: 100M | Msg size:1000 || Config: Max Mem Per Client: 128000000 | S-R Buffer Sizes 128000
+### Secure Protobuf Client Server 100 clients 1000 seed messages ( 32 byte payload 48 byte total):
 
-- Max Mem Peak : 3.2 gb.
-- Total Messages on server: 100000100
-- Total Messages on clients: 100000100
-- Total Time 92806 ms
-- Request-Response Per second 1077517.6
-- Data transmission rate Inbound 1077.5176 Megabytes/s
-- Data transmission rate Outbound 1077.5176 Megabytes/s
-
-### Test 4 
- #Clients:  1,000 | #Messages: 10M | Msg size:1000 || Max Mem Per Client: 128000000 | S-R Buffer Sizes 128000
- 
- - Max Mem Peak : 1.4 gb.
-- Total Messages on server: 10001000
-- Total Messages on clients: 10001000
-- Total Time 10831 ms
-- Request-Response Per second 923368.06
-- Data transmission rate Inbound 923.36804 Megabytes/s
-- Data transmission rate Outbound 923.36804 Megabytes/s
-
-
-## Udp 
-Udp Server Client Sends and Receives messages directly without buffering.
-Server Registers a client by message remote endpoint info, hence client has to send a message first to register on server. Thats how i call them "client".
-This benchmark is done by using 2 Threads where first one
-is allocated to clients and second is to server. We start the 2 threads at same tıme and both sends messages to each other parallely. There is no Echo.
-
-#Clients:  1,000 | #Messages: 500K | Msg size: 32000 || Server Socket Send Receive buffer Sizes :128000000
-
-- Total Message Server received: 501000.
-- Total Message Clients received: 500000.
-- Total Time Clients: 21951
-- Total Time Server: 34327
-- Total Sucessfull Data Transfer Rate Clients: 728.89Mbytes/s
-- Total Sucessfull Data Transfer Rate Server: 467.03 Mbytes/s
+~ 8,000,000 request - response per second.

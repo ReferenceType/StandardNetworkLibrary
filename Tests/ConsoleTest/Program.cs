@@ -30,6 +30,7 @@ using NetworkLibrary.UDP.Secure;
 using System.Buffers;
 using Microsoft.Win32;
 using NetworkLibrary.Components.Statistics;
+using ProtoBuf;
 
 namespace ConsoleTest
 {
@@ -58,10 +59,11 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            ExampleProtoSecure();
             //PoolTest();
             //UdpProtoTest();
             //EnvelopeTest();
-            RelayTest();
+            //RelayTest();
             //ByteCopyTest();
             //BitConverterTest();
             //ByteCopyTest2();
@@ -80,6 +82,46 @@ namespace ConsoleTest
             
             
         }
+        [ProtoContract]
+        class SamplePayload :IProtoMessage
+        {
+            [ProtoMember(1)]
+            public string sample;
+        }
+
+        private static async Task ExampleProtoSecure()
+        {
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+
+            SecureProtoServer server = new SecureProtoServer(20008, 100, scert);
+            server.OnMessageReceived += ServerMessageReceived;
+
+            var client = new SecureProtoClient(cert);
+            client.OnMessageReceived += ClientMessageReceived;
+            client.Connect("127.0.0.1", 20008);
+
+            var Payload = new SamplePayload() { sample = "Hello" };
+            var messageEnvelope = new MessageEnvelope();
+
+            // You can just send a message, get replies on ClientMessageReceived.
+            client.SendAsyncMessage(messageEnvelope);
+            client.SendAsyncMessage(messageEnvelope,Payload);
+
+            // Or you can wait for a reply async.
+            MessageEnvelope result = await client.SendMessageAndWaitResponse(messageEnvelope, Payload);
+            var payload = result.UnpackPayload<SamplePayload>();
+
+            void ServerMessageReceived(in Guid clientId, MessageEnvelope message)
+            {
+                server.SendAsyncMessage(in clientId, message);
+            }
+
+            void ClientMessageReceived(MessageEnvelope message)
+            {
+            }
+        }
+
 
         private static void PoolTest()
         {

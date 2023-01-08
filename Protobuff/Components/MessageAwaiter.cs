@@ -196,9 +196,10 @@ namespace Protobuff
         {
             awaitingMessages[messageId] = new TaskCompletionSource<MessageEnvelope>();
             var pending = awaitingMessages[messageId].Task;
-
             MessageEnvelope returnMessage = null;
-            if (await Task.WhenAny(pending, Task.Delay(timeoutMs)) == pending)
+
+            var delay = Task.Delay(timeoutMs);
+            if (await Task.WhenAny(pending, delay) == pending)
             {
                 // Task completed within timeout.
                  returnMessage = pending.Result;

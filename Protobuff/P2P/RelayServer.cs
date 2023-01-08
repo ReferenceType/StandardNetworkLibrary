@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -37,7 +38,7 @@ namespace Protobuff.P2P
         private byte[] ServerUdpInitKey { get; }
 
 
-        public SecureProtoRelayServer(int port,int maxClients, X509Certificate2 cerificate):base(port, maxClients,cerificate)
+        public SecureProtoRelayServer(int port, X509Certificate2 cerificate):base(port,cerificate)
         {
             udpServer = new AsyncUdpServer(port);
 
@@ -54,14 +55,21 @@ namespace Protobuff.P2P
             relayDectriptor = new ConcurrentAesAlgorithm(ServerUdpInitKey, ServerUdpInitKey);
         }
 
+        public void GetTcpStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
+           => GetStatistics(out generalStats, out sessionStats);
 
         public void GetUdpStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)
         {
             udpServer.GetStatistics(out generalStats,out sessionStats);
         }
 
+        public bool TryGetClientId( IPEndPoint ep, out Guid id)
+        {
+            id = RegisteredUdpEndpoints.Where(x=>x.Value == ep).Select(x=>x.Key).FirstOrDefault();
+            return id != default;
+        }
         #region Push Updates
-        private async void PeerListPushRoutine()
+        private async Task PeerListPushRoutine()
         {
             while (!shutdown)
             {
@@ -86,15 +94,22 @@ namespace Protobuff.P2P
             peerlistMsg.Header = RelayMessageResources.NotifyPeerListUpdate;
 
             var peerList = new Dictionary<Guid, PeerInfo>();
+            // enumerating concurrent dict suppose to be thread safe but 
+            // peer KV pair here can sometimes be null... 
             foreach (var peer in RegisteredPeers)
             {
-                // exclude self
-                if (!peer.Key.Equals(clientId))
-                    peerList[peer.Key] = new PeerInfo() 
-                    { 
-                        IP = GetIPEndPoint(peer.Key).Address.ToString(),
-                        Port = GetIPEndPoint(peer.Key).Port
-                    };
+                try
+                {
+                    // exclude self
+                    if (!peer.Key.Equals(clientId))
+                        peerList[peer.Key] = new PeerInfo()
+                        {
+                            IP = GetIPEndPoint(peer.Key).Address.ToString(),
+                            Port = GetIPEndPoint(peer.Key).Port
+                        };
+                }
+                catch { PushPeerList = true; continue; }
+               
             }
 
             var listProto = new PeerList<PeerInfo>();
@@ -240,7 +255,7 @@ namespace Protobuff.P2P
             {
                 int offset_ = offset;
                 int count_ = count;
-                serialiser.GetPayloadSlice(bytes, ref offset_, ref count_);
+                serialiser.TryGetPayloadSlice(bytes, ref offset_, ref count_);
                 dontRoute = HandleMessageReceived(in guid, message, bytes, offset_, count_);
 
             }
@@ -270,6 +285,9 @@ namespace Protobuff.P2P
                     case (RelayMessageResources.HolePunchRegister):
                         HolePunchRoutine(clientId, message);
                         return true;
+                    case "WhatsMyIp":
+                        SendEndpoint(clientId,message);
+                        return true;
                     default:
                         return false;
                 }
@@ -277,6 +295,20 @@ namespace Protobuff.P2P
             return true;
                 
         }
+
+        private void SendEndpoint(Guid clientId, MessageEnvelope message)
+        {
+            var info = new PeerInfo()
+            {
+                IP = GetIPEndPoint(clientId).Address.ToString(),
+                Port = GetIPEndPoint(clientId).Port
+            };
+
+            var env = new MessageEnvelope();
+            env.MessageId= message.MessageId;
+            SendAsyncMessage(clientId, env, info);
+        }
+
         bool  HandleMessageReceived(in Guid guid, MessageEnvelope message, byte[] bytes, int offset, int count)
         {
             if (!CheckAwaiter(message))
@@ -314,7 +346,7 @@ namespace Protobuff.P2P
             {
                 int decrptedAmount = algo.DecryptInto(bytes, offset, count, buffer, 0);
 
-                // read only header to route the message.
+                // only read header to route the message.
                 var message = serialiser.DeserialiseOnlyEnvelope(buffer, 0, decrptedAmount);
                 if (RegisteredUdpEndpoints.TryGetValue(message.To, out var destEp))
                 {
@@ -497,5 +529,7 @@ namespace Protobuff.P2P
             });
            
         }
+       
+
     }
 }

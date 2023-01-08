@@ -11,7 +11,7 @@ namespace NetworkLibrary.Components.MessageBuffer
     {
         private int currentIndexedMemory;
 
-        public int CurrentIndexedMemory { get => currentIndexedMemory; }
+        public int CurrentIndexedMemory { get => Volatile.Read( ref currentIndexedMemory); }
         public int MaxIndexedMemory;
 
         public long TotalMessageDispatched { get; private set; }
@@ -43,6 +43,7 @@ namespace NetworkLibrary.Components.MessageBuffer
                 lock (loki)
                 {
                     TotalMessageDispatched++;
+
                     if (writeLengthPrefix)
                     {
                         var len = BitConverter.GetBytes(bytes.Length);

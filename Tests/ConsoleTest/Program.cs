@@ -59,11 +59,12 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
-            ExampleProtoSecure();
+            //ExampleProtoSecure();
+            //ExampleByteMessage();
             //PoolTest();
             //UdpProtoTest();
             //EnvelopeTest();
-            //RelayTest();
+            RelayTest();
             //ByteCopyTest();
             //BitConverterTest();
             //ByteCopyTest2();
@@ -82,6 +83,33 @@ namespace ConsoleTest
             
             
         }
+
+        private static void ExampleByteMessage()
+        {
+            var ipHostEntry = Dns.GetHostEntry("REMOTE_HOST");
+
+            ByteMessageTcpServer server = new ByteMessageTcpServer(20008);
+            server.OnBytesReceived += ServerBytesReceived;
+            server.StartServer();
+
+            ByteMessageTcpClient client = new ByteMessageTcpClient();
+            client.OnBytesReceived += ClientBytesReceived;
+            client.Connect("127.0.0.1", 20008);
+
+            client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
+
+            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
+            }
+
+            void ClientBytesReceived(byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
+            }
+        }
+
         [ProtoContract]
         class SamplePayload :IProtoMessage
         {
@@ -94,7 +122,7 @@ namespace ConsoleTest
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
-            SecureProtoServer server = new SecureProtoServer(20008, 100, scert);
+            SecureProtoServer server = new SecureProtoServer(20008, scert);
             server.OnMessageReceived += ServerMessageReceived;
 
             var client = new SecureProtoClient(cert);
@@ -312,19 +340,19 @@ namespace ConsoleTest
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-            var server = new SecureProtoRelayServer(20011, 1000, scert);
-            Task.Run(async () =>
-            {
-                while (true)
-                {
-                    await Task.Delay(3000);
-                    server.GetTcpStatistics(out SessionStats generalStats, out _);
-                    server.GetUdpStatistics(out UdpStatistics generalStatsUdp, out _);
-                    Console.WriteLine(generalStats.ToString());
-                    Console.WriteLine(generalStatsUdp.ToString());
-                }
+            //var server = new SecureProtoRelayServer(20011, 1000, scert);
+            //Task.Run(async () =>
+            //{
+            //    while (true)
+            //    {
+            //        await Task.Delay(3000);
+            //        server.GetTcpStatistics(out SessionStats generalStats, out _);
+            //        server.GetUdpStatistics(out UdpStatistics generalStatsUdp, out _);
+            //        Console.WriteLine(generalStats.ToString());
+            //        Console.WriteLine(generalStatsUdp.ToString());
+            //    }
 
-            });
+            //});
 
             var clients = new List<RelayClient>();
             for (int i = 0; i < 100; i++)
@@ -338,7 +366,7 @@ namespace ConsoleTest
                 {
                     client.Connect("127.0.0.1", 20011);
                     clients.Add(client);
-                    client.StartPingService();
+                    //client.StartPingService();
                 }
                 catch { }
                
@@ -357,10 +385,10 @@ namespace ConsoleTest
             //{
 
             //}
-            Task.Run(async () =>
+            Task.Run( () =>
             {
-                //return;
-                foreach (var client in clients)
+                return;
+                Parallel.ForEach(clients, async(client) =>
                 {
                     foreach (var peer in client.Peers)
                     {
@@ -369,13 +397,13 @@ namespace ConsoleTest
                             await client.SendRequestAndWaitResponse(peer, testMessage, 1000);
                         }
                     }
-                }
+                });
             });
             Parallel.ForEach(clients,  (client) =>
             {
                 //return;
                 
-                for (int i = 0; i < 1; i++)
+                for (int i = 0; i < 1000; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers)

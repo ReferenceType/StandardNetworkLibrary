@@ -53,8 +53,14 @@ namespace Protobuff
 
             return true;
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SerializeInto<T>(T record, Stream stream)
+        {
+            Serializer.Serialize(stream, record);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T Deserialize<T>(byte[] data) where T : IProtoMessage
         {
             if (null == data) 
@@ -84,18 +90,18 @@ namespace Protobuff
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public MessageEnvelope DeserialiseEnvelopedMessage(byte[] buffer, int offset, int count)
         {
-            ushort secondStart =BitConverter.ToUInt16(buffer, offset);
+            ushort payloadStartIndex =BitConverter.ToUInt16(buffer, offset);
             
-            if(secondStart == 0)
+            if(payloadStartIndex == 0)
             {
-                ReadOnlySpan<byte> seq0 = new ReadOnlySpan<byte>(buffer, offset+2, count-  2);
-                return Serializer.Deserialize<MessageEnvelope>(seq0);
-
+                ReadOnlySpan<byte> envelopeByes = new ReadOnlySpan<byte>(buffer, offset+2, count-  2);
+                return Serializer.Deserialize<MessageEnvelope>(envelopeByes);
             }
 
-            ReadOnlySpan<byte> seq = new ReadOnlySpan<byte>(buffer, offset + 2,  secondStart-2);
+            ReadOnlySpan<byte> seq = new ReadOnlySpan<byte>(buffer, offset + 2,  payloadStartIndex-2);
             var envelope = Serializer.Deserialize<MessageEnvelope>(seq);
-            envelope.Payload = ByteCopy.ToArray(buffer, offset + secondStart,count- secondStart);
+            // payloadByes
+            envelope.Payload = ByteCopy.ToArray(buffer, offset + payloadStartIndex,count- payloadStartIndex);
 
             return envelope;
         }
@@ -109,8 +115,8 @@ namespace Protobuff
             {
                 ReadOnlySpan<byte> seq0 = new ReadOnlySpan<byte>(buffer, offset + 2, count -  2);
                 return Serializer.Deserialize<MessageEnvelope>(seq0);
-
             }
+
             ReadOnlySpan<byte> seq = new ReadOnlySpan<byte>(buffer, offset + 2, secondStart-2);
             var envelope = Serializer.Deserialize<MessageEnvelope>(seq);
             return envelope;
@@ -127,7 +133,7 @@ namespace Protobuff
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool GetPayloadSlice(byte[] buffer, ref int offset, ref int count)
+        public bool TryGetPayloadSlice(byte[] buffer, ref int offset, ref int count)
         {
             ushort secondStart = BitConverter.ToUInt16(buffer, offset);
 

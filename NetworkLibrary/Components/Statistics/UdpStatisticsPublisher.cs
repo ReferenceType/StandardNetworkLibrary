@@ -8,10 +8,27 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Schema;
 
+
 namespace NetworkLibrary.Components.Statistics
 {
+    public class UdpStatisticsStringData
+    {
+        public string TotalDatagramSent { get; set; }
+        public string TotalDatagramReceived { get; set; }
+        public string TotalBytesSent { get; set; }
+        public string TotalBytesReceived { get; set; }
+        public string TotalMessageDropped { get; set; }
+
+        public string SendRate { get; set; }
+        public string ReceiveRate { get; set; }
+        public string SendPPS { get; set; }
+        public string ReceivePPS { get; set; }
+
+       
+    }
     public class UdpStatistics
     {
+        UdpStatisticsStringData data = new UdpStatisticsStringData();
         public long TotalDatagramSent = 0;
         public long TotalDatagramReceived = 0;
         public long TotalBytesSent = 0;
@@ -31,24 +48,47 @@ namespace NetworkLibrary.Components.Statistics
 
         public long PrevTimeStamp;
 
-        private const string seed = "\nTotal Datagram Sent: {0} Total Datagram Received: {1} Total Datagram Dropped {2}" +
-                    "\nTotal Bytes Send: {3} Total Bytes Received: {4}" +
-                    "\nSend PPS: {5} Recceive PPS: {6} Send Data Rate: {7} MB/s Receive Data Rate: {8} MB/s";
+        private const string seed = 
+            "\n# Udp:\n" +
+            "Total Datagram Sent:         {0}\n" +
+            "Total Datagram Received:     {1}\n" +
+            "Total Datagram Dropped       {2}\n" +
+            "Total Bytes Send:            {3}\n" +
+            "Total Bytes Received:        {4}\n" +
+            "Total Datagram Send Rate:    {5} Msg/s\n" +
+            "Total Datagram Receive Rate: {6} Msg/s\n" +
+            "Total Send Data Rate:        {7}\n" +
+            "Total Receive Data Rate:     {8} ";
 
 
 
         public override string ToString()
         {
             return string.Format(seed,
-                          TotalDatagramSent.ToString("N1"),
-                          TotalDatagramReceived.ToString("N1"),
+                          TotalDatagramSent.ToString(),
+                          TotalDatagramReceived.ToString(),
                           TotalMessageDropped,
                           UdpStatisticsPublisher.BytesToString(TotalBytesSent),
                           UdpStatisticsPublisher.BytesToString(TotalBytesReceived),
                           SendPPS.ToString("N1"),
                           ReceivePPS.ToString("N1"),
-                          SendRate.ToString("N3"),
-                          ReceiveRate.ToString("N3"));
+                          TcpServerStatisticsPublisher.BytesToString((long)SendRate) + "/s",
+                          TcpServerStatisticsPublisher.BytesToString((long)ReceiveRate) + "/s");
+        }
+
+        public UdpStatisticsStringData Stringify()
+        {
+            data.TotalDatagramSent = TotalDatagramSent.ToString();
+            data.TotalDatagramReceived = TotalDatagramReceived.ToString();
+            data.TotalMessageDropped = TotalMessageDropped.ToString();
+            data.TotalBytesSent = UdpStatisticsPublisher.BytesToString(TotalBytesSent);
+            data.TotalBytesReceived = UdpStatisticsPublisher.BytesToString(TotalBytesReceived);
+            data.SendPPS = SendPPS.ToString("N1");
+            data.ReceivePPS = ReceivePPS.ToString("N1");
+            data.SendRate = TcpServerStatisticsPublisher.BytesToString((long)SendRate) + "/s";
+            data.ReceiveRate = TcpServerStatisticsPublisher.BytesToString((long)ReceiveRate) + "/s";
+           
+            return data;
         }
 
         internal void Reset()
@@ -88,6 +128,7 @@ namespace NetworkLibrary.Components.Statistics
         private void GatherStatistics()
         {
             generalstats.Reset();
+            // Statistics object is shared dict between udp server and this.
             foreach (var stat in Statistics)
             {
                 long tsCurrent = sw.ElapsedMilliseconds;
@@ -95,8 +136,8 @@ namespace NetworkLibrary.Components.Statistics
 
                 stat.Value.SendPPS = (float)((stat.Value.TotalDatagramSent - stat.Value.TotalDatagramSentPrev) / deltaT) * 1000f;
                 stat.Value.ReceivePPS = (float)((stat.Value.TotalDatagramReceived - stat.Value.TotalDatagramReceivedPrev) / deltaT) * 1000f;
-                stat.Value.SendRate = (float)((stat.Value.TotalBytesSent - stat.Value.TotalBytesSentPrev) / deltaT) / 1024;
-                stat.Value.ReceiveRate = (float)((stat.Value.TotalBytesReceived - stat.Value.TotalBytesReceivedPrev) / deltaT) / 1024;
+                stat.Value.SendRate = (float)((stat.Value.TotalBytesSent - stat.Value.TotalBytesSentPrev) / deltaT) *1000;
+                stat.Value.ReceiveRate = (float)((stat.Value.TotalBytesReceived - stat.Value.TotalBytesReceivedPrev) / deltaT) * 1000;
 
                 stat.Value.TotalDatagramSentPrev = stat.Value.TotalDatagramSent;
                 stat.Value.TotalDatagramReceivedPrev = stat.Value.TotalDatagramReceived;
@@ -128,7 +169,7 @@ namespace NetworkLibrary.Components.Statistics
             long bytes = Math.Abs(byteCount);
             int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
             double num = Math.Round(bytes / Math.Pow(1024, place), 1);
-            return (Math.Sign(byteCount) * num).ToString() + dataSuffix[place];
+            return (Math.Sign(byteCount) * num).ToString()  +" " + dataSuffix[place];
         }
 
         internal void GetStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)

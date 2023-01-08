@@ -20,11 +20,12 @@ namespace NetworkLibrary.TCP.Base
 
         public ClientAccepted OnClientAccepted;
         public BytesRecieved OnBytesReceived;
+        public ClientDisconnected OnClientDisconnected;
         public ClientConnectionRequest OnClientAccepting = (socket) => true;
 
         //public BufferProvider BufferManager { get; private set; }
         protected Socket ServerSocket;
-        private TcpStatisticsPublisher sc;
+        private TcpServerStatisticsPublisher statisticsPublisher;
 
         internal ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
 
@@ -56,7 +57,7 @@ namespace NetworkLibrary.TCP.Base
             {
                 Accepted(null, e);
             }
-            sc = new TcpStatisticsPublisher(Sessions, 3000);
+            statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
 
 
 
@@ -128,6 +129,7 @@ namespace NetworkLibrary.TCP.Base
             session.socketRecieveBufferSize = ClientReceiveBufsize;
             session.maxIndexedMemory = MaxIndexedMemoryPerClient;
             session.dropOnCongestion = DropOnBackPressure;
+            session.OnSessionClosed +=(id)=> OnClientDisconnected?.Invoke(id);
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 session.UseQueue = true;
@@ -207,9 +209,9 @@ namespace NetworkLibrary.TCP.Base
 
         }
 
-        public override void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid, SessionStats> sessionStats)
+        public override void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
         {
-            sc.GetStatistics(out generalStats, out sessionStats);
+            statisticsPublisher.GetStatistics(out generalStats, out sessionStats);
         }
 
         public override IPEndPoint GetSessionEndpoint(Guid sessionId)

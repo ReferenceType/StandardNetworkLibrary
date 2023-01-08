@@ -19,11 +19,7 @@ namespace Protobuff
         ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
         SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
-        public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm) : base(algorithm)
-        {
-
-        }
-
+        public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm) : base(algorithm) {}
 
         protected override void HandleDecrypedBytes(byte[] buffer, int offset, int count)
         {

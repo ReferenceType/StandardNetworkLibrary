@@ -7,7 +7,6 @@ using System.Text;
 
 namespace Protobuff.Components
 {
-  
     class PingData
     {
         internal enum State

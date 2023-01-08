@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
@@ -50,14 +51,7 @@ namespace Protobuff
         {
             return true;
         }
-        private PooledMemoryStream RentStream()
-        {
-            return streamPool.RentStream();
-        }
-        private void ReturnStream(PooledMemoryStream stream)
-        {
-            streamPool.ReturnStream(stream);
-        }
+      
         public void Connect(string host, int port)
         {
             client.Connect(host, port);
@@ -76,7 +70,7 @@ namespace Protobuff
         {
             OnDisconnected?.Invoke();
         }
-
+        #region Send
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message)
         {
@@ -110,6 +104,9 @@ namespace Protobuff
             ReturnStream(stream);
         }
 
+        #endregion Send
+
+        #region SendAndWait
         public async Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeoutMs = 10000)
         {
             message.MessageId = Guid.NewGuid();
@@ -136,6 +133,7 @@ namespace Protobuff
             SendAsyncMessage(message, buffer,offset,count);
             return await result;
         }
+        #endregion
 
         private void BytesReceived(byte[] bytes, int offset, int count)
         {
@@ -148,7 +146,18 @@ namespace Protobuff
                 OnMessageReceived?.Invoke(message);
 
         }
-
+        private PooledMemoryStream RentStream()
+        {
+            return streamPool.RentStream();
+        }
+        private void ReturnStream(PooledMemoryStream stream)
+        {
+            streamPool.ReturnStream(stream);
+        }
+        public void GetStatistics(out TcpStatistics stats)
+        {
+             client.GetStatistics(out stats);
+        }
 
     }
 }

@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
@@ -23,6 +24,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected SslStream sslStream;
         internal IAsyncSession clientSession;
         private X509Certificate2 certificate;
+        private TcpClientStatisticsPublisher statisticsPublisher;
         #endregion
 
         public SslClient(X509Certificate2 certificate)
@@ -30,6 +32,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             this.certificate = certificate;
             RemoteCertificateValidationCallback += DefaultValidationCallbackHandler;
         }
+
 
         private Socket GetSocket()
         {
@@ -62,7 +65,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 IsConnecting = true;
                 clientSocket = GetSocket();
 
-                await clientSocket.ConnectAsync(ip, port);
+                await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port));
 
                 Connected(ip);
                 return true;
@@ -107,10 +110,11 @@ namespace NetworkLibrary.TCP.SSL.Base
             sslStream.AuthenticateAsClient(domainName,
             new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
 
-            clientSession = CreateSession(Guid.NewGuid(), new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientSocket.RemoteEndPoint));
+            var Id = Guid.NewGuid();
+            clientSession = CreateSession(Id, new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientSocket.RemoteEndPoint));
             clientSession.OnBytesRecieved += HandleBytesReceived;
             clientSession.StartSession();
-
+            statisticsPublisher = new TcpClientStatisticsPublisher(clientSession, Id);
             IsConnecting = false;
             IsConnected = true;
         }
@@ -168,6 +172,10 @@ namespace NetworkLibrary.TCP.SSL.Base
         public override void Disconnect()
         {
             clientSession?.EndSession();
+        }
+        public override void GetStatistics(out TcpStatistics generalStats)
+        {
+            statisticsPublisher.GetStatistics(out generalStats);
         }
     }
 }

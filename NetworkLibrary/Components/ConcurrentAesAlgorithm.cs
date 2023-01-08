@@ -31,7 +31,7 @@ namespace NetworkLibrary.Components
             algorithmPool.Add(alg);
 
         }
-        public byte[] Decrypt(byte[]bytes)=>Decrypt(bytes,0,bytes.Length);
+        public byte[] Decrypt(byte[]bytes) => Decrypt(bytes,0,bytes.Length);
         public byte[] Decrypt(byte[] bytes, int offset, int count)
         {
 

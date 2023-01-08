@@ -104,12 +104,12 @@ Tests are done on my personal laptop with AMD Ryzen 7 5800H.
 Preliminary benchmarks are as follows:
 ### Tcp Byte Message Server: 100 clients 1000 seed messages (32 bytes + 4 header) each:
 
-~30,400,000 echo per second.
+~65,000,000 echo per second.
 
 ### SSL Byte message: 100 clients 1000 seed messages(32 bytes + 4 header) each:
 
-~ 27,600,000 echo per second.
+~ 44,600,000 echo per second.
 
 ### Secure Protobuf Client Server 100 clients 1000 seed messages ( 32 byte payload 48 byte total):
 
-~ 8,000,000 request - response per second.
+~ 3,500,000 request - response per second.

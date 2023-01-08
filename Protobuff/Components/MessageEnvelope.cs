@@ -9,7 +9,7 @@ namespace Protobuff
     
     // lenght cant be more than 64kb
     [ProtoContract]
-    public class MessageEnvelope : IProtoMessage
+    public class MessageEnvelope 
     {
         public static ConcurrentProtoSerialiser serialiser= new ConcurrentProtoSerialiser();
         public const string RequestTimeout = "RequestTimedOut";

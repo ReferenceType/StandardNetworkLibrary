@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NetworkLibrary.Components.Statistics;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -126,6 +127,7 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         public abstract void Disconnect();
 
+        public abstract void GetStatistics(out TcpStatistics generalStats);
 
 
 

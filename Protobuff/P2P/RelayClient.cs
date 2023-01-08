@@ -1,4 +1,6 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.UDP.Secure;
 using NetworkLibrary.Utils;
 using Protobuff.Components;
@@ -411,15 +413,77 @@ namespace Protobuff.P2P
                 case PingHandler.Pong:
                     HandlePong(message);
                     break;
+                case "TcpHolepunch":
+                    TryPucnhTcpHoleFromRemote(message);
+                    break;
 
                 default:
                     OnMessageReceived?.Invoke(message);
                     break;
+
+
             }
 
         }
 
-      
+        private async void TryPucnhTcpHoleFromRemote(MessageEnvelope message)
+        {
+            MessageEnvelope env = new MessageEnvelope() { Header = "WhatsMyIp" };
+            var result = await SendRequestAndWaitResponse(sessionId, env);
+            var info = result.UnpackPayload<PeerInfo>();
+
+            Random rng = new Random(DateTime.Now.Millisecond);
+            var port = rng.Next(9000, 10000);
+
+            var response = new MessageEnvelope() { MessageId = message.MessageId };
+            response.KeyValuePairs = new Dictionary<string, string>()
+            {
+                { info.IP,port.ToString()},
+            };
+            SendAsyncMessage(message.From, response);
+
+            //------
+            ByteMessageTcpServer server = new ByteMessageTcpServer(port);
+            server.OnClientAccepted += (clientid) => Console.WriteLine("Sucess");
+
+            ByteMessageTcpClient cl = new ByteMessageTcpClient();
+            string Ip = message.KeyValuePairs.Keys.First();
+            int port2 = int.Parse(message.KeyValuePairs[Ip]);
+
+            cl.Connect(Ip, port2);
+
+
+        }
+
+        public async void TryPunchTCPHole(Guid peerId)
+        {
+            // my ip
+            MessageEnvelope env = new MessageEnvelope() { Header = "WhatsMyIp" };
+            var result = await SendRequestAndWaitResponse(sessionId, env);
+            var info = result.UnpackPayload<PeerInfo>();
+
+            Random rng = new Random(DateTime.Now.Millisecond);
+            var port = rng.Next(9000, 10000);
+            // need to send my server adress
+            var m = new MessageEnvelope() { Header = "TcpHolepunch" };
+            m.KeyValuePairs = new Dictionary<string, string>()
+            {
+                { info.IP,port.ToString()},
+            };
+
+            // i need to receive his adress here
+            var response = await SendRequestAndWaitResponse(peerId, m);
+
+            ByteMessageTcpServer server = new ByteMessageTcpServer(port);
+            server.OnClientAccepted += (clientid) => Console.WriteLine("Sucess");
+
+            ByteMessageTcpClient cl = new ByteMessageTcpClient();
+            string Ip = response.KeyValuePairs.Keys.First();
+            int port2 = int.Parse(response.KeyValuePairs[Ip]);
+
+            cl.Connect(Ip, port2);
+
+        }
 
         #region Relay Udp Channel Creation
         private void CreateUdpChannel(MessageEnvelope message)
@@ -689,6 +753,8 @@ namespace Protobuff.P2P
             Peers.RemoveWhere(x => !serverSet.Contains(x));
 
         }
+
+        public void GetTcpStatistics(out TcpStatistics stats) => protoClient.GetStatistics(out stats);
 
     }
 }

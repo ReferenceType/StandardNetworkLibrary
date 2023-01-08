@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
@@ -22,7 +23,7 @@ namespace NetworkLibrary.TCP.Base
 
         protected bool connected = false;
         internal IAsyncSession session;
-
+        TcpClientStatisticsPublisher statisticsPublisher;
         #endregion Fields & Props
         public AsyncTpcClient() {}
 
@@ -79,12 +80,14 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void HandleConnected(SocketAsyncEventArgs e)
         {
-            session = CreateSession(e, Guid.NewGuid());
+            var Id = Guid.NewGuid();
+            session = CreateSession(e, Id);
 
             session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
             session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
 
             session.StartSession();
+            statisticsPublisher = new TcpClientStatisticsPublisher(session, Id);
             OnConnected?.Invoke();
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Client Connected.");
 
@@ -162,6 +165,11 @@ namespace NetworkLibrary.TCP.Base
             }
             
             //bufferManager?.Dispose();
+        }
+
+        public override void GetStatistics(out TcpStatistics generalStats)
+        {
+            statisticsPublisher.GetStatistics(out generalStats);
         }
     }
 }

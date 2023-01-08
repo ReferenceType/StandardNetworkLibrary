@@ -97,7 +97,7 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         public abstract void StartServer();
 
-        public abstract void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid,SessionStats> sessionStats);
+        public abstract void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid,TcpStatistics> sessionStats);
 
         public abstract IPEndPoint GetSessionEndpoint(Guid sessionId);
 

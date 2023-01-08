@@ -13,6 +13,12 @@ namespace NetworkLibrary.Components
         /// <param name="bytes"></param>
         /// <returns>true if message is enqueued.</returns>
         bool TryEnqueueMessage(byte[] bytes);
+
+        /// <summary>
+        /// Enqueues the message if there is enough space available
+        /// </summary>
+        /// <param name="bytes"></param>
+        /// <returns>true if message is enqueued.</returns>
         bool TryEnqueueMessage(byte[] bytes, int offset,int count);
 
         /// <summary>

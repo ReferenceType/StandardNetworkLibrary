@@ -36,9 +36,4 @@
     </Resource>
   </ItemGroup>
 
-  
-  <ItemGroup>
-    <Folder Include="TCP\ByteMessage\Lite\" />
-  </ItemGroup>
-
 </Project>

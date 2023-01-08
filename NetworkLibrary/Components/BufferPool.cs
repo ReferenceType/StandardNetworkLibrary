@@ -124,7 +124,8 @@ namespace NetworkLibrary
         public static byte[] RentBuffer(int size)
         {
             if(MaxBufferSize < size)
-                throw new InvalidOperationException(string.Format("Unable to rent buffer bigger than max buffer size: {0}",MaxBufferSize));
+                throw new InvalidOperationException(
+                    string.Format("Unable to rent buffer bigger than max buffer size: {0}",MaxBufferSize));
 
             int idx = GetBucketIndex(size);
             if (!bufferBuckets[idx].TryTake(out byte[] buffer))
@@ -144,7 +145,8 @@ namespace NetworkLibrary
         {
 
             if (MinBufferSize > buffer.Length)
-                throw new InvalidOperationException(string.Format("Unable to return, buffer smaller than min buffer size: {0}", MinBufferSize));
+                throw new InvalidOperationException(
+                    string.Format("Unable to return, buffer smaller than min buffer size: {0}", MinBufferSize));
 
             int idx = GetBucketIndex(buffer.Length);
             bufferBuckets[idx-1].Add(buffer);

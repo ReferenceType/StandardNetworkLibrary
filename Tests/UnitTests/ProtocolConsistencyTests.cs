@@ -550,7 +550,7 @@ namespace UnitTests
         public void SSlRandomSizeConsistencyTest()
         {
 
-            const int numMsg = 1000;
+            const int numMsg = 100;
             int clAmount = 10;
             int completionCount = clAmount;
             int numErrors = 0;

@@ -5,12 +5,18 @@
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Platforms>AnyCPU;ARM32</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="protobuf-net" Version="3.1.25" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="NetworkLibrary">
-      <HintPath>..\..\NetworkLibrary\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
+      <HintPath>..\..\Protobuff\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
+    </Reference>
+    <Reference Include="Protobuff">
+      <HintPath>..\..\Protobuff\bin\Release\netstandard2.0\Protobuff.dll</HintPath>
     </Reference>
   </ItemGroup>
 

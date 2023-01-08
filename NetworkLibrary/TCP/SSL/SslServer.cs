@@ -29,12 +29,12 @@ namespace NetworkLibrary.TCP.SSL.Base
         public ClientConnectionRequest OnClientRequestedConnection;
 
         internal ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
-        internal ConcurrentDictionary<Guid, SessionStats> Stats { get; } = new ConcurrentDictionary<Guid, SessionStats>();
+        internal ConcurrentDictionary<Guid, TcpStatistics> Stats { get; } = new ConcurrentDictionary<Guid, TcpStatistics>();
 
 
         private Socket serverSocket;
         private X509Certificate2 certificate;
-        private TcpStatisticsPublisher statisticsPublisher;
+        private TcpServerStatisticsPublisher statisticsPublisher;
 
         public bool Stopping { get; private set; }
 
@@ -45,7 +45,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             OnClientRequestedConnection = (socket) => true;
             RemoteCertificateValidationCallback += DefaultValidationCallback;
            
-            statisticsPublisher = new TcpStatisticsPublisher(Sessions, 3000);
+            statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
         }
        
         public override void StartServer()
@@ -211,7 +211,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
         }
 
-        public override void GetStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid, SessionStats> sessionStats)
+        public override void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
         {
             statisticsPublisher.GetStatistics(out generalStats, out sessionStats);
         }

@@ -26,7 +26,7 @@ namespace NetworkLibrary.UDP
         protected ConcurrentDictionary<IPEndPoint, UdpStatistics> Statistics = new ConcurrentDictionary<IPEndPoint, UdpStatistics>();
 
         protected int port = 0;
-        private UdpStatisticsPublisher stats;
+        private UdpStatisticsPublisher statisticsPublisher;
         protected EndPoint serverEndpoint;
         protected EndPoint multicastEndpoint;
 
@@ -69,11 +69,11 @@ namespace NetworkLibrary.UDP
             ServerSocket.Bind(serverEndpoint);
             ServerSocket.Blocking = false;
             this.port = port;
-            stats = new UdpStatisticsPublisher(Statistics);
+            statisticsPublisher = new UdpStatisticsPublisher(Statistics);
         }
         public void GetStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)
         {
-            stats.GetStatistics(out generalStats,out sessionStats);
+            statisticsPublisher.GetStatistics(out generalStats,out sessionStats);
         }
         // 239.0.0.0 to 239.255.255.255
         public void SetMulticastAddress(string Ip, int port) => multicastEndpoint = new IPEndPoint(IPAddress.Parse(Ip), port);
@@ -202,8 +202,6 @@ namespace NetworkLibrary.UDP
                 ServerSocket.BeginSendTo(message, 0, message.Length, SocketFlags.None, multicastEndpoint, (ar) => ServerSocket.EndSendTo(ar), null);
 
         }
-
-
 
     }
 }

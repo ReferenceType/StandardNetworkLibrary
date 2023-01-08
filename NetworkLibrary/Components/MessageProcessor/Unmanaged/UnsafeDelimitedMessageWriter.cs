@@ -134,7 +134,6 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
 
         public void Dispose()
         {
-            bufferInternal= null;
         }
     }
 }

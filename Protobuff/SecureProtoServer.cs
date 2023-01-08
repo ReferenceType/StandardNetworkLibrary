@@ -1,26 +1,13 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
-using ProtoBuf;
-using ProtoBuf.Serializers;
-using ProtoBuf.WellKnownTypes;
-using Protobuff;
-using Protobuff.P2P;
 using System;
-using System.Buffers;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Protobuff
@@ -40,7 +27,7 @@ namespace Protobuff
 
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback=>server.RemoteCertificateValidationCallback;
 
-        public SecureProtoServer(int port, int maxClients,X509Certificate2 cerificate)
+        public SecureProtoServer(int port,X509Certificate2 cerificate)
         {
             server = new SslByteMessageServer(port,cerificate);
             awaiter = new MessageAwaiter();
@@ -57,7 +44,7 @@ namespace Protobuff
 
         }
 
-        public void GetTcpStatistics(out SessionStats generalStats, out ConcurrentDictionary<Guid, SessionStats> sessionStats)
+        public void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
         {
             server.GetStatistics(out generalStats, out sessionStats);
         }
@@ -79,7 +66,7 @@ namespace Protobuff
             stream.Flush();
             streamPool.ReturnStream(stream);
         }
-
+        #region Send
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(in Guid clientId, MessageEnvelope message)
         {
@@ -114,9 +101,14 @@ namespace Protobuff
             server.SendBytesToClient(clientId, stream.GetBuffer(), 0, (int)stream.Position);
             ReturnStream(stream);
         }
+        #endregion
 
+        #region SendAndWait
         public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
         {
+            if(message.MessageId == Guid.Empty)
+                message.MessageId= Guid.NewGuid();
+
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
             message.MessageId = Guid.NewGuid();
 
@@ -126,6 +118,9 @@ namespace Protobuff
 
         public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, T payload, int timeoutMs = 10000) where T : IProtoMessage
         {
+            if (message.MessageId == Guid.Empty)
+                message.MessageId = Guid.NewGuid();
+
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
             message.MessageId = Guid.NewGuid();
 
@@ -133,16 +128,18 @@ namespace Protobuff
             return await result;
         }
 
-       
         public async Task<MessageEnvelope> SendMessageAndWaitResponse(Guid clientId, MessageEnvelope message, int timeoutMs = 10000)
         {
+            if (message.MessageId == Guid.Empty)
+                message.MessageId = Guid.NewGuid();
+
             message.MessageId = Guid.NewGuid();
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
             
             SendAsyncMessage(clientId, message);
             return await result;
         }
-
+        #endregion
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void OnBytesReceived(in Guid guid, byte[] bytes, int offset, int count)
@@ -174,6 +171,7 @@ namespace Protobuff
             return false;
         }
 
+        public void Shutdown()=>server.ShutdownServer();
         
 
     }

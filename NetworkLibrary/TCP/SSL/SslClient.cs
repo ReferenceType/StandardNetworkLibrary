@@ -9,7 +9,6 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
-using static System.Collections.Specialized.BitVector32;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
@@ -22,7 +21,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         protected Socket clientSocket;
         protected SslStream sslStream;
-        internal IAsyncSession clientSession;
+        protected IAsyncSession clientSession;
         private X509Certificate2 certificate;
         private TcpClientStatisticsPublisher statisticsPublisher;
         #endregion
@@ -45,10 +44,10 @@ namespace NetworkLibrary.TCP.SSL.Base
             try
             {
                 IsConnecting = true;
-                clientSocket = GetSocket();
+                var clientSocket = GetSocket();
 
                 clientSocket.Connect(new IPEndPoint(IPAddress.Parse(ip), port));
-                Connected(ip);
+                Connected(ip,clientSocket);
             }
             catch{ throw; }
             finally
@@ -63,11 +62,11 @@ namespace NetworkLibrary.TCP.SSL.Base
             try
             {
                 IsConnecting = true;
-                clientSocket = GetSocket();
+                var clientSocket = GetSocket();
 
                 await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port));
 
-                Connected(ip);
+                Connected(ip,clientSocket);
                 return true;
             }
             catch { throw; }
@@ -103,15 +102,17 @@ namespace NetworkLibrary.TCP.SSL.Base
         }
 
 
-        private void Connected(string domainName)
+        private void Connected(string domainName, Socket clientSocket)
         {
             
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
             sslStream.AuthenticateAsClient(domainName,
             new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
-
+            this.clientSocket = clientSocket;
             var Id = Guid.NewGuid();
             clientSession = CreateSession(Id, new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientSocket.RemoteEndPoint));
+            clientSession.OnSessionClosed += (id) => OnDisconnected?.Invoke();
+
             clientSession.OnBytesRecieved += HandleBytesReceived;
             clientSession.StartSession();
             statisticsPublisher = new TcpClientStatisticsPublisher(clientSession, Id);
@@ -139,11 +140,10 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         #endregion Validate
 
-        internal virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        protected virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses = new SslSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemory;
-            ses.OnSessionClosed +=(id)=> OnDisconnected?.Invoke();
             ses.RemoteEndpoint = tuple.Item2;
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)

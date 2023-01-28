@@ -49,10 +49,10 @@ namespace NetworkLibrary.TCP.SSL.Custom
             //base.HandleMessage(buffer, offset, am);
         }
 
-        protected override IMessageProcessQueue CreateMessageBuffer()
+        protected override IMessageQueue CreateMessageQueue()
         {
             var a = new AesMessageEncryptor(algorithm: encryptor);
-            var Q = new MessageQueue<AesMessageEncryptor>(maxIndexedMemory,a);
+            var Q = new MessageQueue<AesMessageEncryptor>(MaxIndexedMemory,a);
 
 
             return Q;

@@ -8,7 +8,7 @@ namespace NetworkLibrary.Utils
 {
     public class SharerdMemoryStreamPool:IDisposable
     {
-        ConcurrentObjectPool<PooledMemoryStream> pool = new ConcurrentObjectPool<PooledMemoryStream>();
+        private ConcurrentObjectPool<PooledMemoryStream> pool = new ConcurrentObjectPool<PooledMemoryStream>();
         private bool disposedValue;
 
         public PooledMemoryStream RentStream()
@@ -25,7 +25,6 @@ namespace NetworkLibrary.Utils
                 throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
             stream.Flush();
-            
             pool.ReturnObject(stream);
         }
 

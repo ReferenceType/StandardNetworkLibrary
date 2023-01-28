@@ -27,27 +27,27 @@ namespace NetworkLibrary.TCP.ByteMessage
 
         protected virtual void HandleMessage(byte[] buffer, int offset, int count)
         {
-            base.HandleRecieveComplete(buffer, offset, count);
+            base.HandleReceived(buffer, offset, count);
         }
 
         // We take the received from the base here put it on msg reader,
         // for each extracted message reader will call handle message,
         // which will call base HandleRecieveComplete to triger message received event.
-        protected sealed override void HandleRecieveComplete(byte[] buffer, int offset, int count)
+        protected sealed override void HandleReceived(byte[] buffer, int offset, int count)
         {
             messageManager.ParseBytes(buffer, offset, count);
         }
 
-        protected override IMessageProcessQueue CreateMessageBuffer()
+        protected override IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
             {
-                var q = new MessageQueue<UnsafeDelimitedMessageWriter>(maxIndexedMemory, new UnsafeDelimitedMessageWriter());
+                var q = new MessageQueue<UnsafeDelimitedMessageWriter>(MaxIndexedMemory, new UnsafeDelimitedMessageWriter());
                 return q;
             }
             else
             {
-                return new MessageBuffer(maxIndexedMemory);
+                return new MessageBuffer(MaxIndexedMemory);
             }
 
         }

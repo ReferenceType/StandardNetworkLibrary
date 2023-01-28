@@ -1,183 +1,4 @@
-﻿//using NetworkLibrary.TCP.ByteMessage;
-//using NetworkLibrary.Utils;
-//using System;
-//using System.Collections.Concurrent;
-//using System.Collections.Generic;
-//using System.Diagnostics;
-//using System.IO;
-//using System.Linq;
-//using System.Net;
-//using System.Text;
-//using System.Threading;
-//using System.Threading.Tasks;
-//using NetworkLibrary.TCP.SSL.ByteMessage;
-//using System.Security.Cryptography.X509Certificates;
-//using System.Net.Security;
-//using NetworkLibrary.TCP;
-//using NetworkLibrary;
-//using NetworkLibrary.Components.Statistics;
-
-//namespace SslBenchmark
-//{
-
-//    internal class Program
-//    {
-
-//        static void Main(string[] args)
-//        {
-//            Bench();
-
-//        }
-//        private static void Bench()
-//        {
-//            BufferPool.ForceGCOnCleanup = true;
-//            Random rng = new Random(42);
-//            MiniLogger.AllLog += (log) => Console.WriteLine(log);
-//            ThreadLocal<long> countsClient = new ThreadLocal<long>(true);
-
-//            int NumFinishedClients = 0;
-//            long totMsgClient = 0;
-//            int totMsgServer = 0;
-//            int lastTimeStamp = 1;
-//            int clientAmount = 100;
-//            const int numMsg = 1000;
-//            var message = new byte[32];
-//            var response = new byte[32];
-
-//            var scert = new X509Certificate2("server.pfx", "greenpass");
-//            var ccert = new X509Certificate2("client.pfx", "greenpass");
-
-//            SslByteMessageServer server = new SslByteMessageServer(2008, scert);
-//            List<SslByteMessageClient> clients = new List<SslByteMessageClient>();
-
-//            Stopwatch sw2 = new Stopwatch();
-//            AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
-
-
-
-//            server.MaxIndexedMemoryPerClient = 128000000;
-//            server.DropOnBackPressure = false;
-//            server.OnBytesReceived += OnServerReceviedMessage;
-//            server.RemoteCertificateValidationCallback += ValidateCertAsServer;
-//            server.GatherConfig = ScatterGatherConfig.UseQueue;
-//            Console.Read();
-//            server.StartServer();
-//            Console.Read();
-//            Task[] toWait = new Task[clientAmount];
-//            for (int i = 0; i < clientAmount; i++)
-//            {
-//                var client = new SslByteMessageClient(ccert);
-//                client.RemoteCertificateValidationCallback += ValidateCertAsClient;
-//                client.GatherConfig= ScatterGatherConfig.UseQueue;
-//                client.OnBytesReceived += (buffer, offset, count) => OnClientReceivedMessage(client, buffer, offset, count);
-//                client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
-//                client.Connect("127.0.0.1", 2008);
-//                clients.Add(client);
-//            }
-
-//            bool ValidateCertAsClient(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
-//            {
-//                return true;
-//            }
-//            bool ValidateCertAsServer(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
-//            {
-//                return true;
-//            }
-//            // -----------------------  Bechmark ---------------------------
-//            Console.WriteLine("Press enter to start");
-//            Console.ReadLine();
-//            sw2.Start();
-
-//            Parallel.ForEach(clients, client =>
-//            {
-//                for (int i = 0; i < numMsg; i++)
-//                {
-//                    //message = new byte[32];
-//                    client.SendAsync(message);
-//                    //client.Disconnect();
-
-//                }
-
-//            });
-//            // final msg to get the tıme elapsed.
-//            foreach (var cl in clients)
-//            {
-//                cl.SendAsync(new byte[502]);
-//            }
-
-//            // -----------------  End of stress test ---------------------
-//            Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
-//                "ms. Press enter to see status");
-//            Console.ReadLine();
-
-//            Console.WriteLine("Press e to Exit");
-//            while (Console.ReadLine()!= "e")
-//            {
-//                ShowStatus();
-//            }
-
-//            void ShowStatus()
-//            {
-//                totMsgClient = countsClient.Values.Sum();
-//                Console.WriteLine("Press E to Exit");
-
-//                Console.WriteLine("Total Messages on server: " + totMsgServer);
-//                Console.WriteLine("Total Messages on clients: " + totMsgClient);
-
-//                lastTimeStamp = (int)sw2.ElapsedMilliseconds;
-//                Console.WriteLine("Elapsed " + lastTimeStamp);
-
-//                var elapsedSeconds = (float)lastTimeStamp / 1000;
-//                var messagePerSecond = totMsgClient / elapsedSeconds;
-
-//                Console.WriteLine(" Request-Response Per second " + totMsgClient / elapsedSeconds);
-//                Console.WriteLine("Data transmissıon rate Inbound " + message.Length * messagePerSecond / 1000000 + " Megabytes/s");
-//                Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
-//                server.GetStatistics(out TcpStatistics general, out var _);
-//                Console.WriteLine(general.ToString());
-//            }
-
-//            void OnClientReceivedMessage(SslByteMessageClient client, byte[] arg2, int offset, int count)
-//            {
-//                countsClient.Value++;
-//               // Interlocked.Increment(ref totMsgClient);
-//                client.SendAsync(message);
-//                //if (count == 502)
-//                //{
-//                //    lastTimeStamp = (int)sw2.ElapsedMilliseconds;
-//                //    Interlocked.Increment(ref NumFinishedClients);
-//                //    return;
-//                //    if(Volatile.Read(ref NumFinishedClients) == clientAmount)
-//                //    {
-//                //        Console.WriteLine("--- All Clients are finished receiving response --- \n");
-//                //        ShowStatus();
-//                //        sw2.Stop();
-//                //        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
-
-//                //    }
-//                //}
-//            }
-
-//            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
-//            {
-//                //Interlocked.Increment(ref totMsgServer);
-//                //if (count == 502)
-//                //{
-//                //    server.SendBytesToClient(in id, new byte[502]);
-//                //    return;
-//                //}
-//                // response = new byte[32000];
-//                server.SendBytesToClient(id, response);
-//            }
-
-//        }
-
-
-//    }
-//}
-
-//#define UseLocalCounter
-using NetworkLibrary;
+﻿using NetworkLibrary;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP;
 using NetworkLibrary.TCP.ByteMessage;
@@ -414,6 +235,188 @@ namespace ConsoleTest
     }
 
 }
+
+#region Old
+//using NetworkLibrary.TCP.ByteMessage;
+//using NetworkLibrary.Utils;
+//using System;
+//using System.Collections.Concurrent;
+//using System.Collections.Generic;
+//using System.Diagnostics;
+//using System.IO;
+//using System.Linq;
+//using System.Net;
+//using System.Text;
+//using System.Threading;
+//using System.Threading.Tasks;
+//using NetworkLibrary.TCP.SSL.ByteMessage;
+//using System.Security.Cryptography.X509Certificates;
+//using System.Net.Security;
+//using NetworkLibrary.TCP;
+//using NetworkLibrary;
+//using NetworkLibrary.Components.Statistics;
+
+//namespace SslBenchmark
+//{
+
+//    internal class Program
+//    {
+
+//        static void Main(string[] args)
+//        {
+//            Bench();
+
+//        }
+//        private static void Bench()
+//        {
+//            BufferPool.ForceGCOnCleanup = true;
+//            Random rng = new Random(42);
+//            MiniLogger.AllLog += (log) => Console.WriteLine(log);
+//            ThreadLocal<long> countsClient = new ThreadLocal<long>(true);
+
+//            int NumFinishedClients = 0;
+//            long totMsgClient = 0;
+//            int totMsgServer = 0;
+//            int lastTimeStamp = 1;
+//            int clientAmount = 100;
+//            const int numMsg = 1000;
+//            var message = new byte[32];
+//            var response = new byte[32];
+
+//            var scert = new X509Certificate2("server.pfx", "greenpass");
+//            var ccert = new X509Certificate2("client.pfx", "greenpass");
+
+//            SslByteMessageServer server = new SslByteMessageServer(2008, scert);
+//            List<SslByteMessageClient> clients = new List<SslByteMessageClient>();
+
+//            Stopwatch sw2 = new Stopwatch();
+//            AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
+
+
+
+//            server.MaxIndexedMemoryPerClient = 128000000;
+//            server.DropOnBackPressure = false;
+//            server.OnBytesReceived += OnServerReceviedMessage;
+//            server.RemoteCertificateValidationCallback += ValidateCertAsServer;
+//            server.GatherConfig = ScatterGatherConfig.UseQueue;
+//            Console.Read();
+//            server.StartServer();
+//            Console.Read();
+//            Task[] toWait = new Task[clientAmount];
+//            for (int i = 0; i < clientAmount; i++)
+//            {
+//                var client = new SslByteMessageClient(ccert);
+//                client.RemoteCertificateValidationCallback += ValidateCertAsClient;
+//                client.GatherConfig= ScatterGatherConfig.UseQueue;
+//                client.OnBytesReceived += (buffer, offset, count) => OnClientReceivedMessage(client, buffer, offset, count);
+//                client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
+//                client.Connect("127.0.0.1", 2008);
+//                clients.Add(client);
+//            }
+
+//            bool ValidateCertAsClient(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+//            {
+//                return true;
+//            }
+//            bool ValidateCertAsServer(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+//            {
+//                return true;
+//            }
+//            // -----------------------  Bechmark ---------------------------
+//            Console.WriteLine("Press enter to start");
+//            Console.ReadLine();
+//            sw2.Start();
+
+//            Parallel.ForEach(clients, client =>
+//            {
+//                for (int i = 0; i < numMsg; i++)
+//                {
+//                    //message = new byte[32];
+//                    client.SendAsync(message);
+//                    //client.Disconnect();
+
+//                }
+
+//            });
+//            // final msg to get the tıme elapsed.
+//            foreach (var cl in clients)
+//            {
+//                cl.SendAsync(new byte[502]);
+//            }
+
+//            // -----------------  End of stress test ---------------------
+//            Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
+//                "ms. Press enter to see status");
+//            Console.ReadLine();
+
+//            Console.WriteLine("Press e to Exit");
+//            while (Console.ReadLine()!= "e")
+//            {
+//                ShowStatus();
+//            }
+
+//            void ShowStatus()
+//            {
+//                totMsgClient = countsClient.Values.Sum();
+//                Console.WriteLine("Press E to Exit");
+
+//                Console.WriteLine("Total Messages on server: " + totMsgServer);
+//                Console.WriteLine("Total Messages on clients: " + totMsgClient);
+
+//                lastTimeStamp = (int)sw2.ElapsedMilliseconds;
+//                Console.WriteLine("Elapsed " + lastTimeStamp);
+
+//                var elapsedSeconds = (float)lastTimeStamp / 1000;
+//                var messagePerSecond = totMsgClient / elapsedSeconds;
+
+//                Console.WriteLine(" Request-Response Per second " + totMsgClient / elapsedSeconds);
+//                Console.WriteLine("Data transmissıon rate Inbound " + message.Length * messagePerSecond / 1000000 + " Megabytes/s");
+//                Console.WriteLine("Data transmissıon rate Outbound " + response.Length * messagePerSecond / 1000000 + " Megabytes/s");
+//                server.GetStatistics(out TcpStatistics general, out var _);
+//                Console.WriteLine(general.ToString());
+//            }
+
+//            void OnClientReceivedMessage(SslByteMessageClient client, byte[] arg2, int offset, int count)
+//            {
+//                countsClient.Value++;
+//               // Interlocked.Increment(ref totMsgClient);
+//                client.SendAsync(message);
+//                //if (count == 502)
+//                //{
+//                //    lastTimeStamp = (int)sw2.ElapsedMilliseconds;
+//                //    Interlocked.Increment(ref NumFinishedClients);
+//                //    return;
+//                //    if(Volatile.Read(ref NumFinishedClients) == clientAmount)
+//                //    {
+//                //        Console.WriteLine("--- All Clients are finished receiving response --- \n");
+//                //        ShowStatus();
+//                //        sw2.Stop();
+//                //        Console.WriteLine("\n--- All Clients are finished receiving response --- \n");
+
+//                //    }
+//                //}
+//            }
+
+//            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+//            {
+//                //Interlocked.Increment(ref totMsgServer);
+//                //if (count == 502)
+//                //{
+//                //    server.SendBytesToClient(in id, new byte[502]);
+//                //    return;
+//                //}
+//                // response = new byte[32000];
+//                server.SendBytesToClient(id, response);
+//            }
+
+//        }
+
+
+//    }
+//}
+
+//#define UseLocalCounter
+#endregion
 
 
 

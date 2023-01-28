@@ -20,11 +20,12 @@ namespace NetworkLibrary.TCP.Base
 
         private Socket clientSocket;
         private TaskCompletionSource<bool> connectedCompletionSource;
-
         protected bool connected = false;
         internal IAsyncSession session;
-        TcpClientStatisticsPublisher statisticsPublisher;
+        private TcpClientStatisticsPublisher statisticsPublisher;
+
         #endregion Fields & Props
+
         public AsyncTpcClient() {}
 
         #region Connect
@@ -57,6 +58,7 @@ namespace NetworkLibrary.TCP.Base
                 Connected(null, clientSocketRecieveArgs);
             }
         }
+
         #endregion Connect
 
         #region Connected
@@ -97,13 +99,13 @@ namespace NetworkLibrary.TCP.Base
 
         #region Create Session Dependency
 
-        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = new TcpSession(e, sessionId);
             ses.socketSendBufferSize = SocketSendBufferSize;
             ses.socketRecieveBufferSize = SocketRecieveBufferSize;
-            ses.maxIndexedMemory = MaxIndexedMemory;
-            ses.dropOnCongestion = DropOnCongestion;
+            ses.MaxIndexedMemory = MaxIndexedMemory;
+            ses.DropOnCongestion = DropOnCongestion;
             ses.OnSessionClosed+=(id)=>OnDisconnected?.Invoke();
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
@@ -134,7 +136,6 @@ namespace NetworkLibrary.TCP.Base
 
         #endregion Send & Receive
 
-        // Fix this
         private void HandleError(SocketAsyncEventArgs e, string context)
         {
             string msg = "An error Occured While " + context +

@@ -37,13 +37,14 @@ namespace NetworkLibrary.Components.Statistics
         public long DeltaBytesSent;
         public long TotalMessageSent;
         public long TotalMessageReceived;
+        public long DeltaMessageSent;
+        public long DeltaMessageReceived;
         private long lastTimeStamp;
         private long currentTimestamp;
 
         public float SendRate;
         public float ReceiveRate;
         public float MessageDispatchRate;
-
         public float MessageReceiveRate;
 
         public TcpStatistics()
@@ -59,8 +60,10 @@ namespace NetworkLibrary.Components.Statistics
             TotalMessageSent = refstats.TotalMessageDispatched;
             TotalMessageReceived = refstats.TotalMessageReceived;
 
-            DeltaBytesReceived= refstats.DeltaBytesReceived;
-            DeltaBytesSent= refstats.DeltaBytesSent;
+            DeltaBytesReceived= refstats.TotalBytesSent;
+            DeltaBytesSent= refstats.TotalBytesReceived;
+            DeltaMessageReceived = refstats.TotalMessageReceived;
+            DeltaMessageSent = refstats.TotalMessageDispatched;
 
             lastTimeStamp = 0;
             currentTimestamp = 0;
@@ -88,6 +91,9 @@ namespace NetworkLibrary.Components.Statistics
             TotalBytesReceived = refstats.TotalBytesReceived;
             TotalMessageSent = refstats.TotalMessageDispatched;
             TotalMessageReceived = refstats.TotalMessageReceived;
+
+            DeltaMessageReceived= refstats.DeltaMessageReceived;
+            DeltaMessageSent= refstats.DeltaMessageSent;
         }
 
         internal void Clear()
@@ -103,8 +109,8 @@ namespace NetworkLibrary.Components.Statistics
             SendRate = 0;
             ReceiveRate = 0;
 
-            TotalMessageReceived= 0;
-            TotalMessageSent= 0;
+            //TotalMessageReceived= 0;
+            //TotalMessageSent= 0;
         }
 
         public static TcpStatistics GetAverageStatistics(List<TcpStatistics> statList)
@@ -183,9 +189,19 @@ namespace NetworkLibrary.Components.Statistics
         public readonly long DeltaBytesSent;
         public readonly long TotalMessageReceived;
         public readonly long TotalMessageDispatched;
+        public readonly long DeltaMessageSent;
+        public readonly long DeltaMessageReceived;
 
-        public SessionStatistics(int pendingBytes, float congestionLevel, long totalBytesSent, 
-            long totalBytesReceived, long deltaBytesSent,long deltaBytesReveived, long totalMessageSent, long totalMessageReceived )
+        public SessionStatistics(int pendingBytes,
+                                 float congestionLevel,
+                                 long totalBytesSent,
+                                 long totalBytesReceived,
+                                 long deltaBytesSent,
+                                 long deltaBytesReveived,
+                                 long totalMessageSent,
+                                 long totalMessageReceived,
+                                 long deltaMessageSent,
+                                 long deltaMessageReceived)
         {
             PendingBytes = pendingBytes;
             CongestionLevel = congestionLevel;
@@ -195,6 +211,8 @@ namespace NetworkLibrary.Components.Statistics
             DeltaBytesReceived = deltaBytesReveived;
             DeltaBytesSent= deltaBytesSent;
             TotalMessageReceived = totalMessageReceived;
+            DeltaMessageSent= deltaMessageSent;
+            DeltaMessageReceived= deltaMessageReceived;
         }
 
 
@@ -241,8 +259,8 @@ namespace NetworkLibrary.Components.Statistics
                 generalStats.TotalBytesReceived += Stats[session.Key].DeltaBytesReceived;
                 generalStats.SendRate += Stats[session.Key].SendRate;
                 generalStats.ReceiveRate += Stats[session.Key].ReceiveRate;
-                generalStats.TotalMessageSent += Stats[session.Key].TotalMessageSent;
-                generalStats.TotalMessageReceived += Stats[session.Key].TotalMessageReceived;
+                generalStats.TotalMessageSent += Stats[session.Key].DeltaMessageSent;
+                generalStats.TotalMessageReceived += Stats[session.Key].DeltaMessageReceived;
                 generalStats.MessageDispatchRate += Stats[session.Key].MessageDispatchRate;
                 generalStats.MessageReceiveRate += Stats[session.Key].MessageReceiveRate;
                 count++;

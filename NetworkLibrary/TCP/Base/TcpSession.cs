@@ -19,13 +19,12 @@ using System.Threading.Tasks;
 namespace NetworkLibrary.TCP.Base
 {
 
-    internal class TcpSession : IAsyncSession 
+    public class TcpSession : IAsyncSession 
     {
         #region Fields & Props
-        protected IMessageProcessQueue messageBuffer;
+        protected IMessageQueue messageBuffer;
         // this ill be on SAEA objects and provided by buffer provider.
         protected byte[] sendBuffer;
-        //protected byte[] sendBuffer_;
         protected byte[] recieveBuffer;
 
         protected SocketAsyncEventArgs ClientSendEventArg;
@@ -38,11 +37,11 @@ namespace NetworkLibrary.TCP.Base
 
         public Guid SessionId;
 
-        internal int socketRecieveBufferSize = 128000;
+        public int socketRecieveBufferSize = 128000;
         internal int socketSendBufferSize = 128000;
-        internal int maxIndexedMemory = 1280000;
+        public int MaxIndexedMemory = 1280000;
         protected int currentIndexedMemory = 0;
-        internal bool dropOnCongestion = false;
+        public bool DropOnCongestion = false;
 
 
         private int disposeStatus = 0;
@@ -51,8 +50,8 @@ namespace NetworkLibrary.TCP.Base
         private int ReceiveBufferReleased = 0;
 
 
-        private Spinlock SendOperationLock= new Spinlock();
-        private Spinlock enqueueLock = new Spinlock();
+        protected Spinlock SendSemaphore = new Spinlock();
+        protected Spinlock enqueueLock = new Spinlock();
 
         private int disconnectStatus;
 
@@ -66,6 +65,8 @@ namespace NetworkLibrary.TCP.Base
         private long totalBytesReceivedPrev=0;
 
         private long totalMessageReceived=0;
+        private long totalMsgReceivedPrev;
+        private long totalMSgSentPrev;
 
         public IPEndPoint RemoteEndpoint => (IPEndPoint)sessionSocket.RemoteEndPoint;
 
@@ -79,9 +80,10 @@ namespace NetworkLibrary.TCP.Base
         public virtual void StartSession()
         {
             ConfigureSocket();
+            ConfigureBuffers();
             InitialiseSendArgs();
             InitialiseReceiveArgs();
-            messageBuffer = CreateMessageBuffer();
+            messageBuffer = CreateMessageQueue();
             Receive();
         }
 
@@ -90,35 +92,40 @@ namespace NetworkLibrary.TCP.Base
             sessionSocket.ReceiveBufferSize = socketRecieveBufferSize;
             sessionSocket.SendBufferSize = socketSendBufferSize;
         }
+        protected virtual void ConfigureBuffers()
+        {
+            recieveBuffer = BufferPool.RentBuffer(socketSendBufferSize);
+            if(UseQueue) sendBuffer = BufferPool.RentBuffer(socketRecieveBufferSize);
 
+        }
         protected virtual void InitialiseSendArgs()
         {
             ClientSendEventArg = new SocketAsyncEventArgs();
             ClientSendEventArg.Completed += SendComplete;
+            if(UseQueue) ClientSendEventArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
 
-            SendOperationLock = new Spinlock();
-            sendBuffer = BufferPool.RentBuffer(socketRecieveBufferSize);
-            ClientSendEventArg.SetBuffer(sendBuffer, 0, sendBuffer.Length);
+            SendSemaphore = new Spinlock();
         }
+
+        
 
         protected virtual void InitialiseReceiveArgs()
         {
             ClientRecieveEventArg = new SocketAsyncEventArgs();
             ClientRecieveEventArg.Completed += BytesRecieved;
 
-            recieveBuffer = BufferPool.RentBuffer(socketSendBufferSize);
             ClientRecieveEventArg.SetBuffer(recieveBuffer, 0, recieveBuffer.Length);
         }
 
-        protected virtual IMessageProcessQueue CreateMessageBuffer()
+        protected virtual IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
             {
-                return new MessageQueue<PlainMessageWriter>(maxIndexedMemory, new PlainMessageWriter());
+                return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
             }
             else
             {
-                return new MessageBuffer(maxIndexedMemory, writeLengthPrefix: false);
+                return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: false);
             }
           
         }
@@ -130,6 +137,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (IsSessionClosing())
             {
+                ReleaseReceiveResources();
                 return;
             }
             try
@@ -140,7 +148,10 @@ namespace NetworkLibrary.TCP.Base
                     ThreadPool.UnsafeQueueUserWorkItem((e) => BytesRecieved(null, ClientRecieveEventArg), null);
                 }
             }
-            catch (ObjectDisposedException) { }
+            catch (Exception ex) 
+            when (ex is ObjectDisposedException || ex is NullReferenceException) 
+            { ReleaseReceiveResources(); }
+
 
 
         }
@@ -150,6 +161,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (IsSessionClosing())
             {
+                ReleaseReceiveResources();
                 return;
             }
 
@@ -157,21 +169,23 @@ namespace NetworkLibrary.TCP.Base
             {
                 HandleError(e, "while recieving from ");
                 Disconnect();
+                ReleaseReceiveResources();
                 return;
             }
             else if (e.BytesTransferred == 0)
             {
                 Disconnect();
+                ReleaseReceiveResources();
                 return;
             }
             totalBytesReceived+= e.BytesTransferred;
 
-            HandleRecieveComplete(e.Buffer, e.Offset, e.BytesTransferred);
+            HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
             Receive();
 
         }
 
-        protected virtual void HandleRecieveComplete(byte[] buffer, int offset, int count)
+        protected virtual void HandleReceived(byte[] buffer, int offset, int count)
         {
             totalMessageReceived++;
             OnBytesRecieved?.Invoke(SessionId, buffer, offset, count);
@@ -184,14 +198,22 @@ namespace NetworkLibrary.TCP.Base
         {
             if (IsSessionClosing())
                 return;
-            SendOrEnqueue(bytes);
+            try
+            {
+                SendOrEnqueue(bytes);
+            }
+            catch { if (!IsSessionClosing()) throw; }
         }
 
         public void SendAsync(byte[] buffer, int offset, int count)
         {
             if (IsSessionClosing())
                 return;
-            SendOrEnqueue(buffer, offset, count);
+            try
+            {
+                SendOrEnqueue(buffer, offset, count);
+            }
+            catch { if (!IsSessionClosing()) throw; }
 
 
         }
@@ -200,7 +222,7 @@ namespace NetworkLibrary.TCP.Base
         void SendOrEnqueue(byte[] buffer, int offset, int count)
         {
             enqueueLock.Take();
-            if (SendOperationLock.IsTaken() && messageBuffer.TryEnqueueMessage(buffer, offset, count))
+            if (SendSemaphore.IsTaken() && messageBuffer.TryEnqueueMessage(buffer, offset, count))
             {
                 enqueueLock.Release();
 
@@ -208,14 +230,14 @@ namespace NetworkLibrary.TCP.Base
             }
             enqueueLock.Release();
 
-            if (dropOnCongestion && SendOperationLock.IsTaken())
+            if (DropOnCongestion && SendSemaphore.IsTaken())
                 return;
 
             
-            SendOperationLock.Take();
+            SendSemaphore.Take();
             if (IsSessionClosing())
             {
-                SendOperationLock.Release();
+                SendSemaphore.Release();
                 return;
             }
 
@@ -230,19 +252,20 @@ namespace NetworkLibrary.TCP.Base
         void SendOrEnqueue(byte[] bytes)
         {
             enqueueLock.Take();
-            if (SendOperationLock.IsTaken() && messageBuffer.TryEnqueueMessage(bytes))
+          
+            if (SendSemaphore.IsTaken() && messageBuffer.TryEnqueueMessage(bytes))
             {
                 enqueueLock.Release();
                 return;
             }
             enqueueLock.Release();
 
-            if (dropOnCongestion && SendOperationLock.IsTaken()) return;
+            if (DropOnCongestion && SendSemaphore.IsTaken()) return;
 
-            SendOperationLock.Take();
+            SendSemaphore.Take();
             if (IsSessionClosing())
             {
-                SendOperationLock.Release(); 
+                SendSemaphore.Release(); 
                 return;
             }
 
@@ -255,19 +278,19 @@ namespace NetworkLibrary.TCP.Base
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void FlushSendBuffer(int offset, int count)
+        protected void FlushSendBuffer(int offset, int count)
         {
             try
             {
                 totalBytesSend += count;
-                ClientSendEventArg.SetBuffer(sendBuffer, offset, count);
+                ClientSendEventArg?.SetBuffer(sendBuffer, offset, count);
                 if (!sessionSocket.SendAsync(ClientSendEventArg))
                 {
                     ThreadPool.UnsafeQueueUserWorkItem((e) => SendComplete(null, ClientSendEventArg), null);
 
                 }
             }
-            catch (ObjectDisposedException) { }
+            catch { EndSession(); }
         }
 
 
@@ -275,15 +298,18 @@ namespace NetworkLibrary.TCP.Base
         {
             if (IsSessionClosing())
             {
+                SendSemaphore.Release();
+                ReleaseSendResources();
                 return;
             }
 
             if (e.SocketError != SocketError.Success)
             {
+                SendSemaphore.Release();
+                ReleaseSendResources();
                 HandleError(e, "While sending the client ");
                 return;
             }
-
             else if (e.BytesTransferred < e.Count)
             {
                 e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
@@ -316,7 +342,7 @@ namespace NetworkLibrary.TCP.Base
                 else
                 {
                     messageBuffer.Flush();
-                    SendOperationLock.Release();
+                    SendSemaphore.Release();
                     enqueueLock.Release();
                     return;
                 }
@@ -331,22 +357,20 @@ namespace NetworkLibrary.TCP.Base
         #endregion Send
 
 
-        // TODO
         protected void Disconnect()
         {
             EndSession();
         }
 
-        // TODO 
         protected void HandleError(SocketAsyncEventArgs e, string context)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Error, context + Enum.GetName(typeof(SocketError), e.SocketError));
+            EndSession();
         }
 
-        private bool IsSessionClosing()
+        protected bool IsSessionClosing()
         {
-            return Volatile.Read(ref SessionClosing)==1;
-           // return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
+            return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
         }
 
         public virtual void EndSession()
@@ -354,16 +378,13 @@ namespace NetworkLibrary.TCP.Base
             // is it the first time im being called?
             if (Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
             {
-                SendOperationLock.Release();
+                //SendSemaphore.Release();
                 try
                 {
                     sessionSocket.Shutdown(SocketShutdown.Both);
                 }
                 catch (Exception) { }
                 DcAndDispose();
-
-
-
             }
 
         }
@@ -372,7 +393,16 @@ namespace NetworkLibrary.TCP.Base
         {
             if (Interlocked.CompareExchange(ref SendBufferReleased, 1, 0) == 0)
             {
-                BufferPool.ReturnBuffer(sendBuffer);
+                enqueueLock.Take();
+                ClientSendEventArg.Dispose();
+                messageBuffer?.Dispose();
+                //ClientSendEventArg= null;
+                //messageBuffer = null;
+
+                if (UseQueue)
+                    BufferPool.ReturnBuffer(sendBuffer);
+                enqueueLock.Release();
+
             }
 
         }
@@ -381,6 +411,8 @@ namespace NetworkLibrary.TCP.Base
         {
             if (Interlocked.CompareExchange(ref ReceiveBufferReleased, 1, 0) == 0)
             {
+                ClientRecieveEventArg.Dispose();
+                ClientRecieveEventArg = null;
                 BufferPool.ReturnBuffer(recieveBuffer);
             }
 
@@ -412,14 +444,22 @@ namespace NetworkLibrary.TCP.Base
             totalBytesSendPrev = totalBytesSend;
             totalBytesReceivedPrev = totalBytesReceived;
 
+            long deltaMSgReceived = totalMessageReceived - totalMsgReceivedPrev;
+            long deltaMsgSent = messageBuffer.TotalMessageDispatched - totalMSgSentPrev;
+
+            totalMsgReceivedPrev = totalMessageReceived;
+            totalMSgSentPrev = messageBuffer.TotalMessageDispatched;
+
             return new SessionStatistics(messageBuffer.CurrentIndexedMemory,
-                                         (float)((float)messageBuffer.CurrentIndexedMemory / (float)maxIndexedMemory),
+                                         (float)((float)messageBuffer.CurrentIndexedMemory / (float)MaxIndexedMemory),
                                          totalBytesReceived,
                                          totalBytesSend,
                                          deltaReceived,
                                          deltaSent,
                                          messageBuffer.TotalMessageDispatched,
-                                         totalMessageReceived);
+                                         totalMessageReceived,
+                                         deltaMsgSent,
+                                         deltaMSgReceived);
         }
         #region Dispose
         protected virtual void Dispose(bool disposing)
@@ -428,16 +468,20 @@ namespace NetworkLibrary.TCP.Base
             {
                 return;
             }
-            messageBuffer?.Dispose();
-            sessionSocket.Close();
-            ClientSendEventArg.Dispose();
-            ClientRecieveEventArg.Dispose();
 
+            OnBytesRecieved = null;
+            OnSessionClosed = null;
+            
+            sessionSocket.Close();
             sessionSocket.Dispose();
+            sessionSocket = null;
+
             MiniLogger.Log(MiniLogger.LogLevel.Debug, string.Format("Session with Guid: {0} is disposed", SessionId));
-            GC.SuppressFinalize(this);
+            
             ReleaseSendResources();
-            ReleaseReceiveResources();
+            SendSemaphore.Release();
+            
+            //ReleaseReceiveResources();
 
         }
 

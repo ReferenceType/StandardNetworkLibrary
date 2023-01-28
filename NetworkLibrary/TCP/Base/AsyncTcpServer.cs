@@ -27,7 +27,7 @@ namespace NetworkLibrary.TCP.Base
         protected Socket ServerSocket;
         private TcpServerStatisticsPublisher statisticsPublisher;
 
-        internal ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
 
         public int SessionCount=>Sessions.Count;
         public bool Stopping { get; private set; }
@@ -85,8 +85,6 @@ namespace NetworkLibrary.TCP.Base
                 return;
             }
 
-          
-
             if (!HandleConnectionRequest(acceptedArg))
             {
                 return;
@@ -98,13 +96,13 @@ namespace NetworkLibrary.TCP.Base
             session.OnBytesRecieved += (sessionId, bytes, offset, count) => { HandleBytesRecieved(sessionId, bytes, offset, count); };
             session.OnSessionClosed += (sessionId) => { HandleDeadSession(sessionId); };
 
-            session.StartSession();
             Sessions.TryAdd(clientGuid, session);
 
             string msg = "Accepted with port: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port +
                 " Ip: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Address.ToString();
 
             MiniLogger.Log(MiniLogger.LogLevel.Info, msg);
+            session.StartSession();
 
             HandleClientAccepted(clientGuid, acceptedArg);
         }
@@ -122,13 +120,13 @@ namespace NetworkLibrary.TCP.Base
         #endregion Accept
 
         #region Create Session
-        internal virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new TcpSession(e, sessionId);
             session.socketSendBufferSize = ClientSendBufsize;
             session.socketRecieveBufferSize = ClientReceiveBufsize;
-            session.maxIndexedMemory = MaxIndexedMemoryPerClient;
-            session.dropOnCongestion = DropOnBackPressure;
+            session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
+            session.DropOnCongestion = DropOnBackPressure;
             session.OnSessionClosed +=(id)=> OnClientDisconnected?.Invoke(id);
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)

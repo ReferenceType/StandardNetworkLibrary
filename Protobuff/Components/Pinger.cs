@@ -9,6 +9,7 @@ namespace Protobuff.Components
 {
     class PingData
     {
+        private object locker =  new object();
         internal enum State
         {
             NotReady,
@@ -21,34 +22,46 @@ namespace Protobuff.Components
         private double latency;
         public void Update(DateTime timeStamp)
         {
-            PingState = PingData.State.PongReceived;
-            latency = (DateTime.Now - timeStamp).TotalMilliseconds;
+            lock (locker)
+            {
+                PingState = PingData.State.PongReceived;
+                latency = (DateTime.Now - timeStamp).TotalMilliseconds;
+            }
+       
         }
 
         internal void PingDispatched(DateTime timeStamp)
         {
-            if(PingState != State.PingDispatched)
+            lock (locker)
             {
-                dispatchTimeStamp = timeStamp;
-                PingState = State.PingDispatched;
+                if (PingState != State.PingDispatched)
+                {
+                    dispatchTimeStamp = timeStamp;
+                    PingState = State.PingDispatched;
+                }
             }
+           
           
         }
 
         public double GetLatency()
         {
-            switch (PingState)
+            lock (locker)
             {
-                case State.NotReady:
-                    return 0;
-                    
-                case State.PingDispatched:
-                    return Math.Max((DateTime.Now-dispatchTimeStamp).TotalMilliseconds,latency);
+                switch (PingState)
+                {
+                    case State.NotReady:
+                        return 0;
 
-                case State.PongReceived:
-                    return latency;
+                    case State.PingDispatched:
+                        return Math.Max((DateTime.Now - dispatchTimeStamp).TotalMilliseconds, latency);
+
+                    case State.PongReceived:
+                        return latency;
 
                     default: return 0;
+
+                }
 
             }
         }

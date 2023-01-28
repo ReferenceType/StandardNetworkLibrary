@@ -1,16 +1,11 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.Base;
-using NetworkLibrary.TCP.ByteMessage;
-using NetworkLibrary.TCP.SSL.ByteMessage;
+
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
+using Protobuff.Components.TransportWrapper.SecureProtoTcp;
 using System;
-using System.Buffers;
-using System.Collections.Concurrent;
-using System.Drawing;
-using System.IO;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
@@ -20,28 +15,25 @@ namespace Protobuff
 {
     public class SecureProtoClient
     {
-        private SslByteMessageClient client;
-
         public Action<MessageEnvelope> OnMessageReceived;
-
         public Action OnDisconnected;
 
+        private SecureProtoClientInternal client;
         private ConcurrentProtoSerialiser serialiser;
         private MessageAwaiter awaiter;
-        private SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
         // hook to override default cb.
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => client.RemoteCertificateValidationCallback;
 
         public SecureProtoClient(X509Certificate2 certificate)
         {
-            client = new SslByteMessageClient(certificate);
+            client = new SecureProtoClientInternal(certificate);
+            client.DeserializeMessages = false;
             client.OnBytesReceived += BytesReceived;
             client.OnDisconnected += Disconnected;
-            client.MaxIndexedMemory = 1280000000;
+            client.MaxIndexedMemory = 128000000;
 
             client.RemoteCertificateValidationCallback += DefaultValidationCallback;
-            client.GatherConfig = ScatterGatherConfig.UseBuffer;
 
             serialiser = new ConcurrentProtoSerialiser();
             awaiter = new MessageAwaiter();
@@ -70,38 +62,25 @@ namespace Protobuff
         {
             OnDisconnected?.Invoke();
         }
+
         #region Send
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message)
         {
-            var stream = RentStream();
-
-            if (message.Payload != null)
-                serialiser.EnvelopeMessageWithBytes(stream, message, message.Payload, 0, message.Payload.Length);
-            else
-                serialiser.EnvelopeMessageWithBytes(stream, message, null, 0, 0);
-
-            client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-            ReturnStream(stream);
-            
+            client.SendAsyncMessage(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message, byte[] buffer, int offset, int count)
         {
-            var stream = RentStream();
-            serialiser.EnvelopeMessageWithBytes(stream, message,buffer, offset, count);
-            client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-            ReturnStream(stream);
+            message.SetPayload(buffer, offset, count);
+            client.SendAsyncMessage(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage<T>(MessageEnvelope message, T payload) where T : IProtoMessage
         {
-            var stream = RentStream();
-            serialiser.EnvelopeMessageWithInnerMessage(stream, message, payload);
-            client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-            ReturnStream(stream);
+            client.SendAsyncMessage(message, payload);
         }
 
         #endregion Send
@@ -137,23 +116,23 @@ namespace Protobuff
 
         private void BytesReceived(byte[] bytes, int offset, int count)
         {
-            MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-            if (message == null)
-                return;
-            if (awaiter.IsWaiting(message.MessageId))
-                awaiter.ResponseArrived(message);
-            else
-                OnMessageReceived?.Invoke(message);
-
+            try
+            {
+                MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
+                if (awaiter.IsWaiting(message.MessageId))
+                {
+                    message.LockBytes();
+                    awaiter.ResponseArrived(message);
+                }
+                else
+                    OnMessageReceived?.Invoke(message);
+            }
+            catch (Exception ex)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Error occured while deseriallizing : "+ex.Message);
+            }
         }
-        private PooledMemoryStream RentStream()
-        {
-            return streamPool.RentStream();
-        }
-        private void ReturnStream(PooledMemoryStream stream)
-        {
-            streamPool.ReturnStream(stream);
-        }
+      
         public void GetStatistics(out TcpStatistics stats)
         {
              client.GetStatistics(out stats);

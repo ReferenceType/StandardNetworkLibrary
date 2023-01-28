@@ -7,19 +7,17 @@ using System.Threading;
 
 namespace NetworkLibrary.Components.MessageBuffer
 {
-    internal class MessageBuffer:IMessageProcessQueue
+    public class MessageBuffer:IMessageQueue
     {
-        private int currentIndexedMemory;
-
         public int CurrentIndexedMemory { get => Volatile.Read( ref currentIndexedMemory); }
         public int MaxIndexedMemory;
+        public long TotalMessageDispatched { get; protected set; }
 
-        public long TotalMessageDispatched { get; private set; }
-
-        private PooledMemoryStream writeStream = new PooledMemoryStream();
-        private PooledMemoryStream flushStream = new PooledMemoryStream();
-        private readonly object loki =  new object();
-        private bool writeLengthPrefix;
+        protected PooledMemoryStream writeStream = new PooledMemoryStream();
+        protected PooledMemoryStream flushStream = new PooledMemoryStream();
+        protected readonly object loki =  new object();
+        protected bool writeLengthPrefix;
+        protected int currentIndexedMemory;
         private bool disposedValue;
 
         public MessageBuffer(int maxIndexedMemory, bool writeLengthPrefix = true)
@@ -30,10 +28,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool IsEmpty()
         {
-          
-                return writeStream.Position == 0;
-
-            
+             return disposedValue || writeStream.Position == 0;
         }
 
         public bool TryEnqueueMessage(byte[] bytes)
@@ -93,7 +88,6 @@ namespace NetworkLibrary.Components.MessageBuffer
             {
                 amountWritten = 0;
                 return false;
-
             }
 
             lock (loki)
@@ -118,12 +112,14 @@ namespace NetworkLibrary.Components.MessageBuffer
         {
             if (!disposedValue)
             {
+                disposedValue = true;
                 if (disposing)
                 {
+                    writeStream.Flush();
+                    flushStream.Flush();
                     writeStream.Dispose();
                     flushStream.Dispose();
                 }
-                disposedValue = true;
             }
         }
 

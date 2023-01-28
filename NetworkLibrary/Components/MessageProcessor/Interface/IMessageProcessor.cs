@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components
 {
-    internal interface IMessageProcessor:IDisposable
+    public interface IMessageProcessor:IDisposable
     {
         // heldover
 

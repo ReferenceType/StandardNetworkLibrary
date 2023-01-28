@@ -15,7 +15,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         {
         }
 
-        internal override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses =  new SslByteMessageSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;

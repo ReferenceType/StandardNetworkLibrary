@@ -51,14 +51,14 @@ namespace NetworkLibrary.TCP.SSL.Custom
 
 
         // override create session
-        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId )
+        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId )
         {
 
             var session = new CustomSslSession(e, sessionId,(byte[])e.UserToken);
             session.socketSendBufferSize = ClientSendBufsize;
             session.socketRecieveBufferSize = ClientReceiveBufsize;
-            session.maxIndexedMemory = MaxIndexedMemoryPerClient;
-            session.dropOnCongestion = DropOnBackPressure;
+            session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
+            session.DropOnCongestion = DropOnBackPressure;
             return session;
         }
     }

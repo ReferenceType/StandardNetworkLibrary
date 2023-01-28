@@ -34,7 +34,6 @@ namespace NetworkLibrary.Components
         public byte[] Decrypt(byte[]bytes) => Decrypt(bytes,0,bytes.Length);
         public byte[] Decrypt(byte[] bytes, int offset, int count)
         {
-
             var cry = RentAlgorithm();
             byte[] res;
             try
@@ -76,7 +75,6 @@ namespace NetworkLibrary.Components
             try
             {
                 res = cry.Encrypt(bytes, offset, count);
-
             }
             catch
             {
@@ -94,7 +92,6 @@ namespace NetworkLibrary.Components
             try
             {
                  res = cry.EncryptInto(source, sourceOffset, sourceCount, output, outputOffset);
-
             }
             catch
             {

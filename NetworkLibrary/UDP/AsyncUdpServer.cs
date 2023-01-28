@@ -93,7 +93,7 @@ namespace NetworkLibrary.UDP
         {
             if (!ServerSocket.ReceiveFromAsync(e))
             {
-                ThreadPool.QueueUserWorkItem((cb) => Received(null, e));
+                ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e),null);
             }
         }
 
@@ -108,7 +108,7 @@ namespace NetworkLibrary.UDP
         private void HandleMessage(SocketAsyncEventArgs e)
         {
             var clientRemoteEndpoint = e.RemoteEndPoint as IPEndPoint;
-            if (RegisteredClients.TryAdd(clientRemoteEndpoint, null))
+            if (RegisteredClients.TryAdd(clientRemoteEndpoint, e))
             {
                 HandleClientRegistered(e);
             }

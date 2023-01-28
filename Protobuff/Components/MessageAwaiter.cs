@@ -182,8 +182,8 @@ namespace Protobuff
     internal class MessageAwaiter
     {
         MessageEnvelope timeoutResponse;
-        ConcurrentDictionary<Guid, TaskCompletionSource<MessageEnvelope>> awaitingMessages = new ConcurrentDictionary< Guid, TaskCompletionSource<MessageEnvelope>>();
-
+        ConcurrentDictionary<Guid, TaskCompletionSource<MessageEnvelope>> awaitingMessages
+            = new ConcurrentDictionary< Guid, TaskCompletionSource<MessageEnvelope>>();
         public MessageAwaiter()
         {
             timeoutResponse = new MessageEnvelope()
@@ -196,7 +196,7 @@ namespace Protobuff
         {
             awaitingMessages[messageId] = new TaskCompletionSource<MessageEnvelope>();
             var pending = awaitingMessages[messageId].Task;
-            MessageEnvelope returnMessage = null;
+            MessageEnvelope returnMessage;
 
             var delay = Task.Delay(timeoutMs);
             if (await Task.WhenAny(pending, delay) == pending)
@@ -223,12 +223,12 @@ namespace Protobuff
 
         internal bool IsWaiting(in Guid messageId)
         {
-            return awaitingMessages.ContainsKey(messageId);
+            return awaitingMessages.TryGetValue(messageId, out _);
         }
 
         public void CancelWait(in Guid messageId)
         {
-
+            //todo
         }
     }
 }

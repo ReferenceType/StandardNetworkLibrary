@@ -5,18 +5,17 @@ using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    internal class ByteMessageReader
+    // statefully parse byte messages with 4 byte lenght header,
+    // under any fragmentation condition
+    public class ByteMessageReader
     {
         public const int HeaderLenght = 4;
         private byte[] internalBufer;
-        private byte[] headerBuffer { get; }
-
+        private byte[] headerBuffer;
         private int currentMsgBufferPosition;
         private int currentHeaderBufferPosition;
-
         private int expectedMsgLenght;
         private int currentExpectedByteLenght;
-
         private int originalCapacity;
 
         private enum OperationState

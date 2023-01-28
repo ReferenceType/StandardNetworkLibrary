@@ -24,25 +24,21 @@ namespace Protobuff.P2P
         public Dictionary<Guid,T> PeerIds;
         
     }
-    public class RelayMessageResources
+    public class InternalMessageResources
     {
-        public const string UdpInit = "UdpInit";
-        public const string UdpInitResend = "ResendUdpInit";
-        public const string UdpFinaliseInit = "UdpFinaliseInit";
-        public const string UdpRelayMessage = "UR";
+        public const string UdpInit = "%1";
+        public const string UdpInitResend = "%2";
+        public const string UdpFinaliseInit = "%3";
 
-        public const string NotifyClientInitComplete = "NotifyClientInitComplete";
-        public const string NotifyPeerListUpdate = "PeerListUpdate";
+        public const string NotifyClientInitComplete = "%5";
+        public const string NotifyPeerListUpdate = "%6";
 
-        public const string RequestRegistery = "RequestRegistery";
-        public const string RegisterySucces = "RegisterySucces";
-        public const string RegisteryFail = "RegisteryFail";
-        public const string RegisteryAck = "RegisteryAck";
+        public const string RequestRegistery = "%7";
+        public const string RegisterySucces = "%8";
+        public const string RegisteryFail = "%9";
+        public const string RegisteryAck = "%%";
 
-        public const string HolePunchRequest = "HolePunchRequest";
-        public const string RegisterHolePunchEndpoint = "SendFirstMsg";
-        public const string EndpointTransfer = "EndpointTransfer";
-        public const string HolePunchRegister = "HolePunchRegister";
+       
 
         public static MessageEnvelope MakeRelayMessage(Guid fromId,Guid toId, byte[] payload)
         {

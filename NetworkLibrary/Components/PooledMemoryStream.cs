@@ -8,7 +8,7 @@ using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    /*Tehre is no allccation here, all byte arrays comes from pool and retuned on flush */
+    /*There is no allccation here, all byte arrays comes from pool and retuned on flush */
     public class PooledMemoryStream : Stream
     {
         byte[] bufferInternal;

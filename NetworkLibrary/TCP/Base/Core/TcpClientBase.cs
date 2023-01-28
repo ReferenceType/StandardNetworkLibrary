@@ -127,6 +127,11 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         public abstract void Disconnect();
 
+
+        /// <summary>
+        /// Gets session statistics.
+        /// </summary>
+        /// <param name="generalStats"></param>
         public abstract void GetStatistics(out TcpStatistics generalStats);
 
 

@@ -45,9 +45,11 @@ namespace NetworkLibrary.Utils
         public void Release()
         {
             Interlocked.Exchange(ref lockValue, 0);
-            //mre.Set();
         }
 
-        
+        internal bool TryTake()
+        {
+            return Interlocked.CompareExchange(ref lockValue, 1, 0) == 0;
+        }
     }
 }

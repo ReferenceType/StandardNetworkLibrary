@@ -31,6 +31,8 @@ using System.Buffers;
 using Microsoft.Win32;
 using NetworkLibrary.Components.Statistics;
 using ProtoBuf;
+using System.Net.Sockets;
+using NetworkLibrary.TCP.Base;
 
 namespace ConsoleTest
 {
@@ -59,6 +61,30 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            ////Parallel.For(0, 2, j =>
+            ////{
+            //    for (int i = 0; i < 10000000; i++)
+            //    {
+            //        var client = new AsyncTpcClient();
+            //        client.GatherConfig = ScatterGatherConfig.UseBuffer;
+            //        client.Connect("127.0.0.1", 20012);
+            //        client.SendAsync(ASCIIEncoding.ASCII.GetBytes("GET / HTTP/1.1"));
+            //        Thread.Sleep(1);
+            //        client.SendAsync(ASCIIEncoding.ASCII.GetBytes("GET /text HTTP/1.1"));
+            //        Thread.Sleep(1);
+
+            //        client.Disconnect();
+
+            //    }
+          //  });
+
+            //void ClientBytesReceived(byte[] bytes, int offset, int count)
+            //{
+            //    client.SendAsync(ASCIIEncoding.ASCII.GetBytes("GET / HTTP/1.1"));
+
+            //}
+            //fuck();
+            //FTTest();
             //ExampleProtoSecure();
             //ExampleByteMessage();
             //PoolTest();
@@ -79,15 +105,141 @@ namespace ConsoleTest
             //UdpTest();
             //UdpTest2();
             //UdpTestMc();
+
+
+
+        }
+
+        private static void fuck()
+        {
+            
+
+            AsyncTcpServer server = new AsyncTcpServer(20012);
+            server.OnBytesReceived += ServerBytesReceived;
+            server.StartServer();
+
            
-            
-            
+            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+            {
+                var request = UTF8Encoding.ASCII.GetString(bytes, offset, count);
+                Console.WriteLine(request);
+                var s = request.Split('\r');
+                var c = s[0].Split(' ');
+                if (c[1] == "/")
+                {
+                    server.SendBytesToClient(clientId, ASCIIEncoding.ASCII.GetBytes(
+@"HTTP/1.1 200 OK
+Content-Length: 708
+Content-Type: text/html
+Server: Microsoft-HTTPAPI/2.0
+Access-Control-Allow-Origin: *
+Date: Fri, 27 Jan 2023 18:06:10 GMT
+
+"));
+                    server.SendBytesToClient(clientId, UTF8Encoding.UTF8.GetBytes(@"<!DOCTYPE html>
+<html>
+<head>
+<body>
+<body style=""background-color:black;""><font color=""white""></font>
+<pre style=""font-size: large; color: white;"" id = ""Display""></pre>
+</body>
+<script>
+let hostname = window.location.hostname;
+let url = ""http://""+hostname+"":20012/text"";
+function loadJson()
+{
+var xhttp = new XMLHttpRequest();
+xhttp.onreadystatechange = function()
+{
+if (this.readyState == 4 && this.status == 200)
+{
+let a = xhttp.responseText;
+document.getElementById(""Display"").innerHTML = a;//JSON.stringify(tags,undefined,2)
+}
+};
+xhttp.open(""GET"", url, true);
+xhttp.send();
+}
+loadJson();
+var intervalId = window.setInterval(function(){
+loadJson()
+}, 1000);
+</script>
+</html>"));
+
+                }
+
+
+                if (c[1] == "/text")
+                {
+                    server.SendBytesToClient(clientId, ASCIIEncoding.ASCII.GetBytes(
+@"HTTP/1.1 200 OK
+Content-Length: 208
+Content-Type: text/html
+Server: Microsoft-HTTPAPI/2.0
+Access-Control-Allow-Origin: *
+Date: Fri, 27 Jan 2023 18:06:10 GMT
+
+"));
+                    var response = @"<html><body><body style=""background-color:black;""><font color=""white""><pre style=""font-size: large; color: white;"">Hello
+</pre><script>setTimeout(function(){ location.reload();},1000);</script></body></html>";
+                    server.SendBytesToClient(clientId, UTF8Encoding.UTF8.GetBytes(response));
+                }
+            }
+            Console.ReadLine();
+        }
+
+        private static void FTTest()
+        {
+            Console.ReadLine();
+            long size =0;
+
+            Task.Run(() =>
+            {
+                Socket s = new Socket(AddressFamily.InterNetwork,SocketType.Stream, ProtocolType.Tcp);
+                s.Bind(new IPEndPoint(IPAddress.Any, 1881));
+                s.Listen(1000);
+                var cl = s.Accept();
+                try
+                {
+                    sw.Start();
+                    Console.WriteLine("sening");
+                    string p0 = @"C:\Users\dcano\Downloads\House.of.the.Dragon.S01E08.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-PSA.mkv";
+                    string p1 = @"C:\Users\dcano\Downloads\Doctor Strange (2016) [2160p] [4K] [BluRay] [5.1] [YTS.MX]\Doctor.Strange.2016.2160p.4K.BluRay.x265.10bit.AAC5.1-[YTS.MX].mkv";
+                    cl.SendFile(p1,null,null, TransmitFileOptions.UseKernelApc);
+                    
+                    Console.WriteLine("sent"+sw.ElapsedMilliseconds);
+                    Console.WriteLine(size.ToString());
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+
+                }
+
+            });
+
+            Task.Run(() =>
+            {
+                Socket c = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                c.Connect(new IPEndPoint(IPAddress.Parse("127.0.0.1"), 1881));
+                var buf = new byte[10000000];
+
+
+                var am = 1;
+                while (am != 0)
+                {
+                    am = c.Receive(buf);
+                    size += am;
+                }
+                Console.WriteLine(am.ToString());
+                
+            });
+            Console.ReadLine();
         }
 
         private static void ExampleByteMessage()
         {
-            var ipHostEntry = Dns.GetHostEntry("REMOTE_HOST");
-
             ByteMessageTcpServer server = new ByteMessageTcpServer(20008);
             server.OnBytesReceived += ServerBytesReceived;
             server.StartServer();
@@ -336,17 +488,19 @@ namespace ConsoleTest
                 Header = "Test",
                 Payload = new byte[32]
             };
+           
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-            //var server = new SecureProtoRelayServer(20011, 1000, scert);
+            //var server = new SecureProtoRelayServer(20011, scert);
             //Task.Run(async () =>
             //{
+            //    return;
             //    while (true)
             //    {
             //        await Task.Delay(3000);
-            //        server.GetTcpStatistics(out SessionStats generalStats, out _);
+            //        server.GetTcpStatistics(out var generalStats, out _);
             //        server.GetUdpStatistics(out UdpStatistics generalStatsUdp, out _);
             //        Console.WriteLine(generalStats.ToString());
             //        Console.WriteLine(generalStatsUdp.ToString());
@@ -381,7 +535,7 @@ namespace ConsoleTest
             clients.Add(client1);
             Thread.Sleep(3500);
             //clients[0].Disconnect();
-            //while (!clients[0].RequestHolePunch(clients[0].Peers.First()))
+            //while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First(),1000).Result)
             //{
 
             //}
@@ -401,15 +555,20 @@ namespace ConsoleTest
             });
             Parallel.ForEach(clients,  (client) =>
             {
-                //return;
                 
+                var testMessage_ = new MessageEnvelope()
+                {
+                    Header = "Test",
+                    Payload = new byte[32]
+                };
+
                 for (int i = 0; i < 1000; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                        client.SendAsyncMessage(peer, testMessage); 
+                        client.SendAsyncMessage(peer, testMessage_); 
 
                         //client.SendUdpMesssage(peer, testMessage);
                     }

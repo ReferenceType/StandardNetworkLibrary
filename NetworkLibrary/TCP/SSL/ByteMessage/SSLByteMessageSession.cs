@@ -28,10 +28,10 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
             reader.ParseBytes(buffer, offset, count);
         }
 
-        protected override IMessageProcessQueue CreateMessageQueue()
+        protected override IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
-                return new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
+                return new MessageQueue<UnsafeDelimitedMessageWriter>(MaxIndexedMemory, new UnsafeDelimitedMessageWriter());
 
             else
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: true);

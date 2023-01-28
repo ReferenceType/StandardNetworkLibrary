@@ -5,7 +5,7 @@ using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    internal interface IMessageProcessQueue:IDisposable
+    public interface IMessageQueue:IDisposable
     {
         /// <summary>
         /// Enqueues the message if there is enough space available

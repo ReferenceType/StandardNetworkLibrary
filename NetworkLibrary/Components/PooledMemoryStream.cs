@@ -8,6 +8,7 @@ using System.Text;
 
 namespace NetworkLibrary.Components
 {
+    /*Tehre is no allccation here, all byte arrays comes from pool and retuned on flush */
     public class PooledMemoryStream : Stream
     {
         byte[] bufferInternal;
@@ -31,7 +32,13 @@ namespace NetworkLibrary.Components
 
         private long position = 0;
 
-        public override long Position { get => position; set => position = value; }
+        public override long Position { get => position;
+            set {
+                if (bufferInternal.Length<value)
+                    ExpandInternalBuffer((int)value);
+
+                position = value;
+            } }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Flush()
@@ -57,7 +64,8 @@ namespace NetworkLibrary.Components
 
         public override void SetLength(long value)
         {
-            throw new NotImplementedException();
+            if(Length<value)
+                ExpandInternalBuffer((int)value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -68,23 +76,13 @@ namespace NetworkLibrary.Components
         {
             if(bufferInternal.Length-position < count)
             {
-                if (count > bufferInternal.LongLength * 2)
-                    ExpandInternalBuffer(count*2);
-                else if(bufferInternal.Length != BufferPool.MaxBufferSize)
-                    ExpandInternalBuffer(bufferInternal.Length*2);
-                else
+                int demandSize = count + (bufferInternal.Length);
+                if(demandSize> BufferPool.MaxBufferSize)
                     throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
-
+                else
+                    ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
             }
-            //  Buffer.BlockCopy(buffer, offset, bufferInternal, (int)position, count);
-
-            //try
-            //{
-            //    Buffer.BlockCopy(buffer, offset, bufferInternal, (int)position, count);
-
-            //}
-            //catch (Exception ex)
-            //{ }
+           // fastest copy
             unsafe
             {
                 fixed (byte* destination = &bufferInternal[position])
@@ -107,7 +105,6 @@ namespace NetworkLibrary.Components
             var newBuf = BufferPool.RentBuffer(size);
             if (position > 0)
             {
-                //Buffer.BlockCopy(bufferInternal, 0, newBuf, 0, (int)position);
                 unsafe
                 {
                     fixed (byte* destination = newBuf)
@@ -118,12 +115,9 @@ namespace NetworkLibrary.Components
                 }
             }
           
-
             BufferPool.ReturnBuffer(bufferInternal);
             bufferInternal = newBuf;
         }
-
-     
 
         protected override void Dispose(bool disposing)
         {
@@ -132,8 +126,6 @@ namespace NetworkLibrary.Components
                 BufferPool.ReturnBuffer(bufferInternal);
                 bufferInternal = null;
             }
-           
-           // GC.SuppressFinalize(this);
             base.Dispose(disposing);
         }
     }

@@ -10,24 +10,22 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components
 {
-    internal sealed class MessageQueue<T> : IMessageProcessQueue where T : IMessageProcessor
+    internal sealed class MessageQueue<T> : IMessageQueue where T : IMessageProcessor
     {
+        public int CurrentIndexedMemory => currentIndexedMemory;
+        public long TotalMessageDispatched => totalMessageFlushed;
+
         internal ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
-        int MaxIndexedMemory;
-        int currentIndexedMemory = 0;
+        private int MaxIndexedMemory;
+        private int currentIndexedMemory = 0;
         private T processor;
         private bool flushNext;
         private long totalMessageFlushed;
-        public int CurrentIndexedMemory => currentIndexedMemory;
-
-        public long TotalMessageDispatched => totalMessageFlushed;
 
         public MessageQueue(int maxIndexedMemory, T processor)
         {
             MaxIndexedMemory = maxIndexedMemory;
             this.processor = processor;
-
-
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

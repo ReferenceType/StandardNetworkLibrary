@@ -52,7 +52,7 @@ namespace UnitTests
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
                 toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
-                Console.WriteLine(server.Sessions.Count);
+                Console.WriteLine(server.SessionCount);
 
                 clients.TryAdd(client,-1);
             }
@@ -149,7 +149,7 @@ namespace UnitTests
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
                 toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
-                Console.WriteLine(server.Sessions.Count);
+                Console.WriteLine(server.SessionCount);
 
                 clients.TryAdd(client, -1);
             }
@@ -256,7 +256,7 @@ namespace UnitTests
 
                 //toWait[i] = client.ConnectAsync("127.0.0.1", 2008,"example.com");
                 client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait(); ;
-                Console.WriteLine(server.Sessions.Count);
+                Console.WriteLine(server.SessionCount);
 
                 clients.TryAdd(client, -1);
             }
@@ -360,7 +360,7 @@ namespace UnitTests
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
                 toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
-                Console.WriteLine(server.Sessions.Count);
+                Console.WriteLine(server.SessionCount);
 
                 clients.TryAdd(client, -1);
             }
@@ -467,7 +467,6 @@ namespace UnitTests
 
                 //toWait[i] = client.ConnectAsync("127.0.0.1", 2008,"example.com");
                 client.Connect("127.0.0.1", 2008);
-                Console.WriteLine(server.Sessions.Count);
 
                 clients.TryAdd(client, -1);
             }
@@ -586,7 +585,6 @@ namespace UnitTests
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
                 toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
-                Console.WriteLine(server.Sessions.Count);
 
                 clients.TryAdd(client, -1);
             }

@@ -17,11 +17,10 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         }
 
 
-        internal override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses =  new SslByteMessageSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemory;
-            ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
             ses.RemoteEndpoint = tuple.Item2;
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 ses.UseQueue = true;

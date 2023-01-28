@@ -17,13 +17,13 @@ namespace NetworkLibrary.TCP.SSL.Custom
             this.certificate = certificate;
         }
 
-        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new CustomSslSession(e, sessionId, (byte[])e.UserToken);
             session.socketSendBufferSize = SocketSendBufferSize;
             session.socketRecieveBufferSize = SocketRecieveBufferSize;
-            session.maxIndexedMemory = MaxIndexedMemory;
-            session.dropOnCongestion = DropOnCongestion;
+            session.MaxIndexedMemory = MaxIndexedMemory;
+            session.DropOnCongestion = DropOnCongestion;
             return session;
         }
 

@@ -24,11 +24,12 @@ namespace NetworkLibrary.TCP.SSL.Base
         public ClientAccepted OnClientAccepted;
         public ClientDisconnected OnClientDisconnected;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
-
         // this returns bool
         public ClientConnectionRequest OnClientRequestedConnection;
 
-        internal ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+        public int SessionCount => Sessions.Count;
+
         internal ConcurrentDictionary<Guid, TcpStatistics> Stats { get; } = new ConcurrentDictionary<Guid, TcpStatistics>();
 
 
@@ -50,7 +51,6 @@ namespace NetworkLibrary.TCP.SSL.Base
        
         public override void StartServer()
         {
-
             serverSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             serverSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
             serverSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
@@ -151,7 +151,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 Console.WriteLine("Removed "+id);
         }
 
-        internal virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        protected virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses = new SslSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;

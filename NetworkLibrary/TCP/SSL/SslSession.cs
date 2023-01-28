@@ -13,7 +13,7 @@ using System.Threading;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
-    internal class SslSession : IAsyncSession
+    public class SslSession : IAsyncSession
     {
         public bool DropOnCongestion { get; internal set; }
         public int MaxIndexedMemory = 128000000;
@@ -21,21 +21,20 @@ namespace NetworkLibrary.TCP.SSL.Base
         public event Action<Guid, byte[], int, int> OnBytesRecieved;
         public event Action<Guid> OnSessionClosed;
 
-        protected IMessageProcessQueue messageQueue;
+        protected IMessageQueue messageQueue;
 
-        private Spinlock SendSemaphore = new Spinlock();
-        private Spinlock enqueueLock = new Spinlock();
+        protected Spinlock SendSemaphore = new Spinlock();
+        protected Spinlock enqueueLock = new Spinlock();
         protected SslStream sessionStream;
         protected byte[] receiveBuffer;
         protected byte[] sendBuffer;
-        protected byte[] sendBuffer_;
         protected Guid sessionId;
 
         public int SendBufferSize = 128000;
         public int ReceiveBufferSize = 128000;
 
-        private IPEndPoint RemoteEP;
-        public IPEndPoint RemoteEndpoint { get => RemoteEP; internal set => RemoteEP = value; }
+        protected IPEndPoint RemoteEP;
+        public IPEndPoint RemoteEndpoint { get => RemoteEP;  set => RemoteEP = value; }
 
         private bool disposedValue;
         //private readonly object sendLock = new object();
@@ -49,6 +48,8 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private long totalBytesSendPrev = 0;
         private long totalBytesReceivedPrev = 0;
+        private long totalMsgReceivedPrev;
+        private long totalMessageSentPrev;
 
         public SslSession(Guid sessionId, SslStream sessionStream)
         {
@@ -62,14 +63,14 @@ namespace NetworkLibrary.TCP.SSL.Base
             Receive();
         }
 
-        private void ConfigureBuffers()
+        protected virtual void ConfigureBuffers()
         {
             receiveBuffer = BufferPool.RentBuffer(ReceiveBufferSize);
-            sendBuffer = BufferPool.RentBuffer(SendBufferSize);
-            sendBuffer_ = sendBuffer;
+            if(UseQueue) sendBuffer = BufferPool.RentBuffer(SendBufferSize);
+
         }
 
-        protected virtual IMessageProcessQueue CreateMessageQueue()
+        protected virtual IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
                 return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
@@ -77,18 +78,21 @@ namespace NetworkLibrary.TCP.SSL.Base
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: false);
 
         }
-        public void SendAsync(byte[] buffer, int offset, int count)
-        {
+
+       public void SendAsync(byte[] buffer, int offset, int count)
+       {
             if (IsSessionClosing())
                 return;
-
-            enqueueLock.Take();
-            if (IsSessionClosing())
+            try
             {
-                enqueueLock.Release();
-                return;
+                SendAsync_(buffer, offset, count);
             }
-
+            catch { if (!IsSessionClosing()) throw; }
+        }
+        private void SendAsync_(byte[] buffer, int offset, int count)
+        {
+            enqueueLock.Take();
+            
             if (SendSemaphore.IsTaken())
             {
                 if (messageQueue.TryEnqueueMessage(buffer, offset, count))
@@ -96,15 +100,11 @@ namespace NetworkLibrary.TCP.SSL.Base
                     enqueueLock.Release();
                     return;
                 }
-                // At this point queue is saturated, shall we drop?
-                else if (DropOnCongestion)
-                {
-                    enqueueLock.Release();
-                    return;
-                }
-
-                // Otherwise we will wait semaphore
+              
             }
+            enqueueLock.Release();
+
+            if (DropOnCongestion && SendSemaphore.IsTaken()) return;
 
             SendSemaphore.Take();
             if (IsSessionClosing())
@@ -124,14 +124,16 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (IsSessionClosing())
                 return;
-
-            enqueueLock.Take();
-            if (IsSessionClosing())
+            try
             {
-                enqueueLock.Release();
-                return;
+                SendAsync_(buffer);
             }
-                
+            catch { if (!IsSessionClosing()) throw; }
+        }
+        private void SendAsync_(byte[] buffer)
+        {
+            enqueueLock.Take();
+
             if (SendSemaphore.IsTaken())
             {
                 if (messageQueue.TryEnqueueMessage(buffer))
@@ -139,14 +141,10 @@ namespace NetworkLibrary.TCP.SSL.Base
                     enqueueLock.Release();
                     return;
                 }
-                // At this point queue is saturated, shall we drop?
-                else if (DropOnCongestion)
-                {
-                    enqueueLock.Release();
-                    return;
-                }
-                // Otherwise we will wait semaphore
             }
+            enqueueLock.Release();
+
+            if (DropOnCongestion && SendSemaphore.IsTaken()) return;
 
             SendSemaphore.Take();
             if (IsSessionClosing())
@@ -163,7 +161,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         }
 
-        private void WriteOnSessionStream(int count)
+        protected void WriteOnSessionStream(int count)
         {
             try
             {
@@ -178,6 +176,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private void Sent_(IAsyncResult ar)
         {
+            
             if (ar.CompletedSynchronously)
             {
                 ThreadPool.UnsafeQueueUserWorkItem((s) => Sent(ar), null);
@@ -191,8 +190,9 @@ namespace NetworkLibrary.TCP.SSL.Base
         private void Sent(IAsyncResult ar)
         {
             if (IsSessionClosing())
+            {
                 return;
-
+            }
             try
             {
                 sessionStream.EndWrite(ar);
@@ -242,7 +242,10 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected virtual void Receive()
         {
             if (IsSessionClosing())
+            {
+                ReleaseReceiveResources();
                 return;
+            }
             try
             {
                 sessionStream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, Received, null);
@@ -251,13 +254,17 @@ namespace NetworkLibrary.TCP.SSL.Base
             catch (Exception ex)
             {
                 HandleError("White receiving from SSL socket an error occured", ex);
+                ReleaseReceiveResources();
             }
         }
 
         protected virtual void Received(IAsyncResult ar)
         {
             if (IsSessionClosing())
+            {
+                ReleaseReceiveResources();
                 return;
+            }
 
             int amountRead = 0;
             try
@@ -268,6 +275,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             catch (Exception e)
             {
                 HandleError("While receiving from SSL socket an exception occured ", e);
+                ReleaseReceiveResources();
                 return;
             }
 
@@ -278,6 +286,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             else
             {
                 EndSession();
+                ReleaseReceiveResources();
             }
             totalBytesReceived+= amountRead;
 
@@ -306,8 +315,8 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         protected bool IsSessionClosing()
         {
-            //return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
-            return Volatile.Read(ref SessionClosing) == 1;
+            return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
+           // return Volatile.Read(ref SessionClosing) == 1;
         }
 
         // This method is Idempotent
@@ -315,19 +324,35 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
             {
-
                 sessionStream.Close();
-                sessionStream.Dispose();
-                enqueueLock.Take();
-
-                // SendSemaphore.Dispose();
                 OnSessionClosed?.Invoke(sessionId);
-                //messageQueue = null;
                 Dispose();
             }
 
         }
 
+        int sendResReleased = 0;
+        private void ReleaseSendResources()
+        {
+            if (Interlocked.CompareExchange(ref sendResReleased, 1, 0) == 0)
+            {
+                if (UseQueue) BufferPool.ReturnBuffer(sendBuffer);
+
+                messageQueue?.Dispose();
+                //messageQueue = null;
+                enqueueLock.Release();
+            }
+        }
+
+        int receiveResReleased = 0;
+        private void ReleaseReceiveResources()
+        {
+            if (Interlocked.CompareExchange(ref receiveResReleased,1,0)==0)
+            {
+                BufferPool.ReturnBuffer(receiveBuffer);
+            }
+
+        }
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -337,10 +362,14 @@ namespace NetworkLibrary.TCP.SSL.Base
                     sessionStream.Dispose();
                 }
                 disposedValue = true;
-                BufferPool.ReturnBuffer(receiveBuffer);
-                BufferPool.ReturnBuffer(sendBuffer_);
-                messageQueue?.Dispose();
-                enqueueLock.Release();
+
+                OnBytesRecieved= null;
+                OnSessionClosed = null;
+               
+                sessionStream = null;
+                ReleaseSendResources();
+                enqueueLock.Release();       
+                SendSemaphore.Release();
             }
         }
 
@@ -356,6 +385,12 @@ namespace NetworkLibrary.TCP.SSL.Base
             totalBytesSendPrev = totalBytesSend;
             totalBytesReceivedPrev = totalBytesReceived;
 
+            long deltaMSgReceived = totalMessageReceived - totalMsgReceivedPrev;
+            long deltaMsgSent = messageQueue.TotalMessageDispatched - totalMessageSentPrev;
+
+            totalMsgReceivedPrev = totalMessageReceived;
+            totalMessageSentPrev = messageQueue.TotalMessageDispatched;
+
             return new SessionStatistics(messageQueue.CurrentIndexedMemory,
                 (float)(messageQueue.CurrentIndexedMemory / MaxIndexedMemory),
                 totalBytesReceived,
@@ -363,7 +398,9 @@ namespace NetworkLibrary.TCP.SSL.Base
                 deltaSent,
                 deltaReceived,
                 messageQueue.TotalMessageDispatched,
-                totalMessageReceived);
+                totalMessageReceived,
+                deltaMsgSent,
+                deltaMSgReceived);
         }
         #endregion
     }

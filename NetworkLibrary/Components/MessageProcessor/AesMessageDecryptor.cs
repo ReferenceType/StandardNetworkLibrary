@@ -55,35 +55,36 @@ namespace NetworkLibrary.Components
             IsHoldingMessage = false;
             return true;
         }
-        //public bool ProcessMessage(byte[] message, int offset_, int count_)
-        //{
-        //    if (count > Buffer.Length - offset)
-        //    {
-        //        pendingMessage = message;
-        //        pendingMessageOffset = offset_;
-        //        pendingRemaining = count_;
 
-        //        int availableSpace = Buffer.Length - offset;
-        //        int amountToDecrypt = availableSpace - availableSpace % algorithm.DecryptorInputBlockSize;
-        //        int encryptedAmount = algorithm.PartialDecrpytInto(message, offset_, amountToDecrypt, Buffer, offset);
+        public bool ProcessMessage(byte[] message, int offset_, int count_)
+        {
+            if (count > Buffer.Length - offset)
+            {
+                pendingMessage = message;
+                pendingMessageOffset = offset_;
+                pendingRemaining = count_;
 
-        //        count += encryptedAmount;
-        //        offset += encryptedAmount;
+                int availableSpace = Buffer.Length - offset;
+                int amountToDecrypt = availableSpace - availableSpace % algorithm.DecryptorInputBlockSize;
+                int encryptedAmount = algorithm.PartialDecrpytInto(message, offset_, amountToDecrypt, Buffer, offset);
 
-        //        pendingMessageOffset += amountToDecrypt;
-        //        pendingRemaining = count_ - pendingMessageOffset;
+                count += encryptedAmount;
+                offset += encryptedAmount;
 
-        //        IsHoldingMessage = true;
-        //        return false;
-        //    }
-        //    else
-        //    {
-        //        int amount = algorithm.DecryptInto(message, offset_, message.Length, Buffer, offset);
-        //        count += amount;
-        //        offset += amount;
-        //        return true;
-        //    }
-        //}
+                pendingMessageOffset += amountToDecrypt;
+                pendingRemaining = count_ - pendingMessageOffset;
+
+                IsHoldingMessage = true;
+                return false;
+            }
+            else
+            {
+                int amount = algorithm.DecryptInto(message, offset_, message.Length, Buffer, offset);
+                count += amount;
+                offset += amount;
+                return true;
+            }
+        }
 
         public bool ProcessMessage(byte[] message)
         {

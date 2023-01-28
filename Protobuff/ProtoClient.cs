@@ -6,6 +6,7 @@ using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
+using Protobuff.Components.ProtoTcp;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -20,12 +21,10 @@ namespace Protobuff
 {
     public class ProtoClient
     {
-        private ByteMessageTcpClient client;
-
         public Action<MessageEnvelope> OnMessageReceived;
-
         public Action OnDisconnected;
 
+        private ProtoClientInternal client;
         private ConcurrentProtoSerialiser serialiser;
         private MessageAwaiter awaiter;
         private SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
@@ -33,26 +32,18 @@ namespace Protobuff
        
         public ProtoClient()
         {
-            client = new ByteMessageTcpClient();
+            client = new ProtoClientInternal();
             client.OnBytesReceived += BytesReceived;
             client.OnDisconnected += Disconnected;
-            client.MaxIndexedMemory = 1280000000;
+            client.MaxIndexedMemory = 128000000;
 
+            client.DeserializeMessages = false;
             client.GatherConfig = ScatterGatherConfig.UseBuffer;
 
             serialiser = new ConcurrentProtoSerialiser();
             awaiter = new MessageAwaiter();
         }
 
-        
-        private PooledMemoryStream RentStream()
-        {
-            return streamPool.RentStream();
-        }
-        private void ReturnStream(PooledMemoryStream stream)
-        {
-            streamPool.ReturnStream(stream);
-        }
         public void Connect(string host, int port)
         {
             client.Connect(host, port);
@@ -71,40 +62,29 @@ namespace Protobuff
         {
             OnDisconnected?.Invoke();
         }
-
+        #region Send
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message)
         {
-            var stream = RentStream();
-
-            if (message.Payload != null)
-                serialiser.EnvelopeMessageWithBytes(stream, message, message.Payload, 0, message.Payload.Length);
-            else
-                serialiser.EnvelopeMessageWithBytes(stream, message, null, 0, 0);
-
-            client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-            ReturnStream(stream);
-
+            client.SendAsyncMessage(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message, byte[] buffer, int offset, int count)
         {
-            var stream = RentStream();
-            serialiser.EnvelopeMessageWithBytes(stream, message, buffer, offset, count);
-            client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-            ReturnStream(stream);
+            message.SetPayload(buffer, offset, count);
+            client.SendAsyncMessage(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage<T>(MessageEnvelope message, T payload) where T : IProtoMessage
         {
-            var stream = RentStream();
-            serialiser.EnvelopeMessageWithInnerMessage(stream, message, payload);
-            client.SendAsync(stream.GetBuffer(), 0, (int)stream.Position);
-            ReturnStream(stream);
+            client.SendAsyncMessage(message, payload);
         }
 
+        #endregion Send
+
+        #region SendAndWait
         public async Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeoutMs = 10000)
         {
             message.MessageId = Guid.NewGuid();
@@ -131,19 +111,29 @@ namespace Protobuff
             SendAsyncMessage(message, buffer, offset, count);
             return await result;
         }
+        #endregion
 
         private void BytesReceived(byte[] bytes, int offset, int count)
         {
             MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-            if (message == null)
-                return;
+            
             if (awaiter.IsWaiting(message.MessageId))
-                awaiter.ResponseArrived(message);
+            {
+                message.LockBytes();
+                awaiter.ResponseArrived(message);// maybe consolidate bytes here
+            }
             else
                 OnMessageReceived?.Invoke(message);
 
         }
-
+        private PooledMemoryStream RentStream()
+        {
+            return streamPool.RentStream();
+        }
+        private void ReturnStream(PooledMemoryStream stream)
+        {
+            streamPool.ReturnStream(stream);
+        }
         public void GetStatistics(out TcpStatistics stats)
         {
             client.GetStatistics(out stats);

@@ -112,7 +112,7 @@ namespace NetworkLibrary.Components
 
         public void Dispose()
         {
-            bufferInternal= null;
+            //bufferInternal= null;
         }
     }
 }

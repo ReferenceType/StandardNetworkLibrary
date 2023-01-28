@@ -15,13 +15,13 @@ namespace NetworkLibrary.TCP.ByteMessage
         public ByteMessageTcpClient()
         { }
 
-        internal override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new ByteMessageSession(e, sessionId);
             session.socketSendBufferSize = SocketSendBufferSize;
             session.socketRecieveBufferSize = SocketRecieveBufferSize;
-            session.maxIndexedMemory = MaxIndexedMemory;
-            session.dropOnCongestion = DropOnCongestion;
+            session.MaxIndexedMemory = MaxIndexedMemory;
+            session.DropOnCongestion = DropOnCongestion;
             session.OnSessionClosed += (id) => OnDisconnected?.Invoke();
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)

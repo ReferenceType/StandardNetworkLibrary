@@ -14,7 +14,7 @@ Both assemblies are written on .Net Standard 2.0. Protobuff assembly requires pr
 - The core library is well optimised for small and high traffic messages such as for IoT applications.
 - It emulates MQ systems and offers zero allocation and no extra byte copies.
 - Tcp and SSL high performance server & clients. Supports byte message protocol with 4 byte int size header.
-- Udp server client model with AES encyrption support.
+- Secure Udp server client model with AES encyrption support.
 - Interfaces and blueprints for extention without extra copy with few overrides, see the mothodology on other assembly.
 - Reusable Utility features such as concurrent Aes encryptor-decryptor with 0 allocations.
 

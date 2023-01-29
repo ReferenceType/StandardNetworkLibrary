@@ -26,10 +26,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         // this returns bool
         public ClientConnectionRequest OnClientRequestedConnection;
+        public bool Stopping { get; private set; }
 
-        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
         public int SessionCount => Sessions.Count;
 
+        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
         internal ConcurrentDictionary<Guid, TcpStatistics> Stats { get; } = new ConcurrentDictionary<Guid, TcpStatistics>();
 
 
@@ -37,7 +38,6 @@ namespace NetworkLibrary.TCP.SSL.Base
         private X509Certificate2 certificate;
         private TcpServerStatisticsPublisher statisticsPublisher;
 
-        public bool Stopping { get; private set; }
 
         public SslServer(int port, X509Certificate2 certificate)
         {

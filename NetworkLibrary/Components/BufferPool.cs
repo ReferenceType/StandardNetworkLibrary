@@ -11,7 +11,7 @@ using System.Threading;
 namespace NetworkLibrary
 {
     /*
-     * This behaves like ArrayPool<>. The butckets are TLS due to concurrent bag. ( ThreadLocal<ThreadLocalList> m_locals )
+     * This behaves like ArrayPool<>. The butckets are TLS thx to concurrent bag. ( ThreadLocal<ThreadLocalList> m_locals )
      */
     public class BufferPool
     {
@@ -48,7 +48,6 @@ namespace NetworkLibrary
 
         };
 
-       
         static BufferPool()
         {
             Init();

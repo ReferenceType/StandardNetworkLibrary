@@ -16,15 +16,12 @@ namespace NetworkLibrary.TCP.Base
 {
     public class AsyncTpcClient : TcpClientBase,IDisposable
     {
-        #region Fields & Props
-
-        private Socket clientSocket;
-        private TaskCompletionSource<bool> connectedCompletionSource;
         protected bool connected = false;
         internal IAsyncSession session;
-        private TcpClientStatisticsPublisher statisticsPublisher;
 
-        #endregion Fields & Props
+        private TcpClientStatisticsPublisher statisticsPublisher;
+        private Socket clientSocket;
+        private TaskCompletionSource<bool> connectedCompletionSource;
 
         public AsyncTpcClient() {}
 
@@ -123,6 +120,7 @@ namespace NetworkLibrary.TCP.Base
             if (connected)
                 session?.SendAsync(buffer);
         }
+
         public override void SendAsync(byte[] buffer, int offset, int count)
         {
             if (connected)
@@ -147,7 +145,7 @@ namespace NetworkLibrary.TCP.Base
 
         public override void Disconnect()
         {
-            // session will fire OnDisconnected;
+            // session will fire OnDisconnected event of its own;
             session.EndSession();
             IsConnected = false;
         }
@@ -165,7 +163,6 @@ namespace NetworkLibrary.TCP.Base
                 catch { }
             }
             
-            //bufferManager?.Dispose();
         }
 
         public override void GetStatistics(out TcpStatistics generalStats)

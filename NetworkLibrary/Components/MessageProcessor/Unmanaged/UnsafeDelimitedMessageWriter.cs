@@ -34,6 +34,8 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
         {
             if (IsHoldingMessage)
                 throw new InvalidOperationException("You can not process new message before heldover message is fully flushed");
+            if (bufferInternal == null)
+                return false;
             else if (bufferInternal.Length - offset >= 36)
             {
                 fixed (byte* b = &bufferInternal[offset])

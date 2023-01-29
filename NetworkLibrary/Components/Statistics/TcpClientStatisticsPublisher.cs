@@ -26,7 +26,6 @@ namespace NetworkLibrary.Components.Statistics
 
             }
 
-
             internal void GetStatistics(out TcpStatistics generalStats)
             {
                 GetSessionStats();

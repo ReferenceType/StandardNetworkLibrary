@@ -22,51 +22,41 @@ namespace NetworkLibrary.TCP.Base
     public class TcpSession : IAsyncSession 
     {
         #region Fields & Props
-        protected IMessageQueue messageBuffer;
-        // this ill be on SAEA objects and provided by buffer provider.
-        protected byte[] sendBuffer;
-        protected byte[] recieveBuffer;
-
-        protected SocketAsyncEventArgs ClientSendEventArg;
-        protected SocketAsyncEventArgs ClientRecieveEventArg;
-
-        protected Socket sessionSocket;
 
         public event Action<Guid, byte[], int, int> OnBytesRecieved;
         public event Action<Guid> OnSessionClosed;
-
         public Guid SessionId;
-
         public int socketRecieveBufferSize = 128000;
-        internal int socketSendBufferSize = 128000;
         public int MaxIndexedMemory = 1280000;
-        protected int currentIndexedMemory = 0;
         public bool DropOnCongestion = false;
 
-
-        private int disposeStatus = 0;
+        protected IMessageQueue messageBuffer;
+        protected byte[] sendBuffer;
+        protected byte[] recieveBuffer;
+        protected SocketAsyncEventArgs ClientSendEventArg;
+        protected SocketAsyncEventArgs ClientRecieveEventArg;
+        protected Socket sessionSocket;
+        protected int currentIndexedMemory = 0;
         protected int SessionClosing = 0;
-        private int SendBufferReleased = 0;
-        private int ReceiveBufferReleased = 0;
-
-
         protected Spinlock SendSemaphore = new Spinlock();
         protected Spinlock enqueueLock = new Spinlock();
 
-        private int disconnectStatus;
-
+        internal int socketSendBufferSize = 128000;
         internal bool UseQueue = true;
-        #endregion
 
+        private int disposeStatus = 0;
+        private int SendBufferReleased = 0;
+        private int ReceiveBufferReleased = 0;
+        private int disconnectStatus;
         private long totalBytesSend;
         private long totalBytesReceived;
-
         private long totalBytesSendPrev=0;
         private long totalBytesReceivedPrev=0;
-
         private long totalMessageReceived=0;
         private long totalMsgReceivedPrev;
         private long totalMSgSentPrev;
+
+        #endregion
 
         public IPEndPoint RemoteEndpoint => (IPEndPoint)sessionSocket.RemoteEndPoint;
 
@@ -106,8 +96,6 @@ namespace NetworkLibrary.TCP.Base
 
             SendSemaphore = new Spinlock();
         }
-
-        
 
         protected virtual void InitialiseReceiveArgs()
         {
@@ -293,7 +281,6 @@ namespace NetworkLibrary.TCP.Base
             catch { EndSession(); }
         }
 
-
         private void SendComplete(object ignored, SocketAsyncEventArgs e)
         {
             if (IsSessionClosing())
@@ -356,7 +343,6 @@ namespace NetworkLibrary.TCP.Base
 
         #endregion Send
 
-
         protected void Disconnect()
         {
             EndSession();
@@ -396,8 +382,6 @@ namespace NetworkLibrary.TCP.Base
                 enqueueLock.Take();
                 ClientSendEventArg.Dispose();
                 messageBuffer?.Dispose();
-                //ClientSendEventArg= null;
-                //messageBuffer = null;
 
                 if (UseQueue)
                     BufferPool.ReturnBuffer(sendBuffer);
@@ -474,14 +458,11 @@ namespace NetworkLibrary.TCP.Base
             
             sessionSocket.Close();
             sessionSocket.Dispose();
-            sessionSocket = null;
-
-            MiniLogger.Log(MiniLogger.LogLevel.Debug, string.Format("Session with Guid: {0} is disposed", SessionId));
+            sessionSocket = null;  
             
             ReleaseSendResources();
             SendSemaphore.Release();
-            
-            //ReleaseReceiveResources();
+            MiniLogger.Log(MiniLogger.LogLevel.Debug, string.Format("Session with Guid: {0} is disposed", SessionId));
 
         }
 

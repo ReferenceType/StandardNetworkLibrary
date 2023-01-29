@@ -5,6 +5,7 @@ using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Generic;
 using System.Net.Security;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
@@ -44,28 +45,27 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
         }
         public void SendAsync(MessageEnvelope message)
         {
-            enqueueLock.Take();
             if (IsSessionClosing())
+                return;
+            try
+            {
+                SendAsyncInternal(message);
+            }
+            catch { if (!IsSessionClosing()) throw; }
+        }
+
+        private void SendAsyncInternal(MessageEnvelope message)
+        {
+            enqueueLock.Take();
+            if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(message))
             {
                 enqueueLock.Release();
                 return;
             }
+            enqueueLock.Release();
 
-            if (SendSemaphore.IsTaken())
-            {
-                if (mq.TryEnqueueMessage(message))
-                {
-                    enqueueLock.Release();
-                    return;
-                }
-                // At this point queue is saturated, shall we drop?
-                else if (DropOnCongestion)
-                {
-                    enqueueLock.Release();
-                    return;
-                }
-                // Otherwise we will wait semaphore
-            }
+            if (DropOnCongestion && SendSemaphore.IsTaken())
+                return;
 
             SendSemaphore.Take();
             if (IsSessionClosing())
@@ -74,37 +74,35 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
                 return;
             }
 
-            // you have to push it to queue because queue also does the processing.
             mq.TryEnqueueMessage(message);
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
-            enqueueLock.Release();
 
         }
+
         public void SendAsync<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
         {
-            enqueueLock.Take();
             if (IsSessionClosing())
+                return;
+            try
+            {
+                SendAsyncInternal(envelope, message);
+            }
+            catch { if (!IsSessionClosing()) throw; }
+        }
+
+        private void SendAsyncInternal<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
+        {
+            enqueueLock.Take();
+            if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(envelope, message))
             {
                 enqueueLock.Release();
                 return;
             }
+            enqueueLock.Release();
 
-            if (SendSemaphore.IsTaken())
-            {
-                if (mq.TryEnqueueMessage(envelope, message))
-                {
-                    enqueueLock.Release();
-                    return;
-                }
-                // At this point queue is saturated, shall we drop?
-                else if (DropOnCongestion)
-                {
-                    enqueueLock.Release();
-                    return;
-                }
-                // Otherwise we will wait semaphore
-            }
+            if (DropOnCongestion && SendSemaphore.IsTaken())
+                return;
 
             SendSemaphore.Take();
             if (IsSessionClosing())
@@ -117,7 +115,6 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
             mq.TryEnqueueMessage(envelope, message);
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
-            enqueueLock.Release();
 
         }
 

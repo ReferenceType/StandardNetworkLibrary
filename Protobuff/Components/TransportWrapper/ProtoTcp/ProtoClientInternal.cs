@@ -19,11 +19,13 @@ namespace Protobuff.Components.ProtoTcp
         {
             OnBytesReceived += HandleBytes;
         }
+
         private void HandleBytes(byte[] bytes, int offset, int count)
         {
             var msg = serializer.DeserialiseEnvelopedMessage(bytes, offset, count);
             OnMessageReceived?.Invoke(msg);
         }
+
         protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = new ProtoSessionInternal(e, sessionId);
@@ -38,18 +40,16 @@ namespace Protobuff.Components.ProtoTcp
             return ses;
         }
 
-      
         public void SendAsyncMessage(MessageEnvelope message)
         {
             if (protoSession != null)
                 protoSession.SendAsync(message);
-
         }
+
         public void SendAsyncMessage<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
         {
             if (protoSession != null)
                 protoSession.SendAsync(envelope, message);
-
         }
     }
 }

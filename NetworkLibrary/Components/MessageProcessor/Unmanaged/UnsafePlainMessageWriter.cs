@@ -36,9 +36,6 @@ namespace NetworkLibrary.Components
 
             if (bufferInternal.Length - offset >= message.Length)
             {
-               // System.Buffer.BlockCopy(message, 0, bufferInternal, offset, message.Length);
-
-
                 //System.Buffer.BlockCopy(message, 0, bufferInternal, offset, message.Length);
                 fixed (byte* destination = &bufferInternal[offset])
                 {

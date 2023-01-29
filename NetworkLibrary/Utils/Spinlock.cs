@@ -31,8 +31,6 @@ namespace NetworkLibrary.Utils
                     {
                         spinWait.SpinOnce();
                     }
-
-
                 }
             }
           

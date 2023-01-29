@@ -18,7 +18,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         protected readonly object loki =  new object();
         protected bool writeLengthPrefix;
         protected int currentIndexedMemory;
-        private bool disposedValue;
+        protected bool disposedValue;
 
         public MessageBuffer(int maxIndexedMemory, bool writeLengthPrefix = true)
         {
@@ -33,10 +33,11 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool TryEnqueueMessage(byte[] bytes)
         {
-            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
+            lock (loki)
             {
-                lock (loki)
+                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory&& !disposedValue)
                 {
+                
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
@@ -59,10 +60,11 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryEnqueueMessage(byte[] bytes, int offset, int count)
         {
-            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
+            lock (loki)
             {
-                lock (loki)
+                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
                 {
+                
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
@@ -84,14 +86,14 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryFlushQueue(ref byte[] buffer, int offset, out int amountWritten)
         {
-            if (IsEmpty())
-            {
-                amountWritten = 0;
-                return false;
-            }
-
             lock (loki)
             {
+                if (IsEmpty())
+                {
+                    amountWritten = 0;
+                    return false;
+                }
+
                 var temp = writeStream;
                 writeStream = flushStream;
                 flushStream = temp;
@@ -110,20 +112,22 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            lock (loki)
             {
-                disposedValue = true;
-                if (disposing)
+                if (!disposedValue)
                 {
-                    writeStream.Flush();
-                    flushStream.Flush();
-                    writeStream.Dispose();
-                    flushStream.Dispose();
+                    Volatile.Write(ref disposedValue, true);
+                    if (disposing)
+                    {
+                        writeStream.Flush();
+                        flushStream.Flush();
+                        writeStream.Dispose();
+                        flushStream.Dispose();
+                    }
                 }
             }
+           
         }
-
-       
 
         public void Dispose()
         {

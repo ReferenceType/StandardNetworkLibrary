@@ -15,37 +15,30 @@ namespace NetworkLibrary.TCP.SSL.Base
 {
     public class SslSession : IAsyncSession
     {
-        public bool DropOnCongestion { get; internal set; }
-        public int MaxIndexedMemory = 128000000;
-
         public event Action<Guid, byte[], int, int> OnBytesRecieved;
         public event Action<Guid> OnSessionClosed;
+        public IPEndPoint RemoteEndpoint { get => RemoteEP; set => RemoteEP = value; }
+        public bool DropOnCongestion { get; internal set; }
+        public int MaxIndexedMemory = 128000000;
+        public int SendBufferSize = 128000;
+        public int ReceiveBufferSize = 128000;
 
         protected IMessageQueue messageQueue;
-
         protected Spinlock SendSemaphore = new Spinlock();
         protected Spinlock enqueueLock = new Spinlock();
         protected SslStream sessionStream;
         protected byte[] receiveBuffer;
         protected byte[] sendBuffer;
         protected Guid sessionId;
-
-        public int SendBufferSize = 128000;
-        public int ReceiveBufferSize = 128000;
-
         protected IPEndPoint RemoteEP;
-        public IPEndPoint RemoteEndpoint { get => RemoteEP;  set => RemoteEP = value; }
-
-        private bool disposedValue;
-        //private readonly object sendLock = new object();
-
-        private int SessionClosing = 0;
 
         internal bool UseQueue = true;
+
+        private bool disposedValue;
+        private int SessionClosing = 0;
         private long totalBytesSend;
         private long totalBytesReceived;
         private long totalMessageReceived=0;
-
         private long totalBytesSendPrev = 0;
         private long totalBytesReceivedPrev = 0;
         private long totalMsgReceivedPrev;
@@ -165,7 +158,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             try
             {
-                sessionStream.BeginWrite(sendBuffer, 0, count, Sent_, null);
+                sessionStream.BeginWrite(sendBuffer, 0, count, SentInternal, null);
             }
             catch (Exception ex)
             {
@@ -174,7 +167,7 @@ namespace NetworkLibrary.TCP.SSL.Base
              totalBytesSend+=count;
         }
 
-        private void Sent_(IAsyncResult ar)
+        private void SentInternal(IAsyncResult ar)
         {
             
             if (ar.CompletedSynchronously)
@@ -249,7 +242,6 @@ namespace NetworkLibrary.TCP.SSL.Base
             try
             {
                 sessionStream.BeginRead(receiveBuffer, 0, receiveBuffer.Length, Received, null);
-
             }
             catch (Exception ex)
             {
@@ -306,7 +298,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         }
 
-        #region Closure
+        #region Closure & Disposal
         protected virtual void HandleError(string context, Exception e)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Error, "Context : " + context + " Message : " + e.Message);
@@ -316,7 +308,6 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected bool IsSessionClosing()
         {
             return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
-           // return Volatile.Read(ref SessionClosing) == 1;
         }
 
         // This method is Idempotent
@@ -339,7 +330,6 @@ namespace NetworkLibrary.TCP.SSL.Base
                 if (UseQueue) BufferPool.ReturnBuffer(sendBuffer);
 
                 messageQueue?.Dispose();
-                //messageQueue = null;
                 enqueueLock.Release();
             }
         }

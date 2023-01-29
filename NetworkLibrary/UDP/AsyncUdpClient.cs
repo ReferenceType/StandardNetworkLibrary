@@ -14,13 +14,9 @@ namespace NetworkLibrary.UDP
     public class AsyncUdpClient : IDisposable
     {
         public delegate void BytesRecieved(byte[] bytes, int offset, int count);
-
         public BytesRecieved OnBytesRecieved;
-
         public Action<Exception> OnError;
         public Action OnConnected;
-        private Socket clientSocket;
-
         public bool Connected { get; private set; } = false;
         public int ReceiveBufferSize
         {
@@ -42,11 +38,11 @@ namespace NetworkLibrary.UDP
         public EndPoint LocalEndpoint => clientSocket.LocalEndPoint;
 
         public EndPoint RemoteEndPoint { get => remoteEndPoint; private set => remoteEndPoint = value; }
+        protected byte[] recieveBuffer;
 
         private int receiveBufferSize = 12800000;
         private int socketSendBufferSize = 128000000;
-
-        protected byte[] recieveBuffer;
+        private Socket clientSocket;
         private IAsyncResult activeRec;
         private EndPoint remoteEndPoint;
 
@@ -119,7 +115,6 @@ namespace NetworkLibrary.UDP
                 try
                 {
                     clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
-
                 }
                 catch (Exception e)
                 {
@@ -143,6 +138,7 @@ namespace NetworkLibrary.UDP
             }
 
         }
+
         private void EndRecieve(IAsyncResult ar)
         {
             int amount = 0;
@@ -188,7 +184,6 @@ namespace NetworkLibrary.UDP
             OnBytesRecieved?.Invoke(buffer, offset, count);
         }
 
-
         public virtual void SendAsync(byte[] bytes, int offset, int count)
         {
             try
@@ -200,12 +195,11 @@ namespace NetworkLibrary.UDP
             {
             }
         }
+
         public void SendAsync(byte[] bytes)
         {
             SendAsync(bytes, 0, bytes.Length);
         }
-
-
 
         public void JoinMulticastGroup(IPAddress multicastAddr)
         {

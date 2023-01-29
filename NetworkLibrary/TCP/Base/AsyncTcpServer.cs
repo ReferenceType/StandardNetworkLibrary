@@ -15,24 +15,17 @@ namespace NetworkLibrary.TCP.Base
 {
     public class AsyncTcpServer:TcpServerBase
     {
-        
-        #region Fields & Props
-
         public ClientAccepted OnClientAccepted;
         public BytesRecieved OnBytesReceived;
         public ClientDisconnected OnClientDisconnected;
         public ClientConnectionRequest OnClientAccepting = (socket) => true;
-
-        //public BufferProvider BufferManager { get; private set; }
-        protected Socket ServerSocket;
-        private TcpServerStatisticsPublisher statisticsPublisher;
-
-        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
-
-        public int SessionCount=>Sessions.Count;
+        public int SessionCount => Sessions.Count;
         public bool Stopping { get; private set; }
 
-        #endregion
+        protected Socket ServerSocket;
+        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+
+        private TcpServerStatisticsPublisher statisticsPublisher;
 
         public AsyncTcpServer(int port = 20008)
         {
@@ -42,14 +35,11 @@ namespace NetworkLibrary.TCP.Base
         #region Start
         public override void StartServer()
         {
-            //BufferManager = new BufferProvider(MaxClients, ClientSendBufsize, MaxClients, ClientReceiveBufsize);
-
             ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             ServerSocket.NoDelay = NaggleNoDelay;
             ServerSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
             ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
             ServerSocket.Listen(10000);
-
 
             SocketAsyncEventArgs e = new SocketAsyncEventArgs();
             e.Completed += Accepted;
@@ -57,10 +47,8 @@ namespace NetworkLibrary.TCP.Base
             {
                 Accepted(null, e);
             }
+
             statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
-
-
-
         }
 
 
@@ -71,6 +59,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (Stopping)
                 return;
+
             SocketAsyncEventArgs nextClient = new SocketAsyncEventArgs();
             nextClient.Completed += Accepted;
 
@@ -85,21 +74,22 @@ namespace NetworkLibrary.TCP.Base
                 return;
             }
 
-            if (!HandleConnectionRequest(acceptedArg))
+            if (!IsConnectionAllowed(acceptedArg))
             {
+                acceptedArg.Dispose();
                 return;
             }
             
             Guid clientGuid = Guid.NewGuid();
             var session = CreateSession(acceptedArg, clientGuid);
 
-            session.OnBytesRecieved += (sessionId, bytes, offset, count) => { HandleBytesRecieved(sessionId, bytes, offset, count); };
-            session.OnSessionClosed += (sessionId) => { HandleDeadSession(sessionId); };
+            session.OnBytesRecieved += HandleBytesRecieved;
+            session.OnSessionClosed += HandleDeadSession;
 
             Sessions.TryAdd(clientGuid, session);
 
             string msg = "Accepted with port: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Port +
-                " Ip: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Address.ToString();
+                         " Ip: " + ((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint).Address.ToString();
 
             MiniLogger.Log(MiniLogger.LogLevel.Info, msg);
             session.StartSession();
@@ -107,7 +97,7 @@ namespace NetworkLibrary.TCP.Base
             HandleClientAccepted(clientGuid, acceptedArg);
         }
 
-        protected virtual bool HandleConnectionRequest(SocketAsyncEventArgs acceptArgs)
+        protected virtual bool IsConnectionAllowed(SocketAsyncEventArgs acceptArgs)
         {
             return OnClientAccepting.Invoke(acceptArgs.AcceptSocket);
         }
@@ -152,14 +142,14 @@ namespace NetworkLibrary.TCP.Base
             if(Sessions.TryGetValue(id,out var session))
                 session.SendAsync(bytes);
         }
+
         public void SendBytesToClient(in Guid id, byte[] bytes, int offset, int count)
         {
             if (Sessions.TryGetValue(id, out var session))
                 session.SendAsync(bytes,offset,count);
         }
 
-
-        protected virtual void HandleBytesRecieved(in Guid guid, byte[] bytes, int offset, int count)
+        protected virtual void HandleBytesRecieved(Guid guid, byte[] bytes, int offset, int count)
         {
             OnBytesReceived?.Invoke(in guid, bytes, offset, count);
         }

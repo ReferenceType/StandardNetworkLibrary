@@ -20,7 +20,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
             this.certificate = certificate;
         }
 
-        protected override bool HandleConnectionRequest(SocketAsyncEventArgs acceptArgs)
+        protected override bool IsConnectionAllowed(SocketAsyncEventArgs acceptArgs)
         {
             // Todo do ssl part of server here
             var sslStream = new SslStream(new NetworkStream(acceptArgs.AcceptSocket, false), false, ValidateCeriticate);

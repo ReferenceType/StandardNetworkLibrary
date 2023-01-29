@@ -21,7 +21,7 @@ namespace NetworkLibrary.Components
         {
             bufferInternal = BufferPool.RentBuffer(minCapacity);
         }
-
+        // write only memory?? :)
         public override bool CanRead => false;
 
         public override bool CanSeek => false;

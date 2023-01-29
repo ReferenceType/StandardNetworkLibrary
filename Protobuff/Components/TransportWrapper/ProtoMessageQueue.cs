@@ -24,9 +24,9 @@ namespace Protobuff.Components
 
         public bool TryEnqueueMessage<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
         {
-            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
+            lock (loki)
             {
-                lock (loki)
+                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
                 {
                     TotalMessageDispatched++;
 
@@ -55,9 +55,10 @@ namespace Protobuff.Components
 
         public bool TryEnqueueMessage(MessageEnvelope envelope)
         {
-            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
+            
+            lock (loki)
             {
-                lock (loki)
+                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
                 {
                     TotalMessageDispatched++;
 

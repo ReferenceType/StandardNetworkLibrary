@@ -19,16 +19,7 @@ namespace NetworkLibrary.UDP
         public delegate void BytesRecieved(IPEndPoint adress, byte[] bytes, int offset, int count);
         public ClientAccepted OnClientAccepted;
         public BytesRecieved OnBytesRecieved;
-
-        protected Socket ServerSocket;
-
-        protected ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs> RegisteredClients = new ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs>();
-        protected ConcurrentDictionary<IPEndPoint, UdpStatistics> Statistics = new ConcurrentDictionary<IPEndPoint, UdpStatistics>();
-
-        protected int port = 0;
-        private UdpStatisticsPublisher statisticsPublisher;
-        protected EndPoint serverEndpoint;
-        protected EndPoint multicastEndpoint;
+        public int ClientReceiveBufferSize = 65000;
 
         public int SocketReceiveBufferSize
         {
@@ -51,11 +42,16 @@ namespace NetworkLibrary.UDP
 
         private int receiveBufferSize = 1280000000;
         private int socketSendBufferSize = 1280000000;
+        protected Socket ServerSocket;
+        protected ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs> RegisteredClients 
+            = new ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs>();
+        protected ConcurrentDictionary<IPEndPoint, UdpStatistics> Statistics 
+            = new ConcurrentDictionary<IPEndPoint, UdpStatistics>();
+        protected int port = 0;
 
-        public int ClientReceiveBufferSize = 65000;
-
-       
-
+        protected EndPoint serverEndpoint;
+        protected EndPoint multicastEndpoint;
+        private UdpStatisticsPublisher statisticsPublisher;
 
         public AsyncUdpServer(int port = 20008)
         {

@@ -2,6 +2,17 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>Protobuf.Network.Library</PackageId>
+    <Title>Protobuf Network Library</Title>
+    <Authors>ReferenceType</Authors>
+    <Description>Message passing and P2P network library using protobuf  .net </Description>
+    <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
+    <Copyright>Apache-2.0</Copyright>
+    <Product>ProtobufNetworkLibrary</Product>
+    <PackageLicenseFile>Licence.txt</PackageLicenseFile>
+    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +25,12 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>ConsoleTest</_Parameter1>
     </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\Licence.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />

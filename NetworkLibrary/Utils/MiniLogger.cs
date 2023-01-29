@@ -7,11 +7,11 @@ namespace NetworkLibrary.Utils
     public class MiniLogger
     {
         public enum LogLevel { Debug, Info, Warning, Error };
-        public static Action<string> LogDebug;
-        public static Action<string> LogInfo;
-        public static Action<string> LogWarn;
-        public static Action<string> LogError;
-        public static Action<string> AllLog;
+        public static event Action<string> LogDebug;
+        public static event Action<string> LogInfo;
+        public static event Action<string> LogWarn;
+        public static event Action<string> LogError;
+        public static event Action<string> AllLog;
 
         public static void Log(LogLevel level, string message)
         {

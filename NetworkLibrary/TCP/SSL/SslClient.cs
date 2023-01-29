@@ -14,17 +14,12 @@ namespace NetworkLibrary.TCP.SSL.Base
 {
     public class SslClient:TcpClientBase
     {
-        #region Fields & Props
-
-        //public BytesRecieved OnBytesReceived;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
-
         protected Socket clientSocket;
         protected SslStream sslStream;
         protected IAsyncSession clientSession;
         private X509Certificate2 certificate;
         private TcpClientStatisticsPublisher statisticsPublisher;
-        #endregion
 
         public SslClient(X509Certificate2 certificate)
         {
@@ -38,7 +33,9 @@ namespace NetworkLibrary.TCP.SSL.Base
             Socket socket  = new Socket(SocketType.Stream, ProtocolType.Tcp);
             return socket;
         }
+
         #region Connect
+
         public override void Connect(string ip, int port)
         {
             try
@@ -104,7 +101,6 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private void Connected(string domainName, Socket clientSocket)
         {
-            
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
             sslStream.AuthenticateAsClient(domainName,
             new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
@@ -119,10 +115,10 @@ namespace NetworkLibrary.TCP.SSL.Base
             IsConnecting = false;
             IsConnected = true;
         }
+
         #endregion Connect
 
         #region Validate
-        
 
         protected virtual bool ValidateCeriticate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {

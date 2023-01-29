@@ -5,7 +5,9 @@ This library Consist of two assemblies.
 
  - Protobuff Assembly where I used the core library as reference and extended it with the protobuf .net as message protocol and implemented higher level features such as P2P network with relay and holepunching system. The generic server client model has both the SSL variant and regular variant, however P2P network is only done base on SSL variant. You can also use this library as a reference to see how the core library extends if you want to use your own protocol.
 
-Both assemblies are written on .Net Standard 2.0. Protobuff assembly requires protobuf.net package, which you can get from NuGet.
+Both assemblies are written on .Net Standard 2.0. Protobuff assembly requires protobuf.net package.
+<br />Available on Nuget: https://www.nuget.org/packages/Standard.Network.Library/
+<br />Available on Nuget: https://www.nuget.org/packages/Protobuf.Network.Library/
 
 ## Features
 ### CoreLib features

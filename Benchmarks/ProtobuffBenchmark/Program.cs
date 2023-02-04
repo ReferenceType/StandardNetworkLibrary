@@ -53,7 +53,7 @@ internal class Program
         if (runAsClient) Benchmark();
 
         ShowStatus();
-        Environment.Exit(0);
+        Console.ReadLine();
     }
     private static void InitializeServer()
     {
@@ -149,6 +149,8 @@ internal class Program
         {
             if (runAsServer)
             {
+                GC.Collect();
+
                 server.GetStatistics(out TcpStatistics general, out var _);
                 Console.WriteLine("-> Server Statistics Snapshot:");
                 Console.WriteLine(general.ToString());
@@ -176,7 +178,6 @@ internal class Program
                 //Console.WriteLine("Elapsed " + lastTimeStamp);
                 var elapsedSeconds = (double)lastTimeStamp / 1000;
                 var messagePerSecond = totMsgClient / elapsedSeconds;
-
 
                 Console.WriteLine("-> Client Statistics Snapshot: ");
                 Console.WriteLine(TcpStatistics.GetAverageStatistics(stats).ToString());

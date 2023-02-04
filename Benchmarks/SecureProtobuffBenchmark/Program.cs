@@ -37,8 +37,7 @@ internal class Program
     private static ThreadLocal<long> TotalNumMsgServer = new ThreadLocal<long>(true);
     static void Main(string[] args)
     {
-        //TcpTest();
-        //TcpTest2();
+       
         var config = ConsoleInputHandler.ObtainConfig();
         runAsClient = config.runAsClient;
         runAsServer = config.runAsServer;
@@ -52,7 +51,7 @@ internal class Program
         if (runAsClient) Benchmark();
 
         ShowStatus();
-        Environment.Exit(0);
+        Console.ReadLine();
     }
     private static void InitializeServer()
     {

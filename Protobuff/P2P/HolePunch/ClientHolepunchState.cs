@@ -53,7 +53,11 @@ namespace Protobuff.P2P.HolePunch
         private async void StartLifetimeCounter(int lifeSpanMs)
         {
             await Task.Delay(lifeSpanMs);
-            Completion.TrySetResult(null);
+            if (!Completion.Task.IsCompleted)
+            {
+                holepunchClient.Dispose();
+                Completion.TrySetResult(null);
+            }
         }
 
         private void CreateUdpChannel(MessageEnvelope message)

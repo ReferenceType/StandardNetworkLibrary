@@ -235,6 +235,11 @@ namespace NetworkLibrary.Components
             BufferPool.ReturnBuffer(internalBufer);
             internalBufer = BufferPool.RentBuffer(originalCapacity);
         }
+
+        public void ReleaseResources()
+        {
+            if(internalBufer!= null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
+        }
         #endregion
     }
 }

@@ -28,7 +28,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool IsEmpty()
         {
-             return disposedValue || writeStream.Position == 0;
+             return Volatile.Read(ref disposedValue) || writeStream.Position == 0;
         }
 
         public bool TryEnqueueMessage(byte[] bytes)

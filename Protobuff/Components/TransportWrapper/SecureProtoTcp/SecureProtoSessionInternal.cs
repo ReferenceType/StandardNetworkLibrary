@@ -24,6 +24,7 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
         {
             reader = new ByteMessageReader(sessionId);
             reader.OnMessageReady += HandleMessage;
+            UseQueue = false;
         }
 
         protected override IMessageQueue CreateMessageQueue()
@@ -37,7 +38,7 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
         }
         protected override void HandleReceived(byte[] buffer, int offset, int count)
         {
-            reader.ParseBytes(buffer, offset, count);
+            reader.ParseBytes(buffer, offset, count);        
         }
         protected override void ConfigureBuffers()
         {
@@ -57,6 +58,8 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
         private void SendAsyncInternal(MessageEnvelope message)
         {
             enqueueLock.Take();
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
             if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(message))
             {
                 enqueueLock.Release();
@@ -70,6 +73,7 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -94,6 +98,8 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
         private void SendAsyncInternal<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
         {
             enqueueLock.Take();
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
             if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(envelope, message))
             {
                 enqueueLock.Release();
@@ -107,6 +113,7 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -118,5 +125,12 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
 
         }
 
+        protected override void ReleaseReceiveResources()
+        {
+            base.ReleaseReceiveResources();
+            reader.ReleaseResources();
+            reader = null;
+
+        }
     }
 }

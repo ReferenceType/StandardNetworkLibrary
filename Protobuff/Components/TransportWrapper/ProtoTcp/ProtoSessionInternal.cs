@@ -19,6 +19,7 @@ namespace Protobuff.Components.ProtoTcp
         {
             reader = new ByteMessageReader(sessionId);
             reader.OnMessageReady += HandleMessage;
+            UseQueue = false;
         }
 
         protected override IMessageQueue CreateMessageQueue()
@@ -52,6 +53,8 @@ namespace Protobuff.Components.ProtoTcp
         private void SendAsyncInternal(MessageEnvelope message)
         {
             enqueueLock.Take();
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
             if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(message))
             {
                 enqueueLock.Release();
@@ -65,6 +68,7 @@ namespace Protobuff.Components.ProtoTcp
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -91,6 +95,8 @@ namespace Protobuff.Components.ProtoTcp
         private void SendAsyncInternal<T>(MessageEnvelope envelope, T message) where T: IProtoMessage
         {
             enqueueLock.Take();
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
             if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(envelope,message))
             {
                 enqueueLock.Release();
@@ -104,6 +110,7 @@ namespace Protobuff.Components.ProtoTcp
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -113,5 +120,14 @@ namespace Protobuff.Components.ProtoTcp
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             FlushSendBuffer(0, amountWritten);
         }
+
+        protected override void ReleaseReceiveResources()
+        {
+            base.ReleaseReceiveResources();
+            reader.ReleaseResources();
+            reader = null;
+            mq = null;
+        }
+
     }
 }

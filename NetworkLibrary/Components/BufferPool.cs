@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -11,15 +12,23 @@ using System.Threading;
 namespace NetworkLibrary
 {
     /*
-     * This behaves like ArrayPool<>. The butckets are TLS thx to concurrent bag. ( ThreadLocal<ThreadLocalList> m_locals )
+     * Concurrent bag has Tls list ( ThreadLocal<ThreadLocalList> m_locals )
+     * each bucket holds a set of weak references to byte arrays
+     * this arrays are pooled and resuable and we preserve the peak memory usage by this.
+     * If application calls the GC gen2 collect some of this weak references are cleared,
+     * this way we trim the pools automatically if they are not referenced by the application.
+     * 
+     * you can also configure the pool to auto GC collect(also does gen2) if the application is mostly idle and 
+     * we reached to some threshold on workingset memory.
      */
     public class BufferPool
     {
         public static bool ForceGCOnCleanup = true;
+        public static int MaxMemoryBeforeForceGc = 100000000;
         public const int MaxBufferSize = 1073741824;
         public const int MinBufferSize = 256;
-
-        private static readonly ConcurrentBag<byte[]>[] bufferBuckets =  new ConcurrentBag<byte[]>[32];
+        private static readonly ConcurrentBag<WeakReference<byte[]>> weakReferencePool= new ConcurrentBag<WeakReference<byte[]>>();
+        private static readonly ConcurrentBag<WeakReference<byte[]>>[] bufferBuckets =  new ConcurrentBag<WeakReference<byte[]>>[32];
         private static SortedDictionary<int, int> bucketCapacityLimits = new SortedDictionary<int, int>()
         {
             { 256,10000 },
@@ -47,6 +56,8 @@ namespace NetworkLibrary
             { 1073741824,0 }
 
         };
+        static readonly Process process = Process.GetCurrentProcess();
+        static ManualResetEvent autoGcHandle =  new ManualResetEvent(false);
 
         static BufferPool()
         {
@@ -56,59 +67,48 @@ namespace NetworkLibrary
             thread.Start();
         }
 
+        /// <summary>
+        /// Starts a task where GC.Collect() is called 
+        /// if application consumed less than %1 proccessor time and memory is above threashold
+        /// </summary>
+        public static void StartCollectGcOnIdle()
+        {
+            autoGcHandle.Set();
+        }
+
+        /// <summary>
+        /// Stops a task where GC.Collect() is called 
+        /// if application consumed less than %1 proccessor time and memory is above threashold
+        /// </summary>
+        public static void StopCollectGcOnIdle()
+        {
+            autoGcHandle.Reset();
+        }
+
         // creates bufferBuckets structure
         private static void Init()
         {
             //bufferBuckets = new ConcurrentDictionary<int, ConcurrentBag<byte[]>>();
             for (int i = 8; i < 31; i++)
             {
-                bufferBuckets[i] = new ConcurrentBag<byte[]>();
+                bufferBuckets[i] = new ConcurrentBag<WeakReference<byte[]>>();
             }
         }
 
         private static void MaintainMemory()
         {
-            // Check each bucket periodically if the free capacity limit is exceeded
-            // Dump excess amount
+            var lastTime = process.TotalProcessorTime;
             while (true)
             {
+                autoGcHandle.WaitOne();
                 Thread.Sleep(10000);
-                try
-                {
-                    for (int k = 0; k < bufferBuckets.Length; k++)
-                    {
-                        var size = GetBucketSize(k);
-                        var bag = bufferBuckets[k];
-                        if (bag == null) continue;
+                var currentProcTime = process.TotalProcessorTime;
+                var deltaT = (lastTime - currentProcTime).TotalMilliseconds;
+                lastTime = currentProcTime;
 
-                        if (bucketCapacityLimits[size] < bag.Count)
-                        {
-                            // check 5 times slowly to make sure buffer bucket is not hot.
-                            for (int i = 0; i < 5; i++)
-                            {
-                                Thread.Sleep(100);
-                                if (bucketCapacityLimits[size] >= bag.Count) continue;
-                            }
-
-                            // trim slowly
-                            while (bag.Count > bucketCapacityLimits[size])
-                            {
-                                bag.TryTake(out var buffer);
-                                buffer = null;
-                                Thread.Sleep(1);
-
-                            }
-                            Thread.Sleep(100);
-                            if (ForceGCOnCleanup)
-                                GC.Collect();
-                        }
-                    }
-                }
-                catch(Exception e)
-                {
-                    MiniLogger.Log(MiniLogger.LogLevel.Error,"Buffer manager encountered an error: " + e.Message);
-                }
-
+                if (deltaT <100 && process.WorkingSet64< MaxMemoryBeforeForceGc)
+                    GC.Collect();
+                process.Refresh();
             }
            
         }
@@ -123,18 +123,25 @@ namespace NetworkLibrary
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] RentBuffer(int size)
         {
+            byte[] buffer;
             if(MaxBufferSize < size)
                 throw new InvalidOperationException(
                     string.Format("Unable to rent buffer bigger than max buffer size: {0}",MaxBufferSize));
             if (size <= MinBufferSize) return new byte[size];
 
             int idx = GetBucketIndex(size);
-            if (!bufferBuckets[idx].TryTake(out byte[] buffer))
-            {
-                buffer = new byte[GetBucketSize(idx)];
-            }
 
-            return buffer;
+            while(bufferBuckets[idx].TryTake(out WeakReference<byte[]> bufferRef))
+            {
+                if (bufferRef.TryGetTarget(out buffer))
+                {
+                    weakReferencePool.Add(bufferRef);
+                    return buffer;
+                }
+            }
+            buffer = new byte[GetBucketSize(idx)];
+           return buffer;
+
         }
 
         /// <summary>
@@ -147,44 +154,16 @@ namespace NetworkLibrary
             if (buffer.Length <= MinBufferSize) return;
 
             int idx = GetBucketIndex(buffer.Length);
-            bufferBuckets[idx-1].Add(buffer);
+            if(weakReferencePool.TryTake(out var wr))
+            {
+                wr.SetTarget(buffer);
+                bufferBuckets[idx - 1].Add(wr);
+
+            }
+            else
+            bufferBuckets[idx-1].Add(new WeakReference<byte[]>(buffer));
+            buffer = null;
         }
-
-        /// <summary>
-        /// Sets Bucket size
-        /// </summary>
-        /// <param name="bucketNumber"></param>
-        /// <param name="amount"></param>
-        /// <exception cref="InvalidOperationException"></exception>
-        public static void SetBucketLimit(int bucketNumber, int amount)
-        {
-            if (bucketNumber >= 31 || bucketNumber < 8)
-                throw new InvalidOperationException("Bucket number needs to be between 8 and 31 (inclusive)");
-
-            int size = GetBucketSize(bucketNumber);
-            bucketCapacityLimits[size] = amount;
-        }
-
-        /// <summary>
-        /// Sets Bucket size
-        /// </summary>
-        /// <param name="bucketSize"></param>
-        /// <param name="amount"></param>
-        /// <exception cref="InvalidOperationException"></exception>
-        public static void SetBucketLimitBySize(int bucketSize, int amount)
-        {
-            if (bucketSize > 1073741824 || bucketSize < 256)
-                throw new InvalidOperationException("Bucket number needs to be between 8 and 31 (inclusive)");
-
-            if (bucketCapacityLimits.ContainsKey(bucketSize))
-                bucketCapacityLimits[bucketSize] = amount;
-
-            int idx = GetBucketIndex(bucketSize);
-            int size = GetBucketSize(idx);
-            bucketCapacityLimits[size] = amount;
-        }
-
-
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetBucketSize(int bucketIndex)

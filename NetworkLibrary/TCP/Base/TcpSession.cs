@@ -42,7 +42,7 @@ namespace NetworkLibrary.TCP.Base
         protected Spinlock enqueueLock = new Spinlock();
 
         internal int socketSendBufferSize = 128000;
-        internal bool UseQueue = true;
+        protected internal bool UseQueue = true;
 
         private int disposeStatus = 0;
         private int SendBufferReleased = 0;
@@ -125,7 +125,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (IsSessionClosing())
             {
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
             try
@@ -138,7 +138,7 @@ namespace NetworkLibrary.TCP.Base
             }
             catch (Exception ex) 
             when (ex is ObjectDisposedException || ex is NullReferenceException) 
-            { ReleaseReceiveResources(); }
+            { ReleaseReceiveResourcesIdempotent(); }
 
 
 
@@ -149,7 +149,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (IsSessionClosing())
             {
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
 
@@ -157,13 +157,13 @@ namespace NetworkLibrary.TCP.Base
             {
                 HandleError(e, "while recieving from ");
                 Disconnect();
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
             else if (e.BytesTransferred == 0)
             {
                 Disconnect();
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
             totalBytesReceived+= e.BytesTransferred;
@@ -210,6 +210,8 @@ namespace NetworkLibrary.TCP.Base
         void SendOrEnqueue(byte[] buffer, int offset, int count)
         {
             enqueueLock.Take();
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
             if (SendSemaphore.IsTaken() && messageBuffer.TryEnqueueMessage(buffer, offset, count))
             {
                 enqueueLock.Release();
@@ -225,6 +227,7 @@ namespace NetworkLibrary.TCP.Base
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -240,7 +243,8 @@ namespace NetworkLibrary.TCP.Base
         void SendOrEnqueue(byte[] bytes)
         {
             enqueueLock.Take();
-          
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
             if (SendSemaphore.IsTaken() && messageBuffer.TryEnqueueMessage(bytes))
             {
                 enqueueLock.Release();
@@ -253,6 +257,7 @@ namespace NetworkLibrary.TCP.Base
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release(); 
                 return;
             }
@@ -278,7 +283,7 @@ namespace NetworkLibrary.TCP.Base
 
                 }
             }
-            catch { EndSession(); }
+            catch { EndSession(); ReleaseSendResourcesIdempotent(); }
         }
 
         private void SendComplete(object ignored, SocketAsyncEventArgs e)
@@ -286,15 +291,15 @@ namespace NetworkLibrary.TCP.Base
             if (IsSessionClosing())
             {
                 SendSemaphore.Release();
-                ReleaseSendResources();
+                ReleaseSendResourcesIdempotent();
                 return;
             }
 
             if (e.SocketError != SocketError.Success)
             {
                 SendSemaphore.Release();
-                ReleaseSendResources();
                 HandleError(e, "While sending the client ");
+                ReleaseSendResourcesIdempotent();
                 return;
             }
             else if (e.BytesTransferred < e.Count)
@@ -329,8 +334,13 @@ namespace NetworkLibrary.TCP.Base
                 else
                 {
                     messageBuffer.Flush();
+                    
                     SendSemaphore.Release();
                     enqueueLock.Release();
+                    if (IsSessionClosing())
+                    {
+                        ReleaseSendResourcesIdempotent();
+                    }
                     return;
                 }
 
@@ -375,31 +385,38 @@ namespace NetworkLibrary.TCP.Base
 
         }
 
-        private void ReleaseSendResources()
+        protected void ReleaseSendResourcesIdempotent()
         {
             if (Interlocked.CompareExchange(ref SendBufferReleased, 1, 0) == 0)
             {
-                enqueueLock.Take();
-                ClientSendEventArg.Dispose();
-                messageBuffer?.Dispose();
+                ReleaseSendResources();
+            }
 
-                if (UseQueue)
-                    BufferPool.ReturnBuffer(sendBuffer);
-                enqueueLock.Release();
-
+        }
+        protected virtual void ReleaseSendResources()
+        {
+            enqueueLock.Take();
+            ClientSendEventArg.Dispose();
+            messageBuffer?.Dispose();
+            messageBuffer = null;
+            if (UseQueue)
+                BufferPool.ReturnBuffer(sendBuffer);
+            enqueueLock.Release();
+        }
+        private void ReleaseReceiveResourcesIdempotent()
+        {
+            if (Interlocked.CompareExchange(ref ReceiveBufferReleased, 1, 0) == 0)
+            {
+                ReleaseReceiveResources();
             }
 
         }
 
-        private void ReleaseReceiveResources()
+        protected virtual void ReleaseReceiveResources()
         {
-            if (Interlocked.CompareExchange(ref ReceiveBufferReleased, 1, 0) == 0)
-            {
-                ClientRecieveEventArg.Dispose();
-                ClientRecieveEventArg = null;
-                BufferPool.ReturnBuffer(recieveBuffer);
-            }
-
+            ClientRecieveEventArg.Dispose();
+            ClientRecieveEventArg = null;
+            BufferPool.ReturnBuffer(recieveBuffer);
         }
 
         protected void DcAndDispose()
@@ -458,9 +475,11 @@ namespace NetworkLibrary.TCP.Base
             
             sessionSocket.Close();
             sessionSocket.Dispose();
-            sessionSocket = null;  
-            
-            ReleaseSendResources();
+            sessionSocket = null;
+            if (!SendSemaphore.IsTaken())
+            {
+                ReleaseSendResourcesIdempotent();
+            }
             SendSemaphore.Release();
             MiniLogger.Log(MiniLogger.LogLevel.Debug, string.Format("Session with Guid: {0} is disposed", SessionId));
 

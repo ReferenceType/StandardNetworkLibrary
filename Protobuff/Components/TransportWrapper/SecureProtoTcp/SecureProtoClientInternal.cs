@@ -19,6 +19,7 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
         public SecureProtoClientInternal(X509Certificate2 certificate) : base(certificate)
         {
             RemoteCertificateValidationCallback += ValidateCert;
+            GatherConfig = ScatterGatherConfig.UseBuffer;
         }
 
         private bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)

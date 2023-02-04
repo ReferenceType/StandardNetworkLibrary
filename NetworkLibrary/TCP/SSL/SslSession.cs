@@ -32,7 +32,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected Guid sessionId;
         protected IPEndPoint RemoteEP;
 
-        internal bool UseQueue = true;
+        protected internal bool UseQueue = false;
 
         private bool disposedValue;
         private int SessionClosing = 0;
@@ -85,7 +85,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         private void SendAsync_(byte[] buffer, int offset, int count)
         {
             enqueueLock.Take();
-            
+            if (IsSessionClosing())
+            {
+                ReleaseSendResourcesIdempotent();
+                return;
+            }
             if (SendSemaphore.IsTaken())
             {
                 if (messageQueue.TryEnqueueMessage(buffer, offset, count))
@@ -102,6 +106,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -110,7 +115,6 @@ namespace NetworkLibrary.TCP.SSL.Base
             messageQueue.TryEnqueueMessage(buffer, offset, count);
             messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
-            enqueueLock.Release();
 
         }
         public void SendAsync(byte[] buffer)
@@ -126,7 +130,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         private void SendAsync_(byte[] buffer)
         {
             enqueueLock.Take();
-
+            if (IsSessionClosing())
+            {
+                ReleaseSendResourcesIdempotent();
+                return;
+            }
             if (SendSemaphore.IsTaken())
             {
                 if (messageQueue.TryEnqueueMessage(buffer))
@@ -142,6 +150,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             SendSemaphore.Take();
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 SendSemaphore.Release();
                 return;
             }
@@ -150,7 +159,6 @@ namespace NetworkLibrary.TCP.SSL.Base
             messageQueue.TryEnqueueMessage(buffer);
             messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
-            enqueueLock.Release();
 
         }
 
@@ -184,6 +192,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (IsSessionClosing())
             {
+                ReleaseSendResourcesIdempotent();
                 return;
             }
             try
@@ -193,6 +202,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             catch (Exception e)
             {
                 HandleError("While attempting to end async send operation on ssl socket, an error occured", e);
+                ReleaseSendResourcesIdempotent();
                 return;
             }
 
@@ -210,9 +220,11 @@ namespace NetworkLibrary.TCP.SSL.Base
             if (messageQueue.IsEmpty())
             {
                 messageQueue.Flush();
-
+                
                 SendSemaphore.Release();
                 enqueueLock.Release();
+                if (IsSessionClosing())
+                    ReleaseSendResourcesIdempotent();
                 return;
             }
             else
@@ -236,7 +248,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (IsSessionClosing())
             {
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
             try
@@ -246,7 +258,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             catch (Exception ex)
             {
                 HandleError("White receiving from SSL socket an error occured", ex);
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
             }
         }
 
@@ -254,7 +266,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (IsSessionClosing())
             {
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
 
@@ -267,7 +279,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             catch (Exception e)
             {
                 HandleError("While receiving from SSL socket an exception occured ", e);
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
                 return;
             }
 
@@ -278,7 +290,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             else
             {
                 EndSession();
-                ReleaseReceiveResources();
+                ReleaseReceiveResourcesIdempotent();
             }
             totalBytesReceived+= amountRead;
 
@@ -323,24 +335,37 @@ namespace NetworkLibrary.TCP.SSL.Base
         }
 
         int sendResReleased = 0;
-        private void ReleaseSendResources()
+        protected internal void ReleaseSendResourcesIdempotent()
         {
             if (Interlocked.CompareExchange(ref sendResReleased, 1, 0) == 0)
             {
-                if (UseQueue) BufferPool.ReturnBuffer(sendBuffer);
-
-                messageQueue?.Dispose();
-                enqueueLock.Release();
+                ReleaseSendResources();
             }
         }
 
+        protected virtual void ReleaseSendResources()
+        {
+            if (UseQueue) 
+                BufferPool.ReturnBuffer(sendBuffer);
+
+            messageQueue?.Dispose();
+            messageQueue = null;
+            enqueueLock.Release();
+        }
+
         int receiveResReleased = 0;
-        private void ReleaseReceiveResources()
+        private void ReleaseReceiveResourcesIdempotent()
         {
             if (Interlocked.CompareExchange(ref receiveResReleased,1,0)==0)
             {
-                BufferPool.ReturnBuffer(receiveBuffer);
+                ReleaseReceiveResources();
             }
+
+        }
+
+        protected virtual void ReleaseReceiveResources()
+        {
+            BufferPool.ReturnBuffer(receiveBuffer);
 
         }
         protected virtual void Dispose(bool disposing)
@@ -351,13 +376,16 @@ namespace NetworkLibrary.TCP.SSL.Base
                 {
                     sessionStream.Dispose();
                 }
+                enqueueLock.Take();
                 disposedValue = true;
 
                 OnBytesRecieved= null;
                 OnSessionClosed = null;
                
-                sessionStream = null;
-                ReleaseSendResources();
+                if(!SendSemaphore.IsTaken())
+                    ReleaseSendResourcesIdempotent();
+                if (!SendSemaphore.IsTaken())
+                    ReleaseSendResourcesIdempotent();
                 enqueueLock.Release();       
                 SendSemaphore.Release();
             }

@@ -77,6 +77,14 @@ namespace NetworkLibrary.UDP
 
         public void StartServer()
         {
+            for (int i = 0; i < Environment.ProcessorCount; i++)
+            {
+                StartReceiveSentinel();
+            }
+        }
+
+        private void StartReceiveSentinel()
+        {
             var e = new SocketAsyncEventArgs();
             e.Completed += Received;
             e.SetBuffer(new byte[ClientReceiveBufferSize], 0, ClientReceiveBufferSize);
@@ -87,6 +95,7 @@ namespace NetworkLibrary.UDP
 
         private void Receive(SocketAsyncEventArgs e)
         {
+            
             if (!ServerSocket.ReceiveFromAsync(e))
             {
                 ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e),null);
@@ -95,6 +104,13 @@ namespace NetworkLibrary.UDP
 
         private void Received(object sender, SocketAsyncEventArgs e)
         {
+            if (e.SocketError != SocketError.Success)
+            {
+                StartReceiveSentinel();
+                e.Dispose();
+                return;
+            }
+
             HandleMessage(e);
             e.RemoteEndPoint = serverEndpoint;
             e.SetBuffer(0, ClientReceiveBufferSize);
@@ -115,35 +131,9 @@ namespace NetworkLibrary.UDP
         private void HandleClientRegistered(SocketAsyncEventArgs acceptedArg)
         {
             var endpoint = acceptedArg.RemoteEndPoint as IPEndPoint;
-#if Debug
-            Console.WriteLine(" new client arrivd registering IP:" + endpoint.Address + "Port: " + endpoint.Port);
-#endif
-            // we try to scale the recieve side here
-            var e = new SocketAsyncEventArgs();
-            e.Completed += RecievedFromKnownEndpoint;
-            e.SetBuffer(new byte[ClientReceiveBufferSize], 0, ClientReceiveBufferSize);
-            e.RemoteEndPoint = endpoint;
-
             Statistics[endpoint] = new UdpStatistics();
-
-            ReceiveFromKnownClient(e);
             OnClientAccepted?.Invoke(acceptedArg);
 
-        }
-
-        private void ReceiveFromKnownClient(SocketAsyncEventArgs e)
-        {
-            if (!ServerSocket.ReceiveFromAsync(e))
-            {
-                ThreadPool.UnsafeQueueUserWorkItem((cb) => RecievedFromKnownEndpoint(null, e), null);
-            }
-        }
-
-        private void RecievedFromKnownEndpoint(object sender, SocketAsyncEventArgs e)
-        {
-            HandleMessage(e);
-            e.SetBuffer(0, e.Buffer.Length);
-            ReceiveFromKnownClient(e);
         }
 
         void HandleBytesReceived(IPEndPoint clientRemoteEndpoint, byte[] buffer, int offset, int count)
@@ -155,7 +145,6 @@ namespace NetworkLibrary.UDP
             }
            
             OnBytesRecieved?.Invoke(clientRemoteEndpoint, buffer, offset, count);
-
 
         }
         public void SendBytesToAllClients(byte[] bytes)

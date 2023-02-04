@@ -509,7 +509,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //});
 
             var clients = new List<RelayClient>();
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 var client = new RelayClient(cert);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
@@ -519,6 +519,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 try
                 {
                     client.Connect("127.0.0.1", 20011);
+                    
                     clients.Add(client);
                     //client.StartPingService();
                 }
@@ -562,7 +563,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     Payload = new byte[32]
                 };
 
-                for (int i = 0; i < 1000; i++)
+                for (int i = 0; i < 10; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers)

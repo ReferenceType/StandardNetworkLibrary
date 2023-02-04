@@ -159,6 +159,12 @@ namespace Protobuff.P2P
         public void Disconnect()
         {
             protoClient.Disconnect();
+            udpRelayClient.Dispose();
+            foreach (var item in directUdpClients)
+            {
+                item.Value.ch1.Dispose();
+                item.Value.ch2.Dispose();
+            }
         }
 
         private void HandleDisconnect()
@@ -587,6 +593,7 @@ namespace Protobuff.P2P
                 {
                     MiniLogger.Log(MiniLogger.LogLevel.Info, "Hole Punch Failed");
                     ret = false;
+                    break;
                 }
             }
             return ret;

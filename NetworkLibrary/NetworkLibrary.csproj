@@ -13,7 +13,7 @@
     <Authors>RefrenceType</Authors>
     <PackageLicenseFile>Licence.txt</PackageLicenseFile>
     <Copyright>Apache 2.0</Copyright>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

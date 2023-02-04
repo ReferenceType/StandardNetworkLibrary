@@ -3,11 +3,11 @@ High Performance easy to use Network library.
 This library Consist of two assemblies.
  - Core Network Library, which is the is the core high performance library and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not require any external package, you can use the dll directly. It also offers great utilites such as pooled memory streams.
 
- - Protobuff Assembly where I used the core library as reference and extended it with the protobuf .net as message protocol and implemented higher level features such as P2P network with relay and holepunching system. The generic server client model has both the SSL variant and regular variant, however P2P network is only done base on SSL variant. You can also use this library as a reference to see how the core library extends if you want to use your own protocol.
+ - Protobuff Assembly where I used the core library as reference and extended it with the protobuf .net as message protocol and implemented higher level features such as P2P network with relay and holepunching system. The generic server client model has both the SSL variant and regular variant, however P2P network is only done base on SSL variant so far. You can also use this library as a reference to see how the core library extends if you want to use your own protocol.
 
-Both assemblies are written on .Net Standard 2.0. Protobuff assembly requires protobuf.net package.
-<br />Available on Nuget: https://www.nuget.org/packages/Standard.Network.Library/
-<br />Available on Nuget: https://www.nuget.org/packages/Protobuf.Network.Library/
+Both assemblies are written on .Net Standard 2.0. Nuget Packages are available:
+- Core : [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)
+- Protobuf : [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)
 
 ## Features
 ### CoreLib features
@@ -15,7 +15,7 @@ Both assemblies are written on .Net Standard 2.0. Protobuff assembly requires pr
 - It emulates MQ systems and offers zero allocation and no extra byte copies.
 - Tcp and SSL high performance server & clients. Supports byte message protocol with 4 byte int size header.
 - Secure Udp server client model with AES encyrption support.
-- Interfaces and blueprints for extention without extra copy with few overrides, see the mothodology on other assembly.
+- Interfaces and blueprints for extention without extra copy with few overrides, see the methodology on other assembly.
 - Reusable Utility features such as concurrent Aes encryptor-decryptor with 0 allocations.
 
 ### Protobuf features
@@ -24,12 +24,10 @@ Both assemblies are written on .Net Standard 2.0. Protobuff assembly requires pr
 - Secure Udp holepunching on P2P network.
 
 ### Internal Architectural Features
-- Custom global shared memory pool where each byte array is rented and returned. Each memory user including memory stream backing buffers are rented though the pool.
-Pool`s memory is internally maintained for trimming and buckets are configurable. Protobuf serialisation also shares this pool. Memory footprint is low and scaleable and low GC pressure.
+- Weak Reference Global Shared Memory Pool where each byte array is rented and returned. Each memory user including memory stream backing buffers are rented though the pool.
+Pool`s memory is automatically maintained for trimming by the GC itself(gen2). Protobuf serialisation also shares this pool. Memory footprint is low and scaleable and low GC pressure.
 
-- System calls for socket send and recieve are expensive. When Tcp based servers are on high load, messages are stiched together to increase throughput, idea is to send multiple messages in one system call without the overhead. This is only for high load so there is no latency issue on regular traffic. This gather sysytem is configrable and can be based on queue or buffer stream swaps.
-
-
+- System calls for socket send and recieve are expensive. When Tcp traffic is on high load, messages are stiched together to increase throughput, idea is to gather the messages and send in one system call. This is only for high load so there is no latency issue on regular traffic. This gather sysytem is configrable and can be based on queue or buffer stream swaps.
 
 # Documentation
 I will provide more extensive docs on related folders in the future..

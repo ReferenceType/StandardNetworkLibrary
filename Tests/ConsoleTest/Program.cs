@@ -61,6 +61,7 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            
             ////Parallel.For(0, 2, j =>
             ////{
             //    for (int i = 0; i < 10000000; i++)
@@ -545,7 +546,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 return;
                 Parallel.ForEach(clients, async(client) =>
                 {
-                    foreach (var peer in client.Peers)
+                    foreach (var peer in client.Peers.Keys)
                     {
                         while (true)
                         {
@@ -566,7 +567,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 for (int i = 0; i < 10; i++)
                 {
                     //return;
-                    foreach (var peer in client.Peers)
+                    foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
                         client.SendAsyncMessage(peer, testMessage_); 
@@ -608,7 +609,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
                 //client.SendUpMesssage(reply.From, reply);
                 //reply.Payload = new byte[randomG.Next(500, 32000)];
-                client.SendUdpMesssage(client.Peers.First(), reply);
+                client.SendUdpMesssage(client.Peers.Keys.First(), reply);
                 //Task.Run(() =>
                 //{
                 //    client.SendUdpMesssage(client.Peers.First(), reply);

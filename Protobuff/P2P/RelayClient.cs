@@ -53,7 +53,7 @@ namespace Protobuff.P2P
         private SecureProtoClient protoClient;
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
         public Guid sessionId { get; private set; }
-        public HashSet<Guid> Peers = new HashSet<Guid>();
+        public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
 
         private ConcurrentDictionary<Guid, EncryptedUdpProtoClient> holePunchCandidates = new ConcurrentDictionary<Guid, EncryptedUdpProtoClient>();
         private ConcurrentDictionary<Guid, UdpP2PChannels> directUdpClients = new ConcurrentDictionary<Guid, UdpP2PChannels>();
@@ -158,8 +158,8 @@ namespace Protobuff.P2P
         }
         public void Disconnect()
         {
-            protoClient.Disconnect();
-            udpRelayClient.Dispose();
+            protoClient?.Disconnect();
+            udpRelayClient?.Dispose();
             foreach (var item in directUdpClients)
             {
                 item.Value.ch1.Dispose();
@@ -222,8 +222,7 @@ namespace Protobuff.P2P
                     pinger.NotifyUdpPingSent(sessionId, msg.TimeStamp);
 
                     await Task.Delay(intervalMs/2);
-                    var peerSnapshot = Peers.ToArray();
-                    foreach (var peer in peerSnapshot)
+                    foreach (var peer in Peers.Keys)
                     {
                         msg.TimeStamp = DateTime.Now;
                         SendAsyncMessage(peer, msg);
@@ -288,7 +287,7 @@ namespace Protobuff.P2P
         #region Send
         public void SendUdpMesssage<T>(Guid toId, T message, string messageHeader = null, int channel = 0) where T : IProtoMessage
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
             MessageEnvelope env = new MessageEnvelope();
             env.From = sessionId;
@@ -309,7 +308,7 @@ namespace Protobuff.P2P
 
         public void SendUdpMesssage(Guid toId, MessageEnvelope message, int channel = 0)
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
             message.From = sessionId;
             message.To = toId;
@@ -327,7 +326,7 @@ namespace Protobuff.P2P
         }
         public void SendUdpMesssage(Guid toId, byte[] data, int offset, int count, string dataName, int channel = 0)
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
             MessageEnvelope env = new MessageEnvelope();
@@ -351,7 +350,7 @@ namespace Protobuff.P2P
 
         public void SendAsyncMessage(Guid toId, MessageEnvelope message)
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
             message.From = sessionId;
@@ -360,7 +359,7 @@ namespace Protobuff.P2P
         }
         public void SendAsyncMessage<T>(Guid toId, T message, string messageHeader = null) where T : IProtoMessage
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
             var envelopedMessage = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
@@ -369,7 +368,7 @@ namespace Protobuff.P2P
         }
         public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
             var envelopedMessage = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
@@ -379,7 +378,7 @@ namespace Protobuff.P2P
 
         public void SendAsyncMessage(Guid toId, byte[] data, int offset, int count, string dataName)
         {
-            if (!Peers.Contains(toId) && toId != sessionId)
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
             var envelopedMessage = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
@@ -622,55 +621,38 @@ namespace Protobuff.P2P
         {
             lock (registeryLocker)
             {
-                HashSet<Guid> serverSet;
-                PeerList<PeerInfo> pperInfoList = null;
+                PeerList<PeerInfo> serverPeerInfo = null;
                 if (message.Payload == null)
-                    serverSet = new HashSet<Guid>();
+                    serverPeerInfo = new PeerList<PeerInfo>() { PeerIds = new Dictionary<Guid, PeerInfo>() };
                 else
                 {
-                    pperInfoList = serialiser.Deserialize<PeerList<PeerInfo>>
+                    serverPeerInfo = serialiser.Deserialize<PeerList<PeerInfo>>
                         (message.Payload, message.PayloadOffset, message.PayloadCount);
 
-                    if (pperInfoList.PeerIds == null || pperInfoList.PeerIds.Count == 0)
-                    {
-                        serverSet = new HashSet<Guid>();
-                    }
-                    else
-                    {
-                        serverSet = new HashSet<Guid>(pperInfoList.PeerIds.Keys);
-                    }
                 }
 
-                foreach (var peer in Peers)
+                foreach (var peer in Peers.Keys)
                 {
-                    if (!serverSet.Contains(peer))
+                    if (!serverPeerInfo.PeerIds.ContainsKey(peer))
                     {
-                        try
-                        {
-                            OnPeerUnregistered?.Invoke(peer);
-                            pinger.PeerUnregistered(peer);
-                            PeerInfos.TryRemove(peer, out _);
-                        }
-                        catch { }
-
+                        Peers.TryRemove(peer, out _);
+                        OnPeerUnregistered?.Invoke(peer);
+                        pinger.PeerUnregistered(peer);
+                        PeerInfos.TryRemove(peer, out _);
                     }
                 }
 
-                foreach (var peer in serverSet)
+                foreach (var peer in serverPeerInfo.PeerIds.Keys)
                 {
-                    if (!Peers.Contains(peer))
+                    if(!Peers.TryGetValue(peer, out _))
                     {
-                        try
-                        {
-                            OnPeerRegistered?.Invoke(peer);
-                            pinger.PeerRegistered(peer);
-                            PeerInfos.TryAdd(peer, pperInfoList.PeerIds[peer]);
-                        }
-                        catch { }
+                        Peers.TryAdd(peer,true);
+                        OnPeerRegistered?.Invoke(peer);
+                        pinger.PeerRegistered(peer);
+                        PeerInfos.TryAdd(peer, serverPeerInfo.PeerIds[peer]);
                     }
                 }
-                Peers.UnionWith(serverSet);
-                Peers.RemoveWhere(x => !serverSet.Contains(x));
+
             }
         }
 

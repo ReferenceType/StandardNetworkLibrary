@@ -25,7 +25,7 @@ namespace Protobuff
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
         private MessageAwaiter awaiter;
 
-        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback=>server.RemoteCertificateValidationCallback;
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
         public SecureProtoServer(int port,X509Certificate2 cerificate)
         {
@@ -55,6 +55,8 @@ namespace Protobuff
 
         private bool DefaultValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
+            if (RemoteCertificateValidationCallback != null)
+                return RemoteCertificateValidationCallback.Invoke(sender,certificate,chain,sslPolicyErrors);
             return true;
         }
 
@@ -87,8 +89,6 @@ namespace Protobuff
                 message.MessageId= Guid.NewGuid();
 
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
-            message.MessageId = Guid.NewGuid();
-
             SendAsyncMessage(clientId, message, buffer, offset, count);
             return await result;
         }
@@ -99,7 +99,6 @@ namespace Protobuff
                 message.MessageId = Guid.NewGuid();
 
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
-            message.MessageId = Guid.NewGuid();
 
             SendAsyncMessage(clientId, message, payload);
             return await result;
@@ -110,7 +109,6 @@ namespace Protobuff
             if (message.MessageId == Guid.Empty)
                 message.MessageId = Guid.NewGuid();
 
-            message.MessageId = Guid.NewGuid();
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
             
             SendAsyncMessage(clientId, message);

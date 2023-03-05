@@ -548,6 +548,7 @@ namespace Protobuff.P2P
             message.Payload = null;
             message.IsInternal = true;
 
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "Resending Udp Init to " + udpRelayClient.RemoteEndPoint.ToString());
             udpRelayClient.SendAsyncMessage(message);
             protoClient.SendAsyncMessage(message);
         }

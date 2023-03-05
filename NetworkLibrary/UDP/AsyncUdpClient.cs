@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NetworkLibrary.Utils;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -49,15 +50,15 @@ namespace NetworkLibrary.UDP
         public AsyncUdpClient()
         {
             recieveBuffer = new byte[65500];
-            clientSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            clientSocket = new Socket(AddressFamily.InterNetwork,SocketType.Dgram, ProtocolType.Udp);
 
-            clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
+            clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
             //clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            clientSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+            //clientSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.PacketInformation, true);
 
             clientSocket.ReceiveBufferSize = ReceiveBufferSize;
             clientSocket.SendBufferSize = SocketSendBufferSize;
-            clientSocket.Blocking = false;
+            clientSocket.Blocking = true;
 
             RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
         }
@@ -85,7 +86,9 @@ namespace NetworkLibrary.UDP
         {
             if (IPAddress.TryParse(ip, out var ipAdress))
             {
-                RemoteEndPoint = new IPEndPoint(ipAdress, port);
+                // IPV6 is not compatible with Unity..
+                var ep = new IPEndPoint(ipAdress.MapToIPv4(), port);
+                RemoteEndPoint = ep;
                 if (receive)
                     Receive();
             }
@@ -103,7 +106,7 @@ namespace NetworkLibrary.UDP
             RemoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
             clientSocket.Connect(RemoteEndPoint);
             Connected = true;
-            clientSocket.Blocking = false;
+            //clientSocket.Blocking = false;
             clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
         }
 
@@ -146,7 +149,7 @@ namespace NetworkLibrary.UDP
             {
                 amount = clientSocket.EndReceive(ar);
             }
-            catch (SocketException e)
+            catch (Exception e)
             {
                 OnError?.Invoke(e);
                 return;
@@ -186,13 +189,22 @@ namespace NetworkLibrary.UDP
 
         public virtual void SendAsync(byte[] bytes, int offset, int count)
         {
+
             try
             {
-                clientSocket.SendTo(bytes, offset, count, SocketFlags.None, RemoteEndPoint);
+                if (Connected)
+                {
+                    clientSocket.Send(bytes, offset, count, SocketFlags.None);
+                }
+                else
+                {
+                    clientSocket.SendTo(bytes, offset, count, SocketFlags.None, RemoteEndPoint);
+                }
 
             }
             catch (Exception e)
             {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable to send the Udp Datagram due to : "+e.Message);
             }
         }
 

@@ -328,13 +328,11 @@ namespace Protobuff.P2P
 
         private void UdpClientAccepted(SocketAsyncEventArgs ClientSocket)
         {
-
         }
 
 
         private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
-
             // Client is trying to register its Udp endpoint here
             if (!UdpCryptos.ContainsKey(adress))
             {
@@ -365,9 +363,9 @@ namespace Protobuff.P2P
                     }
                 }
             }
-            catch
+            catch(Exception e)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to deserialise envelope message ");
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to deserialise envelope message "+e.Message);
                 return;
             }
             finally

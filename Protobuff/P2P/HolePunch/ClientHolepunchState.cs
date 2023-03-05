@@ -32,7 +32,6 @@ namespace Protobuff.P2P.HolePunch
 
         public void HandleMessage(MessageEnvelope message)
         {
-            MiniLogger.Log(MiniLogger.LogLevel.Info, "ClientStateGotMsg");
             switch (message.Header)
             {
                 case HolepunchHeaders.CreateChannel:
@@ -143,8 +142,8 @@ namespace Protobuff.P2P.HolePunch
         {
             MiniLogger.Log(MiniLogger.LogLevel.Info, "success!!");
             message.LockBytes();
-            holepunchClient.SwapAlgorith(new ConcurrentAesAlgorithm(message.Payload, message.Payload));
-            //holepunchClient.Connect((IPEndPoint)holepunchClient.RemoteEndPoint);
+           holepunchClient.SwapAlgorith(new ConcurrentAesAlgorithm(message.Payload, message.Payload));
+           // holepunchClient.SwapAlgorith(null);
             Completion.TrySetResult(holepunchClient);
         }
 

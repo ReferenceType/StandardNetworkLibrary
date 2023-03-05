@@ -32,8 +32,16 @@ namespace NetworkLibrary.UDP.Secure
             var decryptBuffer = BufferPool.RentBuffer(count+256);
             try
             {
-                var decriptedAmount = algorithm.DecryptInto(buffer, offset, count, decryptBuffer, 0);
-                HandleDecrypedBytes(decryptBuffer, 0, decriptedAmount);
+                if (algorithm != null)
+                {
+                    var decriptedAmount = algorithm.DecryptInto(buffer, offset, count, decryptBuffer, 0);
+                    HandleDecrypedBytes(decryptBuffer, 0, decriptedAmount);
+                }
+                else
+                {
+                    HandleDecrypedBytes(buffer, offset, count);
+                }
+                
             }
             catch (Exception e)
             {
@@ -55,8 +63,16 @@ namespace NetworkLibrary.UDP.Secure
             var buffer = BufferPool.RentBuffer(count+256);
             try
             {
-                int amount = algorithm.EncryptInto(bytes, offset, count, buffer, 0);
-                base.SendAsync(buffer, 0, amount);
+                if (algorithm != null)
+                {
+                    int amount = algorithm.EncryptInto(bytes, offset, count, buffer, 0);
+                    base.SendAsync(buffer, 0, amount);
+                }
+                else
+                {
+                    base.SendAsync(bytes, offset, count);
+                }
+               
 
             }
             catch(Exception ex)

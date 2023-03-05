@@ -55,8 +55,12 @@ namespace NetworkLibrary.UDP
 
         public AsyncUdpServer(int port = 20008)
         {
-            ServerSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            // IPV6 is not compatible with Unity.
+            ServerSocket = new Socket(AddressFamily.InterNetwork,SocketType.Dgram, ProtocolType.Udp);
             ServerSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
+            // Not compatible with Unity..
+            //ServerSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+
 
             ServerSocket.ReceiveBufferSize = SocketReceiveBufferSize;
             ServerSocket.SendBufferSize = SocketSendBufferSize;

@@ -8,7 +8,7 @@ namespace NetworkLibrary.Components
 {
     public class AesAlgorithm:IDisposable
     {
-        private readonly Aes algorithm;
+        private readonly SymmetricAlgorithm algorithm;
         private readonly ICryptoTransform encryptor;
         private readonly ICryptoTransform decryptor;
 
@@ -22,7 +22,8 @@ namespace NetworkLibrary.Components
         {
             if(algorithmName == null)
             {
-                algorithm = Aes.Create();
+                // AES.create is not compatible with Unity... 
+                algorithm =  new System.Security.Cryptography.RijndaelManaged();//Aes.Create();
             }
             else
             {

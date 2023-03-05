@@ -38,7 +38,6 @@ namespace Protobuff
         internal readonly ProtoServerInternal server;
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
         private MessageAwaiter awaiter;
-        private SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
 
         public ProtoServer(int port)
@@ -89,8 +88,6 @@ namespace Protobuff
                 message.MessageId = Guid.NewGuid();
 
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
-            message.MessageId = Guid.NewGuid();
-
             SendAsyncMessage(clientId, message, buffer, offset, count);
             return await result;
         }
@@ -101,8 +98,6 @@ namespace Protobuff
                 message.MessageId = Guid.NewGuid();
 
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
-            message.MessageId = Guid.NewGuid();
-
             SendAsyncMessage(clientId, message, payload);
             return await result;
         }
@@ -112,9 +107,7 @@ namespace Protobuff
             if (message.MessageId == Guid.Empty)
                 message.MessageId = Guid.NewGuid();
 
-            message.MessageId = Guid.NewGuid();
             var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
-
             SendAsyncMessage(clientId, message);
             return await result;
         }

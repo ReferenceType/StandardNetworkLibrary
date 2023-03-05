@@ -29,7 +29,7 @@ namespace NetworkLibrary.TCP.Base
 
         public override void Connect(string IP, int port)
         {
-            ConnectAsyncAwaitable(IP, port).Wait();
+           _ =  ConnectAsyncAwaitable(IP, port).Result;
         }
 
         public override async Task<bool> ConnectAsyncAwaitable(string IP, int port)

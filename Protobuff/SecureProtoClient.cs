@@ -23,7 +23,7 @@ namespace Protobuff
         private MessageAwaiter awaiter;
 
         // hook to override default cb.
-        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => client.RemoteCertificateValidationCallback;
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
         public SecureProtoClient(X509Certificate2 certificate)
         {
@@ -41,6 +41,8 @@ namespace Protobuff
 
         private bool DefaultValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
+            if (RemoteCertificateValidationCallback != null)
+                return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
             return true;
         }
       

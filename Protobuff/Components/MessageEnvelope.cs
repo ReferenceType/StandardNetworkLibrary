@@ -83,7 +83,11 @@ namespace Protobuff
         {
             return serialiser.UnpackEnvelopedMessage<T>(this);
         }
-
+        /// <summary>
+        /// Locks the payload bytes by making a copy.
+        /// You Must Lock the bytes or unpack payload if message will leave the stack.
+        /// Payload will be overwitten on next message
+        /// </summary>
         public void LockBytes()
         {
             if (payload == null || IsLocked)

@@ -346,8 +346,6 @@ namespace Protobuff.P2P
                 udpRelayClient.SendAsyncMessage(env, data, offset, count);
         }
 
-
-
         public void SendAsyncMessage(Guid toId, MessageEnvelope message)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -362,18 +360,29 @@ namespace Protobuff.P2P
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
-            var envelopedMessage = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
-            envelopedMessage.Header = messageHeader == null ? typeof(T).Name : messageHeader;
-            protoClient.SendAsyncMessage(envelopedMessage, message);
+            var envelope = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
+            envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
+            protoClient.SendAsyncMessage(envelope, message);
         }
+
+        public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message) where T : IProtoMessage
+        {
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+                return;
+
+            envelope.From = sessionId;
+            envelope.To = toId;
+            protoClient.SendAsyncMessage(envelope, message);
+        }
+
         public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
-            var envelopedMessage = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
-            envelopedMessage.Header = dataName;
-            protoClient.SendAsyncMessage(envelopedMessage, data, 0, data.Length);
+            var envelope = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
+            envelope.Header = dataName;
+            protoClient.SendAsyncMessage(envelope, data, 0, data.Length);
         }
 
         public void SendAsyncMessage(Guid toId, byte[] data, int offset, int count, string dataName)
@@ -388,17 +397,15 @@ namespace Protobuff.P2P
 
         public async Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000) where T : IProtoMessage
         {
+            var envelope = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
+            envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
 
-            var envelopedMessage = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
-            envelopedMessage.Header = messageHeader == null ? typeof(T).Name : messageHeader;
-
-            var result = await protoClient.SendMessageAndWaitResponse(envelopedMessage, message, timeoutMs);
+            var result = await protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
             return result;
         }
 
         public async Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, byte[] data, string dataName, int timeoutMs = 10000)
         {
-
             var envelopedMessage = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
             envelopedMessage.Header = dataName;
 
@@ -419,6 +426,15 @@ namespace Protobuff.P2P
             message.To = toId;
 
             var response = await protoClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
+            return response;
+        }
+
+        public async Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message ,int timeoutMs = 10000) where T:IProtoMessage
+        {
+            envelope.From = sessionId;
+            envelope.To = toId;
+
+            var response = await protoClient.SendMessageAndWaitResponse(envelope,message, timeoutMs);
             return response;
         }
 

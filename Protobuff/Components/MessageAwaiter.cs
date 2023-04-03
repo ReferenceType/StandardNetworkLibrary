@@ -192,14 +192,14 @@ namespace Protobuff
             };
         }
 
-        public async ValueTask<MessageEnvelope> RegisterWait(Guid messageId, int timeoutMs)
+        public async Task<MessageEnvelope> RegisterWait(Guid messageId, int timeoutMs)
         {
-            awaitingMessages[messageId] = new TaskCompletionSource<MessageEnvelope>();
+            awaitingMessages[messageId] = new TaskCompletionSource<MessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
             var pending = awaitingMessages[messageId].Task;
             MessageEnvelope returnMessage;
 
             var delay = Task.Delay(timeoutMs);
-            if (await Task.WhenAny(pending, delay) == pending)
+            if (await Task.WhenAny(pending, delay).ConfigureAwait(false) == pending)
             {
                 // Task completed within timeout.
                  returnMessage = pending.Result;
@@ -217,8 +217,12 @@ namespace Protobuff
 
         public void ResponseArrived(MessageEnvelope envelopedMessage)
         {
-            if(envelopedMessage.MessageId!=null && awaitingMessages.TryGetValue(envelopedMessage.MessageId, out var completionSource))
+            if (envelopedMessage.MessageId != null && awaitingMessages.TryGetValue(envelopedMessage.MessageId, out var completionSource))
+            {
+                // lock(do a copy) because continiation will be async.
+                envelopedMessage.LockBytes();
                 completionSource.TrySetResult(envelopedMessage);
+            }
         }
 
         internal bool IsWaiting(in Guid messageId)

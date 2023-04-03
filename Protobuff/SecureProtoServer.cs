@@ -83,36 +83,36 @@ namespace Protobuff
         #endregion
 
         #region SendAndWait
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
         {
             if(message.MessageId == Guid.Empty)
                 message.MessageId= Guid.NewGuid();
 
-            var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
+            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
             SendAsyncMessage(clientId, message, buffer, offset, count);
-            return await result;
+            return task;
         }
 
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, T payload, int timeoutMs = 10000) where T : IProtoMessage
+        public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, T payload, int timeoutMs = 10000) where T : IProtoMessage
         {
             if (message.MessageId == Guid.Empty)
                 message.MessageId = Guid.NewGuid();
 
-            var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
+            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(clientId, message, payload);
-            return await result;
+            return task;
         }
 
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse(Guid clientId, MessageEnvelope message, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendMessageAndWaitResponse(Guid clientId, MessageEnvelope message, int timeoutMs = 10000)
         {
             if (message.MessageId == Guid.Empty)
                 message.MessageId = Guid.NewGuid();
 
-            var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
+            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
             
             SendAsyncMessage(clientId, message);
-            return await result;
+            return task;
         }
         #endregion
 

@@ -124,13 +124,13 @@ namespace Protobuff.P2P
 
                 connectHost = host;
                 connectPort = port;
-                await protoClient.ConnectAsync(host, port);
+                await protoClient.ConnectAsync(host, port).ConfigureAwait(false);
 
                 var requestRegistery = new MessageEnvelope();
                 requestRegistery.Header = InternalMessageResources.RequestRegistery;
                 requestRegistery.IsInternal = true;
 
-                var response = await protoClient.SendMessageAndWaitResponse(requestRegistery, 20000);
+                var response = await protoClient.SendMessageAndWaitResponse(requestRegistery, 20000).ConfigureAwait(false);
 
                 connecting = false;
 
@@ -206,7 +206,7 @@ namespace Protobuff.P2P
         {
             while (true)
             {
-                await Task.Delay(intervalMs/2);
+                await Task.Delay(intervalMs/2).ConfigureAwait(false);
 
                 MessageEnvelope msg = new MessageEnvelope();
                 msg.Header = PingHandler.Ping;
@@ -221,10 +221,10 @@ namespace Protobuff.P2P
                     pinger.NotifyTcpPingSent(sessionId, msg.TimeStamp);
                     pinger.NotifyUdpPingSent(sessionId, msg.TimeStamp);
 
-                    await Task.Delay(intervalMs/2);
+                    await Task.Delay(intervalMs / 2).ConfigureAwait(false);
                     foreach (var peer in Peers.Keys)
                     {
-                        msg.TimeStamp = DateTime.Now;
+                        msg.TimeStamp = DateTime.Now;   
                         SendAsyncMessage(peer, msg);
                         pinger.NotifyTcpPingSent(peer, msg.TimeStamp);
 
@@ -395,46 +395,46 @@ namespace Protobuff.P2P
             protoClient.SendAsyncMessage(envelopedMessage, data, offset, count);
         }
 
-        public async Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000) where T : IProtoMessage
+        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000) where T : IProtoMessage
         {
             var envelope = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
             envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
 
-            var result = await protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
-            return result;
+            var task = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
+            return task;
         }
 
-        public async Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, byte[] data, string dataName, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, byte[] data, string dataName, int timeoutMs = 10000)
         {
             var envelopedMessage = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
             envelopedMessage.Header = dataName;
 
-            var response = await protoClient.SendMessageAndWaitResponse(envelopedMessage, data, 0, data.Length, timeoutMs = 10000);
+            var response = protoClient.SendMessageAndWaitResponse(envelopedMessage, data, 0, data.Length, timeoutMs = 10000);
             return response;
         }
-        public async Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, int timeoutMs = 10000)
         {
             message.From = sessionId;
             message.To = toId;
 
-            var response = await protoClient.SendMessageAndWaitResponse(message, timeoutMs);
+            var response = protoClient.SendMessageAndWaitResponse(message, timeoutMs);
             return response;
         }
-        public async Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
         {
             message.From = sessionId;
             message.To = toId;
 
-            var response = await protoClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
+            var response = protoClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
             return response;
         }
 
-        public async Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message ,int timeoutMs = 10000) where T:IProtoMessage
+        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message ,int timeoutMs = 10000) where T:IProtoMessage
         {
             envelope.From = sessionId;
             envelope.To = toId;
 
-            var response = await protoClient.SendMessageAndWaitResponse(envelope,message, timeoutMs);
+            var response = protoClient.SendMessageAndWaitResponse(envelope,message, timeoutMs);
             return response;
         }
 
@@ -454,7 +454,7 @@ namespace Protobuff.P2P
                         break;
 
                     case InternalMessageResources.RegisteryAck:
-                        protoClient.SendAsyncMessage(message);
+                        SendRegisteryFinalisationMsg(message);
                         break;
 
                     case InternalMessageResources.UdpInit:
@@ -506,6 +506,28 @@ namespace Protobuff.P2P
                 }
 
             }
+
+        }
+
+        private async void SendRegisteryFinalisationMsg(MessageEnvelope message)
+        {
+            await Task.Delay(20).ConfigureAwait(false);
+            int attemps = 500;
+            while (connecting && attemps>0)
+            {
+                await Task.Delay(20).ConfigureAwait(false);
+                attemps--;
+            }
+            try
+            {
+                protoClient.SendAsyncMessage(message);
+
+            }
+            catch
+            {
+
+            }
+
 
         }
 
@@ -581,17 +603,17 @@ namespace Protobuff.P2P
         #endregion
 
         #region Hole Punch
-        public bool RequestHolePunch(Guid peerId, int timeOut = 10000)
+        public bool RequestHolePunch(Guid peerId, int timeOut = 10000,bool encrypted = true)
         {
-            return RequestHolePunchAsync(peerId, timeOut).Result;
+            return RequestHolePunchAsync(peerId, timeOut, encrypted).Result;
         }
         // Ask the server about holepunch
-        public async Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut)
+        public async Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
         {
             bool ret = false;
             for (int i = 0; i < 2; i++)
             {
-                var udpClient = await holepunchManager.CreateHolepunchRequest(this, peerId, timeOut);
+                var udpClient = await holepunchManager.CreateHolepunchRequest(this, peerId, timeOut, encrypted).ConfigureAwait(false);
                 if (udpClient != null)
                 {
                     udpClient.OnMessageReceived = null;

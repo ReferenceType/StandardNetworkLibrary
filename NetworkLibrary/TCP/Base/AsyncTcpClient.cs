@@ -34,9 +34,9 @@ namespace NetworkLibrary.TCP.Base
 
         public override async Task<bool> ConnectAsyncAwaitable(string IP, int port)
         {
-            connectedCompletionSource = new TaskCompletionSource<bool>();
+            connectedCompletionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             ConnectAsync(IP, port);
-            return await connectedCompletionSource.Task;
+            return await connectedCompletionSource.Task.ConfigureAwait(false);
         }
 
         public override void ConnectAsync(string IP, int port)

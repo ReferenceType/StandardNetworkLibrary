@@ -484,6 +484,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         private static void RelayTest()
         {
+            string ip = "82.60.167.182";
             MessageEnvelope testMessage = new MessageEnvelope()
             {
                 Header = "Test",
@@ -494,7 +495,8 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-            //var server = new SecureProtoRelayServer(20011, scert);
+            var server = new SecureProtoRelayServer(20011, scert);
+           // Thread.Sleep(1000000000);
             //Task.Run(async () =>
             //{
             //    return;
@@ -510,7 +512,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //});
 
             var clients = new List<RelayClient>();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 2; i++)
             {
                 var client = new RelayClient(cert);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
@@ -519,7 +521,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
                 try
                 {
-                    client.Connect("127.0.0.1", 20011);
+                    client.Connect(ip, 20011);
                     
                     clients.Add(client);
                     //client.StartPingService();
@@ -528,19 +530,20 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                
                 //Thread.Sleep(1000);
             }
-            var client1 = new RelayClient(cert);
-            client1.OnMessageReceived += (reply) => ClientMsgReceived(client1, reply);
-            client1.OnUdpMessageReceived += (reply) => ClientUdpReceived(client1, reply);
-            client1.OnPeerRegistered += (peerId) => OnPeerRegistered(client1, peerId);
+            //var client1 = new RelayClient(cert);
+            //client1.OnMessageReceived += (reply) => ClientMsgReceived(client1, reply);
+            //client1.OnUdpMessageReceived += (reply) => ClientUdpReceived(client1, reply);
+            //client1.OnPeerRegistered += (peerId) => OnPeerRegistered(client1, peerId);
 
-            client1.Connect("127.0.0.1", 20011);
-            clients.Add(client1);
+            //client1.Connect("127.0.0.1", 20011);
+            //clients.Add(client1);
             Thread.Sleep(3500);
-            //clients[0].Disconnect();
-            //while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First(),1000).Result)
-            //{
+           // clients[0].Disconnect();
+            while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First().Key, 5000, encrypted:false).Result)
+            {
 
-            //}
+            }
+            Thread.Sleep(5000);
             Task.Run( () =>
             {
                 return;
@@ -570,9 +573,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                        client.SendAsyncMessage(peer, testMessage_); 
+                        //client.SendAsyncMessage(peer, testMessage_); 
 
-                        //client.SendUdpMesssage(peer, testMessage);
+                        client.SendUdpMesssage(peer, testMessage);
                     }
                 }
 

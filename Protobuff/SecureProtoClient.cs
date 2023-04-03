@@ -88,31 +88,31 @@ namespace Protobuff
         #endregion Send
 
         #region SendAndWait
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeoutMs = 10000)
         {
             message.MessageId = Guid.NewGuid();
-            var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
+            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(message);
-            return await result;
+            return task;
         }
 
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message,T payload, int timeoutMs = 10000) where T : IProtoMessage
+        public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message,T payload, int timeoutMs = 10000) where T : IProtoMessage
         {
             message.MessageId = Guid.NewGuid();
-            var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
+            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(message,payload);
-            return await result;
+            return task;
         }
 
-        public async Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
         {
             message.MessageId = Guid.NewGuid();
-            var result = awaiter.RegisterWait(message.MessageId, timeoutMs);
+            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
 
             SendAsyncMessage(message, buffer,offset,count);
-            return await result;
+            return task;
         }
         #endregion
 

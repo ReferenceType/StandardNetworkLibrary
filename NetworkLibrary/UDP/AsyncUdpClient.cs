@@ -129,7 +129,8 @@ namespace NetworkLibrary.UDP
             {
                 try
                 {
-                    activeRec = clientSocket.BeginReceiveFrom(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, ref remoteEndPoint, EndRecieveFrom, null);
+                    EndPoint rr = new IPEndPoint(IPAddress.Any, 0);
+                    activeRec = clientSocket.BeginReceiveFrom(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, ref rr, EndRecieveFrom, null);
 
                 }
                 catch (Exception e)
@@ -212,6 +213,36 @@ namespace NetworkLibrary.UDP
         {
             SendAsync(bytes, 0, bytes.Length);
         }
+
+        public void SendTo(byte[] bytes, int offset, int count, EndPoint endpoint)
+        {
+            clientSocket.SendTo(bytes, offset, count, SocketFlags.None, endpoint);
+        }
+
+        public void ReceiveOnceFrom(EndPoint endPoint, Action<byte[],int,int> OnReceived)
+        {
+            var buffer = BufferPool.RentBuffer(64000);
+            clientSocket.BeginReceiveFrom(buffer, 0, 62000, SocketFlags.None, ref endPoint, OnReceived_, buffer);
+
+            void OnReceived_(IAsyncResult ar)
+            {
+                try
+                {
+                    int amount = clientSocket.EndReceiveFrom(ar,ref endPoint);
+                    byte[] bytes = ar.AsyncState as byte[];
+                    OnReceived?.Invoke(bytes, 0, amount);
+                    BufferPool.ReturnBuffer(bytes);
+                }
+                catch(Exception e) 
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,"ReceiveOnceFrom Error: "+e.Message);
+                    OnReceived?.Invoke(null, 0, 0);
+                }
+            
+            }
+        }
+
+     
 
         public void JoinMulticastGroup(IPAddress multicastAddr)
         {

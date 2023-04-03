@@ -78,7 +78,7 @@ namespace Protobuff
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T Deserialize<T>(byte[] data, int offset, int count) where T : IProtoMessage
         {
-            if (null == data)
+            if (data == null || count == 0)
                 return default;
 
             ReadOnlySpan<byte> seq = new ReadOnlySpan<byte>(data, offset, count);

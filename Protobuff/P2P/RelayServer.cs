@@ -32,7 +32,7 @@ namespace Protobuff.P2P
         private ConcurrentDictionary<Guid, IPEndPoint> RegisteredUdpEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> UdpCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
         private ConcurrentDictionary<Guid, IPEndPoint> HolePunchers = new ConcurrentDictionary<Guid, IPEndPoint>();
-        private TaskCompletionSource<bool> PushPeerList =  new TaskCompletionSource<bool>();
+        private TaskCompletionSource<bool> PushPeerList =  new TaskCompletionSource<bool>( TaskCreationOptions.RunContinuationsAsynchronously);
         private bool shutdown = false;
         private ConcurrentAesAlgorithm relayDectriptor;
         ServerHolepunchStateManager sm = new ServerHolepunchStateManager();
@@ -75,8 +75,8 @@ namespace Protobuff.P2P
         {
             while (!shutdown)
             {
-                await PushPeerList.Task;
-                PushPeerList = new TaskCompletionSource<bool>();
+                await PushPeerList.Task.ConfigureAwait(false);
+                PushPeerList = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 try
                 {
                     foreach (var item in RegisteredPeers)
@@ -85,7 +85,7 @@ namespace Protobuff.P2P
                     }
                 } catch(Exception ex){ PushPeerList.TrySetResult(true); }
                    
-                await Task.Delay(1000);
+                await Task.Delay(1000).ConfigureAwait(false);
 
             }
         }
@@ -132,7 +132,7 @@ namespace Protobuff.P2P
                 {
                     if (VerifyClientCredentials(clientId, message))
                     {
-                        bool res = await GenerateSeureUdpChannel(clientId);
+                        bool res = await GenerateSeureUdpChannel(clientId).ConfigureAwait(false);
                         if (res == false)
                             return;
 
@@ -142,13 +142,14 @@ namespace Protobuff.P2P
                         reply.MessageId = message.MessageId;
                         reply.IsInternal = true;
 
-                        SendAsyncMessage(in clientId, reply);
+                        SendAsyncMessage(clientId, reply);
 
                         MessageEnvelope requestAck = new MessageEnvelope();
                         requestAck.Header = InternalMessageResources.RegisteryAck;
                         requestAck.IsInternal = true;
+                        requestAck.To = clientId;
 
-                        var ackResponse = await SendMessageAndWaitResponse(clientId, requestAck, 10000);
+                        var ackResponse = await SendMessageAndWaitResponse(clientId, requestAck, 10000).ConfigureAwait(false);
 
                         if (ackResponse.Header != MessageEnvelope.RequestTimeout)
                         {
@@ -185,7 +186,7 @@ namespace Protobuff.P2P
             requestUdpRegistration.Payload = ServerUdpInitKey;
             requestUdpRegistration.IsInternal= true;
 
-            var udpREsponse = await SendMessageAndWaitResponse(clientId, requestUdpRegistration, 10000);
+            var udpREsponse = await SendMessageAndWaitResponse(clientId, requestUdpRegistration, 10000).ConfigureAwait(false);
             if (udpREsponse.Header.Equals(MessageEnvelope.RequestTimeout)) return false;
 
             IPEndPoint ClientEp = null;
@@ -199,11 +200,11 @@ namespace Protobuff.P2P
                 int tries = 0;
                 while (!RegisteredUdpEndpoints.TryGetValue(clientId, out ClientEp) && ClientEp == null && tries<500)
                 {
-                    udpREsponse = await SendMessageAndWaitResponse(clientId, resentInitMessage, 10000);
+                    udpREsponse = await SendMessageAndWaitResponse(clientId, resentInitMessage, 10000).ConfigureAwait(false);
                     if (udpREsponse.Header.Equals(MessageEnvelope.RequestTimeout)) return false;
 
                     tries++;
-                    await Task.Delay(1);
+                    await Task.Delay(1).ConfigureAwait(false);
                 }
 
                 if (tries > 100)
@@ -224,7 +225,7 @@ namespace Protobuff.P2P
 
             UdpCryptos[ClientEp] = new ConcurrentAesAlgorithm(random,random);
             
-            udpREsponse = await SendMessageAndWaitResponse(clientId, udpFinalize, 10000);
+            udpREsponse = await SendMessageAndWaitResponse(clientId, udpFinalize, 10000).ConfigureAwait(false);
             if (udpREsponse.Header.Equals(MessageEnvelope.RequestTimeout))
                 return false;
             return true;
@@ -272,7 +273,7 @@ namespace Protobuff.P2P
                 if (message.IsInternal)
                 {
                     var messageEnvelope = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-                    HandleMessageReceived(in guid, messageEnvelope);   
+                    HandleMessageReceived( guid, messageEnvelope);   
                 }
                 else server.SendBytesToClient(message.To, bytes, offset, count);
 
@@ -285,7 +286,7 @@ namespace Protobuff.P2P
            
         }
 
-        bool HandleMessageReceived(in Guid clientId, MessageEnvelope message)
+        bool HandleMessageReceived(Guid clientId, MessageEnvelope message)
         {
             
             if (!sm.HandleMessage(message)

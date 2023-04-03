@@ -61,7 +61,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 IsConnecting = true;
                 var clientSocket = GetSocket();
 
-                await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port));
+                await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port)).ConfigureAwait(false);
 
                 Connected(ip,clientSocket);
                 return true;
@@ -82,7 +82,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 bool result = false;
                 try
                 {
-                    result = await ConnectAsyncAwaitable(IP, port);
+                    result = await ConnectAsyncAwaitable(IP, port).ConfigureAwait(false);
 
                 }
                 catch (Exception ex) 

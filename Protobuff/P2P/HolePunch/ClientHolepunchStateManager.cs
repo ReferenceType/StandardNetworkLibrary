@@ -23,15 +23,15 @@ namespace Protobuff.P2P.HolePunch
             return false;
         }
 
-        public async Task<ClientHolepunchState> CreateChannel(RelayClient client, MessageEnvelope message)
+        public async Task<ClientHolepunchState> CreateChannel(RelayClient client, MessageEnvelope message,int timeoutMS = 5000)
         {
             var chmsg = message.UnpackPayload<ChanneCreationMessage>();
-            var state = new ClientHolepunchState(client, message.MessageId, chmsg.DestinationId);
+            var state = new ClientHolepunchState(client, message.MessageId, chmsg.DestinationId, timeoutMS, chmsg.Encrypted);
             clientHolepunchStates.TryAdd(message.MessageId, state);
             state.HandleMessage(message);
             try
             {
-                return await state.Completion.Task == null ? null : state;
+                return await state.Completion.Task.ConfigureAwait(false) == null ? null : state;
                     
             }
             finally
@@ -47,18 +47,25 @@ namespace Protobuff.P2P.HolePunch
         // Trickey point is that the both sides will recieve create channel command. however initiater will handle it  on
         // handle message method because state is already registered.
         // where the remote peer will handle it on Create channel method.
-        public async Task<EncryptedUdpProtoClient> CreateHolepunchRequest(RelayClient client, Guid targetId, int timeOut)
+        public async Task<EncryptedUdpProtoClient> CreateHolepunchRequest(RelayClient client, Guid targetId, int timeOut, bool encrypted = true)
         {
             Guid stateId = Guid.NewGuid();
             MiniLogger.Log(MiniLogger.LogLevel.Info, client.sessionId.ToString() + " is Requested hp with state" + stateId.ToString());
-            ClientHolepunchState state = new ClientHolepunchState(client, stateId, targetId);
+            ClientHolepunchState state = new ClientHolepunchState(client, stateId, targetId,timeOut, encrypted);
             clientHolepunchStates.TryAdd(stateId, state);
 
-            var request = new MessageEnvelope() { Header = HolepunchHeaders.HolePunchRequest, IsInternal = true, MessageId = stateId };
+            var request = new MessageEnvelope()
+            {
+                Header = HolepunchHeaders.HolePunchRequest,
+                IsInternal = true,
+                MessageId = stateId,
+                KeyValuePairs = new Dictionary<string, string>() { { "Encrypted", encrypted.ToString() } }
+                
+            };
             client.SendAsyncMessage(targetId, request);
             try
             {
-                return await state.Completion.Task;
+                return await state.Completion.Task.ConfigureAwait(false);
             }
             finally
             {

@@ -16,9 +16,21 @@ namespace Protobuff.P2P
         // upon request on relay, this is called
         public void CreateState(SecureProtoRelayServer server,MessageEnvelope message)
         {
+            bool encrypted = true;
             Guid stateId = message.MessageId;
+            if (message.KeyValuePairs != null)
+            {
+                if(message.KeyValuePairs.TryGetValue("Encrypted", out string value))
+                {
+                    if( bool.TryParse(value, out var e))
+                    {
+                        encrypted = e;
+                    }
+                }
+            }
+
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Server hp state created with id:" + stateId.ToString());
-            var state = new ServerHolepunchState(server, stateId, message.From, message.To);
+            var state = new ServerHolepunchState(server, stateId, message.From, message.To, encrypted);
             state.OnComplete += () => activeStates.TryRemove(stateId, out _);
 
             activeStates.TryAdd(stateId, state);

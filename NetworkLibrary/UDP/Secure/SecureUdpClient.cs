@@ -11,7 +11,7 @@ namespace NetworkLibrary.UDP.Secure
 {
     public class SecureUdpClient:AsyncUdpClient
     {
-        ConcurrentAesAlgorithm algorithm;
+        public ConcurrentAesAlgorithm algorithm;
         public SecureUdpClient(ConcurrentAesAlgorithm algorithm, int port) : base(port)
         {
             this.algorithm = algorithm;

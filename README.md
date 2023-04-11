@@ -1,7 +1,7 @@
 # .Net Standard Network Library.
-High Performance easy to use Network library. 
+High Performance easy to use Network library supports 16k+ clients. 
 This library Consist of two assemblies.
- - Core Network Library, which is the is the core high performance library and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not require any external package, you can use the dll directly. It also offers great utilites such as pooled memory streams.
+ - Core Network Library, which is the is the core high performance library and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not require any external package, you can use the dll directly. It also offers great utilites such as pooled memory streams. It supports up to 16k clients then, my system(Windows Home) runs out of ports.
 
  - Protobuff Assembly where I used the core library as base and extended it with the protobuf.net as message protocol(proto server/client) and implemented higher level features such as P2P network with relay server and holepunching system. The generic server client model has both the SSL variant and regular variant, however P2P network is only done base on SSL variant so far. You can also use this library as a reference to see how the core library extends if you want to use your own protocol.
 

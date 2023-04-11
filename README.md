@@ -133,9 +133,10 @@ You can declare your payload types, Any type that can be serialised with protobu
 
 This model is what I personally use on my other projects such as P2P Videocall and multiplayer starfighter game.
 Basically you have a Relay server somewhere in your network, which can be on a local network hub in LAN and/or open to connections from internet if port forwarding is enabled. 
+<br/><img src="https://user-images.githubusercontent.com/109621184/204115163-3c8da2c3-9030-4325-9f4a-28935ed98977.png" width=50% height=50%>
 ### Relay server
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally provides NAT traversal methods such as UDP holepunching to allow direct communication via Internet or LAN (UDP only so far).
-<br/><br/> To use the Relay server, simply declere your server as:
+<br/> To use the Relay server, simply declere your server as:
 ``` c#
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var server = new SecureProtoRelayServer(20010, scert);

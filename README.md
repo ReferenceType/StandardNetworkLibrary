@@ -138,47 +138,47 @@ Basically you have a Relay server somewhere in your network, which can be on a l
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally provides NAT traversal methods such as UDP holepunching to allow direct communication via Internet or LAN (UDP only so far).
 <br/> To use the Relay server, simply declere your server as:
 ``` c#
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            var server = new SecureProtoRelayServer(20010, scert);
+      var scert = new X509Certificate2("server.pfx", "greenpass");
+      var server = new SecureProtoRelayServer(20010, scert);
 ```
 Its done. If you want to see some statistics you can use the methods:
 ``` c#
-            server.GetTcpStatistics(out TcpStatistics stats,
-                                    out ConcurrentDictionary<Guid,TcpStatistics> statsPerSession);
+      server.GetTcpStatistics(out TcpStatistics stats,
+                              out ConcurrentDictionary<Guid,TcpStatistics> statsPerSession);
 
-            server.GetUdpStatistics(out UdpStatistics udpStats, 
-                                    out ConcurrentDictionary<IPEndPoint, UdpStatistics> udpStatsPerSession);
-                                    
-            // Udp does not have session concept, but you can get the guid of the client with this method:
-            server.TryGetClientId(ipEndpoint,out Guid clientId);
+      server.GetUdpStatistics(out UdpStatistics udpStats, 
+                              out ConcurrentDictionary<IPEndPoint, UdpStatistics> udpStatsPerSession);
+
+      // Udp does not have session concept, but you can get the guid of the client with this method:
+      server.TryGetClientId(ipEndpoint,out Guid clientId);
 ```
 ### Relay Client
 Relay client is where your application logic is implemented. You can web your client applications to discover and talk with each other.
 </br>To declere a client:
 ``` c#
-            var cert = new X509Certificate2("client.pfx", "greenpass");
-            var client = new RelayClient(cert);
+      var cert = new X509Certificate2("client.pfx", "greenpass");
+      var client = new RelayClient(cert);
 
-            client.OnPeerRegistered += (Guid peerId) => { // Save it to some concurrent dictionary etc..};
-            client.OnPeerUnregistered += (Guid peerId) => { };
-            client.OnMessageReceived += (MessageEnvelope message) => { // Handle your messages, 
-                                                                       // I use switch case on message.Header };
-            client.OnUdpMessageReceived += (MessageEnvelope message) => { };
+      client.OnPeerRegistered += (Guid peerId) => { // Save it to some concurrent dictionary etc..};
+      client.OnPeerUnregistered += (Guid peerId) => { };
+      client.OnMessageReceived += (MessageEnvelope message) => { // Handle your messages, 
+                                                                 // I use switch case on message.Header };
+      client.OnUdpMessageReceived += (MessageEnvelope message) => { };
 
-            client.Connect("127.0.0.1", 20010);
+      client.Connect("127.0.0.1", 20010);
 ```
 Sending messages are identical to proto client server model (also with Payloads).Only difference is you have to specify the destination peer Guid Id, which comes with OnPeerRegistered event:
 ``` c#
-            client.SendAsyncMessage(destinationPeerId, new MessageEnvelope() { Header = "Hello" });
-            
-            // Or with an async reply
-            MessageEnvelope response = await client.SendRequestAndWaitResponse(destinationPeerId,
-                                                  new MessageEnvelope() { Header = "Who Are You?" });
+      client.SendAsyncMessage(destinationPeerId, new MessageEnvelope() { Header = "Hello" });
+
+      // Or with an async reply
+      MessageEnvelope response = await client.SendRequestAndWaitResponse(destinationPeerId,
+                                            new MessageEnvelope() { Header = "Who Are You?" });
 ```
 
 Holepunch Support:
 ``` c#
-           bool result = await client.RequestHolePunchAsync(destinationPeerId, timeOut:10000);
+      bool result = await client.RequestHolePunchAsync(destinationPeerId, timeOut:10000);
 ```
 if succesfull, it will allow you to send direct udp messages between current and destination peers for the rest of the udp messages in both directions.
 

@@ -164,13 +164,14 @@ Relay client is where your application logic is implemented. You can web your cl
       client.OnMessageReceived += (MessageEnvelope message) => { // Handle your messages, 
                                                                  // I use switch case on message.Header };
       client.OnUdpMessageReceived += (MessageEnvelope message) => { };
+      client.OnDisconnected += () => { };
 
       client.Connect("127.0.0.1", 20010);
 ```
 Sending messages are identical to proto client server model (also with Payloads).Only difference is you have to specify the destination peer Guid Id, which comes with OnPeerRegistered event:
 ``` c#
       client.SendAsyncMessage(destinationPeerId, new MessageEnvelope() { Header = "Hello" });
-
+      client.SendUdpMesssage(destinationPeerId, new MessageEnvelope() { Header = "Hello" });
       // Or with an async reply
       MessageEnvelope response = await client.SendRequestAndWaitResponse(destinationPeerId,
                                             new MessageEnvelope() { Header = "Who Are You?" });

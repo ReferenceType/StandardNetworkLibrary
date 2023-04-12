@@ -30,7 +30,7 @@ Pool`s memory is automatically maintained for trimming by the GC itself. Protobu
 
 - System calls for socket send and recieve are expensive. When Tcp traffic is on high load, messages are stiched together to increase throughput, idea is to gather the messages and send in one system call. This system is automatically employed during high load only. Gathering system is configrable and can be based on queue or buffer stream swaps.
 
-- I tried my best to produce maximum JIT optimisation on performance critical regions. 
+- Best efford is put to produce maximum JIT optimisation on performance critical regions.
 
 # Benchmarks
 
@@ -97,10 +97,22 @@ Hello I'm the server
    server.RemoteCertificateValidationCallback+= ...
    client.RemoteCertificateValidationCallback+= ...
 ```
+For base Server/Client where raw bytes are transfered you can use following classes. Method and callback signarures are identical to byte message models.
+```c#
+   AsyncTcpServer server = new AsyncTcpServer(port: 20000);
+   AsyncTpcClient client = new AsyncTpcClient();
+   
+   // SSL variant
+   var ccert = new X509Certificate2("client.pfx", "greenpass");
+   var scert = new X509Certificate2("server.pfx", "greenpass");
+   SslServer server = new SslServer(2000, scert);
+   SslClient client = new SslClient(ccert);
+```
+There is no protocol implemented over base Server/Client described above, so bytes may come fragmented depending on your MTU size.
 ## Protobuf
 ## Secure Proto Client Server
 Proto Server/Client model is based on protobuf.net.
-You can declare your payload types, Any type that can be serialised with protobuf, no limitations.
+You can declare your payload types, which any type that is serializable with protobuf.
 ```c#
         [ProtoContract]
         class SamplePayload :IProtoMessage
@@ -145,7 +157,7 @@ You can declare your payload types, Any type that can be serialised with protobu
 ```
 ## Relay Server/Client and P2P
 
-This model is what I personally use on my other projects such as P2P Videocall and multiplayer starfighter game.
+This model is what I personally use on my other projects such as P2P Videocall and Multiplayer starfighter game.
 Basically you have a Relay server somewhere in your network, which can be on a local network hub in LAN and/or open to connections from internet if port forwarding is enabled. 
 <br/><img src="https://user-images.githubusercontent.com/109621184/204115163-3c8da2c3-9030-4325-9f4a-28935ed98977.png" width=50% height=50%>
 ### Relay server

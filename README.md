@@ -52,6 +52,7 @@ Benchmark results are as follows:
 ~ 4,050,000 echo per second (4m ingress, 4m egress).
 
 # Sample Code 
+## Core Library
 ## Base Byte Message TCP Server Client
 Any chunk of byte array or array segment will reach the destination without fragmentation.
 ```c#
@@ -84,6 +85,19 @@ output:
 Hello I'm a client!
 Hello I'm the server
 ```
+</br>For SSL variants only difference is:
+```c#
+   var ccert = new X509Certificate2("client.pfx", "greenpass");
+   client = new SslByteMessageClient(ccert);
+ 
+   var scert = new X509Certificate2("server.pfx", "greenpass");
+   server = new SslByteMessageServer(8888,scert);
+   
+   // You can override the SSL cerificate validation callback
+   server.RemoteCertificateValidationCallback+= ...
+   client.RemoteCertificateValidationCallback+= ...
+```
+## Protobuf
 ## Secure Proto Client Server
 Proto Server/Client model is based on protobuf.net.
 You can declare your payload types, Any type that can be serialised with protobuf, no limitations.

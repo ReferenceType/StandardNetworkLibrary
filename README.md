@@ -157,8 +157,9 @@ You can declare your payload types, which any type that is serializable with pro
 ```
 ## Relay Server/Client and P2P
 
-This model is what I personally use on my other projects such as P2P Videocall and Multiplayer starfighter game.
-Basically you have a Relay server somewhere in your network, which can be on a local network hub in LAN and/or open to connections from internet if port forwarding is enabled. 
+This model is what I personally use on my other projects such as P2PVideocall and Multiplayer Starfighter Game.
+Basically you have a Relay server somewhere in your network, which can act as a local network hub in LAN and/or open to connections from internet if port forwarding is enabled. 
+<br/>Relay clients (Peers) connects to Relay server and gets notifications about existince of other peers. Peers can send messages to each other through Relay Server, or directly to each other (Udp holepunch).
 <br/><img src="https://user-images.githubusercontent.com/109621184/204115163-3c8da2c3-9030-4325-9f4a-28935ed98977.png" width=50% height=50%>
 ### Relay server
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally provides NAT traversal methods such as UDP holepunching to allow direct communication via Internet or LAN (UDP only so far).
@@ -194,7 +195,7 @@ Relay client is where your application logic is implemented. You can web your cl
 
       client.Connect("127.0.0.1", 20010);
 ```
-Sending messages are identical to proto client server model (also with Payloads).Only difference is you have to specify the destination peer Guid Id, which comes with OnPeerRegistered event:
+Sending messages and method signatures are identical to proto client/server model (also with Payloads). Only difference is you have to specify the destination peer Guid Id, which comes from OnPeerRegistered event whenever a new peer is connected to relay server. Relay Server guaranties syncronisation of current peer set with eventual consistency among all peers. So new peers will receive all other connected peers from this event and old peers will receive an update.
 ``` c#
       client.SendAsyncMessage(destinationPeerId, new MessageEnvelope() { Header = "Hello" });
       client.SendUdpMesssage(destinationPeerId, new MessageEnvelope() { Header = "Hello" });

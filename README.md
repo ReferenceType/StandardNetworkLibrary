@@ -13,11 +13,11 @@ Both assemblies are written on .Net Standard 2.0. Nuget Packages are available:
 ### CoreLib features
 - The core library is well optimised for small and high traffic messages.
 - It emulates MQ systems and offers zero allocation with no extra byte copies.
-- Offers standard TCP and SSL Client/Server model, where under high load, byte sends are compacted to increase throughput.
-- Offers built in "Byte Message" Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
-- Offers Secure UDP Server/Client model with AES encyrption support.
-- Offers interfaces and abstractions for extention with few overrides. For maximum performance, see the extension methodology on Protobuf assembly.
-- Offers reusable utility features such as Concurrent Aes encryptor-decryptor without allocation overhead with pooled memory streams.
+- Standard TCP and SSL Client/Server model, where under high load, byte sends are compacted to increase throughput.
+- Built in "Byte Message" Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
+- Secure UDP Server/Client model with AES encyrption support.
+- Interfaces and abstractions for extention with few overrides. For maximum performance, see the extension methodology on Protobuf assembly.
+- Utility features such as Concurrent Aes encryptor-decryptor without allocation overhead with pooled memory streams.
 
 ### Protobuf features
 - Protobuf message Server/Client models where it can be based on SSL or standard TCP. It is extended ftom Tcp And Udp servers on core library.

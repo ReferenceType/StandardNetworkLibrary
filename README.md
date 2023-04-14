@@ -1,9 +1,9 @@
 # Standard Network Library.
-High Performance easy to use Network library supports 16k+ clients. 
+High Performance, easy to use, Network library supporting 16k+ clients. 
 </br>This library Consist of two assemblies:
- - Core Network Library, which is the base high performance network library, and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not require any external package, you can use the dll directly. It also offers great utilites such as pooled memory streams. It supports up to 16k clients (beyond 16k client my system(windows 11 home) runs out of ports).
+ - Core Network Library, which is the base high performance network library, and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not have any any external package dependency. It also offers great utilites such as pooled memory streams. It supports up to 16k clients, beyond 16k client my system(windows 11 home) runs out of ports.
 
- - Protobuff Assembly where I used the core library as base and extended using the protobuf.net for serialization and implemented message protocol(proto server/client). Additionally implemented higher level features such as P2P network with relay server/client model with NAT travelsal support such as holepunching. The generic server Proto client model has both the SSL variant and unencrypted variant, however Relay Server/Client P2P network is only implemented based on SSL variant so far. 
+ - Protobuff Assembly where I used the core library as base and extended using the protobuf.net for serialization and implemented a message protocol (Proto Server/Client). Additionally implemented higher level features such as P2P network with Relay Server/Client model supporting NAT travelsal such as holepunching. Proto Server/Client  model has both the SSL and unencrypted variant. Relay Server/Client P2P network is only implemented based on SSL variant so far. 
 
 Both assemblies are written on .Net Standard 2.0. Nuget Packages are available:
 - Core : [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)
@@ -12,12 +12,12 @@ Both assemblies are written on .Net Standard 2.0. Nuget Packages are available:
 ## Features
 ### CoreLib features
 - The core library is well optimised for small and high traffic messages.
-- It emulates MQ systems and offers zero allocation and no extra byte copies.
+- It emulates MQ systems and offers zero allocation with no extra byte copies.
 - Offers standard TCP and SSL Client/Server model, where under high load, byte sends are compacted to increase throughput.
-- Offers built in Byte Message Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
+- Offers built in "Byte Message" Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
 - Offers Secure UDP Server/Client model with AES encyrption support.
-- Offers Interfaces and abstractions for extention with few overrides, For maximum performance see the methodology on Protobuf assembly.
-- Offers reusable Utility features such as concurrent Aes encryptor-decryptor without allocation overhead and pooled memory streams.
+- Offers interfaces and abstractions for extention with few overrides. For maximum performance, see the extension methodology on Protobuf assembly.
+- Offers reusable utility features such as Concurrent Aes encryptor-decryptor without allocation overhead with pooled memory streams.
 
 ### Protobuf features
 - Protobuf message Server/Client models where it can be based on SSL or standard TCP. It is extended ftom Tcp And Udp servers on core library.

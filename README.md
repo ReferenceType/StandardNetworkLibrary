@@ -9,7 +9,7 @@ High Performance, easy to use, network library supporting 16k+ clients.
 - .NET Standard 2.0+
 
 Nuget Packages are available:
-|Core Netorwk Library| Protobuf Network Library|
+|Core Network Library| Protobuf Network Library|
 |-------------------|-------------------------|
 |    [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)| [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)|
 
@@ -18,7 +18,7 @@ Nuget Packages are available:
 - The core library is well optimised for small and high traffic messages.
 - Zero allocation with no extra byte copies.
 - Standard TCP and SSL Client/Server model, where under high load, byte sends are compacted to increase throughput.
-- Byte Message Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
+- Byte Message Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment,  will reach the destination atomically without fragmentation.
 - Secure UDP Server/Client model with AES encyrption support.
 - Interfaces and abstractions for extention with few overrides. For maximum performance, see the extension methodology on Protobuf assembly.
 - Utility features such as Concurrent Aes encryptor-decryptor without allocation overhead with pooled memory streams.

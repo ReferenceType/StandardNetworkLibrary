@@ -16,9 +16,9 @@ Nuget Packages are available:
 ## Features
 ### CoreLib features
 - The core library is well optimised for small and high traffic messages.
-- It emulates MQ systems and offers zero allocation with no extra byte copies.
+- Zero allocation with no extra byte copies.
 - Standard TCP and SSL Client/Server model, where under high load, byte sends are compacted to increase throughput.
-- Built in "Byte Message" Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
+- Byte Message Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment, will reach the destination atomically without fragmentation.
 - Secure UDP Server/Client model with AES encyrption support.
 - Interfaces and abstractions for extention with few overrides. For maximum performance, see the extension methodology on Protobuf assembly.
 - Utility features such as Concurrent Aes encryptor-decryptor without allocation overhead with pooled memory streams.
@@ -30,7 +30,7 @@ Nuget Packages are available:
 
 ### Internal Architectural Features
 - Weak Reference Global Shared Memory Pool where each byte array is rented and returned. Each memory user including memory stream backing buffers are rented though the pool.
-Pool`s memory is automatically maintained for trimming by the GC itself. Protobuf serialisation also shares this pool. Memory footprint is low and scaleable. This design reduces GC pressure significantly.
+Pool`s memory is automatically maintained for trimming by the GC itself. Protobuf serialisation also shares this pool. Memory footprint is low and scales well with high traffic. This design reduces GC pressure significantly.
 
 - System calls for socket send and recieve are expensive. When Tcp traffic is on high load, messages are stiched together to increase throughput, idea is to gather the messages and send in one system call. This system is automatically employed during high load only. Gathering system is configrable and can be based on queue or buffer stream swaps.
 
@@ -43,7 +43,6 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 - Tests are done on my personal laptop with CPU AMD Ryzen 7 5800H.
 - Benchmark programs are provided in the project.
 
-Benchmark results are as follows:
 ### TCP/SSL Byte Message Server 
 1000 seed messages (32 bytes message + 4 header) each:
 
@@ -65,7 +64,7 @@ Benchmark results are as follows:
 |10000|4,340,000|3,890,000|
 
 ### Notes
-As the client number increases (1000+) message throughput fluctuates, i.e. Protobuf throughput goes between 6m to 2m, Results are averaged.
+As the client number increases (1000+) message throughput fluctuates, i.e. Protobuf throughput goes between 6m to 2m. Results are averaged.
 
 
 # Code Samples
@@ -178,6 +177,7 @@ This model is what I personally use on my other projects such as P2PVideocall an
 Basically you have a Relay server somewhere in your network, which can act as a local network hub in LAN and/or open to connections from internet if port forwarding is enabled. 
 <br/>Relay clients (Peers) connect to Relay server and get notifications about existince of other peers. Peers can send messages to each other through Relay Server, or directly to each other (Udp holepunch).
 <br/><img src="https://user-images.githubusercontent.com/109621184/204115163-3c8da2c3-9030-4325-9f4a-28935ed98977.png" width=50% height=50%>
+
 ### Relay server
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally provides NAT traversal methods such as UDP holepunching to allow direct communication via Internet or LAN (UDP only so far).
 <br/> To use the Relay server, simply declere your server as:
@@ -220,6 +220,8 @@ Sending messages and method signatures are identical to proto client/server mode
       MessageEnvelope response = await client.SendRequestAndWaitResponse(destinationPeerId,
                                             new MessageEnvelope() { Header = "Who Are You?" });
 ```
+Following image shows a peer update diagram on connection to relay server:
+<img src="https://user-images.githubusercontent.com/109621184/232113846-d70be35b-b5a9-4c72-8a0b-86d67d3cae49.png" width=60% height=60%>
 
 Holepunch Support:
 ``` c#

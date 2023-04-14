@@ -172,7 +172,7 @@ You can declare your payload types, which any type that is serializable with pro
 
 This model is what I personally use on my other projects such as P2PVideocall and Multiplayer Starfighter Game.
 Basically you have a Relay server somewhere in your network, which can act as a local network hub in LAN and/or open to connections from internet if port forwarding is enabled. 
-<br/>Relay clients (Peers) connects to Relay server and gets notifications about existince of other peers. Peers can send messages to each other through Relay Server, or directly to each other (Udp holepunch).
+<br/>Relay clients (Peers) connect to Relay server and get notifications about existince of other peers. Peers can send messages to each other through Relay Server, or directly to each other (Udp holepunch).
 <br/><img src="https://user-images.githubusercontent.com/109621184/204115163-3c8da2c3-9030-4325-9f4a-28935ed98977.png" width=50% height=50%>
 ### Relay server
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally provides NAT traversal methods such as UDP holepunching to allow direct communication via Internet or LAN (UDP only so far).

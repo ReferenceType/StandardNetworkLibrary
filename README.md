@@ -34,22 +34,33 @@ Pool`s memory is automatically maintained for trimming by the GC itself. Protobu
 
 # Benchmarks
 
-Infinite Echo benchmarks are done by sending set of messages to server and getting echo reply. Each round trip is counted as 1 echo. 
-Benchmark programs are provided in the project.
-Tests are done on my personal laptop with AMD Ryzen 7 5800H.
+Infinite Echo benchmarks are done by sending set of messages to server and getting echo response. Each response causes new request. Each server response is counted as 1 Echo. 
+- Separate client and server applications are used for the tests.
+- Tests are done on my personal laptop with CPU AMD Ryzen 7 5800H.
+- Benchmark programs are provided in the project.
 
 Benchmark results are as follows:
-### Tcp Byte Message Server: 100 clients 1000 seed messages (32 bytes + 4 header) each:
+### TCP/SSL Byte Message Server 
+1000 seed messages (32 bytes message + 4 header) each:
 
-~65,000,000 echo per second.
+|Mumber Of Clients|TCP Echo per Second|SSL Echo per Second
+|---|---|---|
+|100|53,400,000|41,600,000|
+|1000|43,600,000|22,200,000|
+|5000|43,400,000|21,800,000|
+|10000|42,800,000|21,700,000|
 
-### SSL Byte message: 100 clients 1000 seed messages(32 bytes + 4 header) each:
+### Protobuf Server 
+1000 seed proto messages ( 32 byte payload, 48 byte total):
 
-~ 44,600,000 echo per second.
+|Mumber Of Clients|Protobuf Echo per Second|Secure Protobuf Echo per Second|
+|---|---|---|
+|100|4,440,000|4,050,000|
+|1000|4,380,000|3,980,000|
+|5000|4,360,000|3,950,000|
+|10000|4,340,000|3,890,000|
 
-### Secure Protobuf Client Server 100 clients 1000 seed messages ( 32 byte payload 48 byte total):
 
-~ 4,050,000 echo per second (4m ingress, 4m egress).
 
 # Sample Code 
 ## Core Library

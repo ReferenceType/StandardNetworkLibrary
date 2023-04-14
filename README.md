@@ -69,7 +69,7 @@ As the client number increases (1000+) message throughput fluctuates, i.e. Proto
 
 # Code Samples
 ## Core Library
-## Base Byte Message TCP Server Client
+## Byte Message TCP Server/Client
 Any chunk of byte array or array segment will reach the destination without fragmentation.
 ```csharp
         private static void ExampleByteMessage()
@@ -101,7 +101,7 @@ output:
 Hello I'm a client!
 Hello I'm the server
 ```
-</br>For SSL variants only difference is:
+</br>For SSL variants difference is:
 ```c#
    var ccert = new X509Certificate2("client.pfx", "greenpass");
    client = new SslByteMessageClient(ccert);
@@ -185,17 +185,7 @@ Server is completely passive, allowing other peers to discover and send messages
       var scert = new X509Certificate2("server.pfx", "greenpass");
       var server = new SecureProtoRelayServer(20010, scert);
 ```
-Its done. If you want to see some statistics you can use the methods:
-``` c#
-      server.GetTcpStatistics(out TcpStatistics stats,
-                              out ConcurrentDictionary<Guid,TcpStatistics> statsPerSession);
-
-      server.GetUdpStatistics(out UdpStatistics udpStats, 
-                              out ConcurrentDictionary<IPEndPoint, UdpStatistics> udpStatsPerSession);
-
-      // Udp does not have session concept, but you can get the guid of the client with this method:
-      server.TryGetClientId(ipEndpoint,out Guid clientId);
-```
+Relay server is already pre-configured. In the future extensions are planned for room system and persisitent/volatile storages.
 ### Relay Client
 Relay client is where your application logic is implemented. You can web your client applications to discover and talk with each other.
 </br>To declere a client:

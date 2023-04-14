@@ -64,7 +64,7 @@ Benchmark results are as follows:
 As the client number increases (1000+) message throughput fluctuates, i.e. Protobuf throughput goes between 6m to 2m, Results are averaged.
 
 
-# Sample Code 
+# Code Samples
 ## Core Library
 ## Base Byte Message TCP Server Client
 Any chunk of byte array or array segment will reach the destination without fragmentation.

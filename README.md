@@ -1,13 +1,17 @@
-# Standard Network Library.
-High Performance, easy to use, Network library supporting 16k+ clients. 
+# Standard Network Library
+High Performance, easy to use, network library supporting 16k+ clients. 
 </br>This library Consist of two assemblies:
  - Core Network Library, which is the base high performance network library, and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not have any any external package dependency. It also offers great utilites such as pooled memory streams. It supports up to 16k clients, beyond 16k client my system(windows 11 home) runs out of ports.
 
- - Protobuff Assembly where I used the core library as base and extended using the protobuf.net for serialization and implemented a message protocol (Proto Server/Client). Additionally implemented higher level features such as P2P network with Relay Server/Client model supporting NAT travelsal such as holepunching. Proto Server/Client  model has both the SSL and unencrypted variant. Relay Server/Client P2P network is only implemented based on SSL variant so far. 
+ - Protobuff Assembly where I used the core library as base and extended using the protobuf.net for serialization and implemented a message protocol (Proto Server/Client). Additionally implemented higher level features such as P2P network with Relay Server/Client model supporting NAT travelsal such as holepunching. Proto Server/Client model has both the SSL and unencrypted variant. Relay Server/Client P2P network is only implemented based on SSL Proto variant so far. 
+ 
+## Supported Runtimes
+- .NET Standard 2.0+
 
-Both assemblies are written on .Net Standard 2.0. Nuget Packages are available:
-- Core : [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)
-- Protobuf : [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)
+Nuget Packages are available:
+|Core Netorwk Library| Protobuf Network Library|
+|-------------------|-------------------------|
+|    [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)| [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)|
 
 ## Features
 ### CoreLib features
@@ -68,7 +72,7 @@ As the client number increases (1000+) message throughput fluctuates, i.e. Proto
 ## Core Library
 ## Base Byte Message TCP Server Client
 Any chunk of byte array or array segment will reach the destination without fragmentation.
-```c#
+```csharp
         private static void ExampleByteMessage()
         {
             ByteMessageTcpServer server = new ByteMessageTcpServer(20008);
@@ -79,17 +83,17 @@ Any chunk of byte array or array segment will reach the destination without frag
             client.OnBytesReceived += ClientBytesReceived;
             client.Connect("127.0.0.1", 20008);
 
-            client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
+            client.SendAsync(UTF8Encoding.UTF8.GetBytes("Hello I'm a client!"));
 
             void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
-                server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
+                Console.WriteLine(UTF8Encoding.UTF8.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, UTF8Encoding.UTF8.GetBytes("Hello I'm the server"));
             }
 
             void ClientBytesReceived(byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
+                Console.WriteLine(UTF8Encoding.UTF8.GetString(bytes, offset, count));
             }
         }
  ```

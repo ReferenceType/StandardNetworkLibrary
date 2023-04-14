@@ -1,4 +1,4 @@
-# .Net Standard Network Library.
+# Standard Network Library.
 High Performance easy to use Network library supports 16k+ clients. 
 </br>This library Consist of two assemblies:
  - Core Network Library, which is the base high performance network library, and works only with bytes. It offers extensibility with direct serialisation on any protocol. All features are designed from scracth. Assembly does not require any external package, you can use the dll directly. It also offers great utilites such as pooled memory streams. It supports up to 16k clients (beyond 16k client my system(windows 11 home) runs out of ports).
@@ -60,6 +60,8 @@ Benchmark results are as follows:
 |5000|4,360,000|3,950,000|
 |10000|4,340,000|3,890,000|
 
+### Notes
+As the client number increases (1000+) message throughput fluctuates, i.e. Protobuf throughput goes between 6m to 2m, Results are averaged.
 
 
 # Sample Code 

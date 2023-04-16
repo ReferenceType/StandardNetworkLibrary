@@ -63,7 +63,7 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 |5000|4,360,000|3,950,000|
 |10000|4,340,000|3,890,000|
 
-### Notes
+#### Note
 As the client number increases (1000+) message throughput fluctuates, i.e. Protobuf throughput goes between 6m to 2m. Results are averaged.
 
 

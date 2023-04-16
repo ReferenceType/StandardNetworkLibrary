@@ -13,9 +13,10 @@
     <Authors>RefrenceType</Authors>
     <PackageLicenseFile>Licence.txt</PackageLicenseFile>
     <Copyright>Apache 2.0</Copyright>
-    <Version>1.0.6</Version>
+    <Version>1.0.7</Version>
     <AssemblyVersion>1.0.5.0</AssemblyVersion>
     <FileVersion>1.0.5.0</FileVersion>
+    <PackageReleaseNotes>Task Syncronisation contexts are fixed to aviod possible deadlocks on some client applications such as WPF.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

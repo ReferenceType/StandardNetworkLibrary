@@ -324,6 +324,25 @@ namespace Protobuff.P2P
             else
                 udpRelayClient.SendAsyncMessage(message);
         }
+        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message,T innerMessage, int channel = 0) where T: IProtoMessage
+        {
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+                return;
+
+            message.From = sessionId;
+            message.To = toId;
+
+            if (directUdpClients.TryGetValue(toId, out var client))
+            {
+                if (channel == 0)
+                    client.ch1.SendAsyncMessage(message, innerMessage);
+                else
+                    client.ch2.SendAsyncMessage(message, innerMessage);
+            }
+
+            else
+                udpRelayClient.SendAsyncMessage(message, innerMessage);
+        }
         public void SendUdpMesssage(Guid toId, byte[] data, int offset, int count, string dataName, int channel = 0)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)

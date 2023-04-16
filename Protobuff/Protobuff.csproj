@@ -12,8 +12,12 @@
     <Product>ProtobufNetworkLibrary</Product>
     <PackageLicenseFile>Licence.txt</PackageLicenseFile>
     <AssemblyVersion>1.0.4.0</AssemblyVersion>
-    <Version>1.0.6</Version>
+    <Version>1.1.0</Version>
     <FileVersion>1.0.4.0</FileVersion>
+    <PackageReleaseNotes>Holepunch system is extended.
+Unencrypted Udp holepunch channel option is added.  Old and newer versions are compatible(only encyrpted), but holepunch is not guarantied.
+Task syncronisation contextes are fixed (ConfigureAwait(false) and patch on TaskCompletitionSource TaskCreationOptions.RunContinuationsAsynchronously ) 
+to aviod possible deadlocks on some client applications such as WPF.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

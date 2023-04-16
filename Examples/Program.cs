@@ -5,6 +5,8 @@ using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
 using Protobuff.P2P;
+using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
@@ -14,11 +16,11 @@ namespace Examples
     {
         static void Main(string[] args)
         {
-            // ExampleByteMessage();
+             ExampleByteMessage();
             //ExampleProtoSecure();
             //ExampleProtobuff();
             //ExampleSecureByteMessage();#
-            ExampleSecureP2P();
+           // ExampleSecureP2P();
         }
 
       
@@ -33,17 +35,17 @@ namespace Examples
             client.OnBytesReceived += ClientBytesReceived;
             client.Connect("127.0.0.1", 20008);
 
-            client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
+            client.SendAsync(UTF8Encoding.UTF8.GetBytes("Hello I'm a client!"));
 
             void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
-                server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
+                Console.WriteLine(UTF8Encoding.UTF8.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, UTF8Encoding.UTF8.GetBytes("Hello I'm the server"));
             }
 
             void ClientBytesReceived(byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
+                Console.WriteLine(UTF8Encoding.UTF8.GetString(bytes, offset, count));
             }
         }
 
@@ -154,8 +156,9 @@ namespace Examples
        
         private static void ExampleSecureP2P()
         {
-            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var ipEndpoint = new IPEndPoint(12, 1);
             var cert = new X509Certificate2("client.pfx", "greenpass");
+            var scert = new X509Certificate2("server.pfx", "greenpass");
 
             var server = new SecureProtoRelayServer(20010, scert);
 

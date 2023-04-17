@@ -15,7 +15,7 @@ Nuget Packages are available:
 
 ## Features
 Overall features shared by both assembly
-- The core library is well optimised for small and high traffic messages. It can also handle large messages.
+- Well optimised for small and high traffic messages, can also handle large messages.
 - Zero allocation with no extra byte copies.
 - Low memory footprint and GC pressure thanks to pooling.
 ### CoreLib features

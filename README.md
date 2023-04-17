@@ -14,14 +14,17 @@ Nuget Packages are available:
 |    [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)| [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)|
 
 ## Features
-### CoreLib features
-- The core library is well optimised for small and high traffic messages.
+Overall features shared by both assembly
+- The core library is well optimised for small and high traffic messages. It can also handle large messages.
 - Zero allocation with no extra byte copies.
+- Low memory footprint and GC pressure thanks to pooling.
+### CoreLib features
 - Standard TCP and SSL Client/Server model, where under high load, byte sends are compacted to increase throughput.
 - Byte Message Server/Client model (both TCP and SSL), implementing byte message protocol with 4 byte size header. Sending any size(up to 2GB) of byte[] or a segment,  will reach the destination atomically without fragmentation.
 - Secure UDP Server/Client model with AES encyrption support.
 - Interfaces and abstractions for extention with few overrides. For maximum performance, see the extension methodology on Protobuf assembly.
-- Utility features such as Concurrent Aes encryptor-decryptor without allocation overhead with pooled memory streams.
+- Pooled memory streams where stream backing buffers are rented from an array pool. Stream buffers are automatically trimmed.
+- Utility features such as Concurrent Aes encryptor-decryptor without allocation overhead using pooled memory streams.
 
 ### Protobuf features
 - Protobuf message Server/Client models where it can be based on SSL or standard TCP. It is extended ftom Tcp And Udp servers on core library.

@@ -1,12 +1,8 @@
-﻿using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.ByteMessage;
+﻿using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
-using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
 using Protobuff.P2P;
-using System.Collections.Concurrent;
-using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
@@ -16,14 +12,14 @@ namespace Examples
     {
         static void Main(string[] args)
         {
-             ExampleByteMessage();
+            ExampleByteMessage();
             //ExampleProtoSecure();
             //ExampleProtobuff();
             //ExampleSecureByteMessage();#
-           // ExampleSecureP2P();
+            // ExampleSecureP2P();
         }
 
-      
+
 
         private static void ExampleByteMessage()
         {
@@ -54,12 +50,12 @@ namespace Examples
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
-            var server = new SslByteMessageServer(20008,scert);
+            var server = new SslByteMessageServer(20008, scert);
             server.OnBytesReceived += ServerBytesReceived;
             // since certificate is self-signed it will give chain errors, here we bypass it
             server.RemoteCertificateValidationCallback += (a, b, c, d) => true;
             server.StartServer();
-           
+
 
             var client = new SslByteMessageClient(cert);
             client.OnBytesReceived += ClientBytesReceived;
@@ -122,7 +118,7 @@ namespace Examples
             }
         }
 
-       
+
         private static async Task ExampleProtobuff()
         {
             var server = new ProtoServer(20008);
@@ -153,10 +149,9 @@ namespace Examples
             }
         }
 
-       
+
         private static void ExampleSecureP2P()
         {
-            var ipEndpoint = new IPEndPoint(12, 1);
             var cert = new X509Certificate2("client.pfx", "greenpass");
             var scert = new X509Certificate2("server.pfx", "greenpass");
 
@@ -179,12 +174,12 @@ namespace Examples
             var succes = clients[0].RequestHolePunchAsync(destinationId, 5000).Result;
 
             var message = new SamplePayload() { sample = "hello" };
-            clients[0].SendAsyncMessage(destinationId,message);
-           
+            clients[0].SendAsyncMessage(destinationId, message);
+
             // message handling
             void OnPeerRegistered(RelayClient client, Guid peerId)
             {
-                Console.WriteLine(client.sessionId + " Says: A peer registered: "+peerId);
+                Console.WriteLine(client.sessionId + " Says: A peer registered: " + peerId);
             }
             void ClientMsgReceived(RelayClient client, MessageEnvelope reply)
             {

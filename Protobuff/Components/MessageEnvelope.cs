@@ -1,16 +1,16 @@
-﻿using NetworkLibrary.Utils;
+﻿using MessageProtocol;
+using NetworkLibrary.Utils;
 using ProtoBuf;
-using Protobuff.Components;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Protobuff
 {
+
     // this is mini version of envelope to route messages more efficiently.
     // message envelope can be deserialized into this.
     [ProtoContract]
-    internal struct RouterHeader
+    internal struct RouterHeader : IRouterHeader
     {
         [ProtoMember(4)]
         public Guid From { get; internal set; }
@@ -19,14 +19,14 @@ namespace Protobuff
         public Guid To { get; internal set; }
 
         [ProtoMember(7)]
-        public bool IsInternal;
+        public bool IsInternal { get; internal set; }
     }
 
     // size cant be more than 64kb
     [ProtoContract]
-    public class MessageEnvelope 
+    public class MessageEnvelope : IMessageEnvelope
     {
-        public static ConcurrentProtoSerialiser serialiser= new ConcurrentProtoSerialiser();
+        public static ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
         public const string RequestTimeout = "RequestTimedOut";
         public const string RequestCancelled = "RequestCancelled";
 
@@ -49,12 +49,15 @@ namespace Protobuff
         public Dictionary<string, string> KeyValuePairs { get; set; }
 
         [ProtoMember(7)]
-        internal bool IsInternal;
+        public bool IsInternal { get; internal set; }
         public bool IsLocked { get; private set; } = true;
 
         private byte[] payload;
-        public byte[] Payload { get=>payload;  set {
-                if(value == null)
+        public byte[] Payload
+        {
+            get => payload; set
+            {
+                if (value == null)
                 {
                     PayloadOffset = 0;
                     PayloadCount = 0;
@@ -67,7 +70,8 @@ namespace Protobuff
                     PayloadCount = value.Length;
                     IsLocked = false;
                 }
-            } }
+            }
+        }
         public int PayloadOffset { get; private set; }
         public int PayloadCount { get; private set; }
 
@@ -78,8 +82,12 @@ namespace Protobuff
             PayloadOffset = offset;
             PayloadCount = count;
         }
-
-        public T UnpackPayload<T>() where T : IProtoMessage
+        /// <summary>
+        /// Desiralises the payload bytes into given type
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        public T UnpackPayload<T>()
         {
             return serialiser.UnpackEnvelopedMessage<T>(this);
         }
@@ -92,10 +100,10 @@ namespace Protobuff
         {
             if (payload == null || IsLocked)
                 return;
-            IsLocked= true;
+            IsLocked = true;
             Payload = ByteCopy.ToArray(Payload, PayloadOffset, PayloadCount);
-            PayloadOffset= 0;
-            PayloadCount= Payload.Length;
+            PayloadOffset = 0;
+            PayloadCount = Payload.Length;
             IsLocked = false;
         }
 

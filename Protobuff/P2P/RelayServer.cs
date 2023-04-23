@@ -1,30 +1,23 @@
 ﻿using NetworkLibrary;
 using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.UDP;
 using NetworkLibrary.Utils;
-using Protobuff.Components;
 using Protobuff.P2P.HolePunch;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Drawing;
 using System.Linq;
 using System.Net;
-using System.Net.Security;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Protobuff.P2P
 {
 
-    public class SecureProtoRelayServer: SecureProtoServer
+    public class SecureProtoRelayServer : SecureProtoServer
     {
         private AsyncUdpServer udpServer;
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
@@ -32,7 +25,7 @@ namespace Protobuff.P2P
         private ConcurrentDictionary<Guid, IPEndPoint> RegisteredUdpEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> UdpCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
         private ConcurrentDictionary<Guid, IPEndPoint> HolePunchers = new ConcurrentDictionary<Guid, IPEndPoint>();
-        private TaskCompletionSource<bool> PushPeerList =  new TaskCompletionSource<bool>( TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource<bool> PushPeerList = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool shutdown = false;
         private ConcurrentAesAlgorithm relayDectriptor;
         ServerHolepunchStateManager sm = new ServerHolepunchStateManager();
@@ -40,17 +33,17 @@ namespace Protobuff.P2P
         internal byte[] ServerUdpInitKey { get; }
 
 
-        public SecureProtoRelayServer(int port, X509Certificate2 cerificate):base(port,cerificate)
+        public SecureProtoRelayServer(int port, X509Certificate2 cerificate) : base(port, cerificate)
         {
             udpServer = new AsyncUdpServer(port);
 
-            udpServer.OnClientAccepted +=UdpClientAccepted;
-            udpServer.OnBytesRecieved +=HandleUdpBytesReceived;
+            udpServer.OnClientAccepted += UdpClientAccepted;
+            udpServer.OnBytesRecieved += HandleUdpBytesReceived;
             udpServer.StartServer();
 
             Task.Run(PeerListPushRoutine);
 
-            ServerUdpInitKey  = new Byte[16];
+            ServerUdpInitKey = new Byte[16];
             RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
             rng.GetNonZeroBytes(ServerUdpInitKey);
             relayDectriptor = new ConcurrentAesAlgorithm(ServerUdpInitKey, ServerUdpInitKey);
@@ -62,12 +55,12 @@ namespace Protobuff.P2P
 
         public void GetUdpStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)
         {
-            udpServer.GetStatistics(out generalStats,out sessionStats);
+            udpServer.GetStatistics(out generalStats, out sessionStats);
         }
 
-        public bool TryGetClientId( IPEndPoint ep, out Guid id)
+        public bool TryGetClientId(IPEndPoint ep, out Guid id)
         {
-            id = RegisteredUdpEndpoints.Where(x=>x.Value == ep).Select(x=>x.Key).FirstOrDefault();
+            id = RegisteredUdpEndpoints.Where(x => x.Value == ep).Select(x => x.Key).FirstOrDefault();
             return id != default;
         }
         #region Push Updates
@@ -83,8 +76,9 @@ namespace Protobuff.P2P
                     {
                         NotifyCurrentPeerList(item.Key);
                     }
-                } catch(Exception ex){ PushPeerList.TrySetResult(true); }
-                   
+                }
+                catch (Exception ex) { PushPeerList.TrySetResult(true); }
+
                 await Task.Delay(1000).ConfigureAwait(false);
 
             }
@@ -96,7 +90,7 @@ namespace Protobuff.P2P
 
             var peerlistMsg = new MessageEnvelope();
             peerlistMsg.Header = InternalMessageResources.NotifyPeerListUpdate;
-            peerlistMsg.IsInternal= true;
+            peerlistMsg.IsInternal = true;
 
             var peerList = new Dictionary<Guid, PeerInfo>();
             // enumerating concurrent dict suppose to be thread safe but 
@@ -111,7 +105,7 @@ namespace Protobuff.P2P
                         IP = GetIPEndPoint(peer.Key).Address.ToString(),
                         Port = GetIPEndPoint(peer.Key).Port
                     };
-                }    
+                }
             }
 
             var listProto = new PeerList<PeerInfo>();
@@ -167,15 +161,15 @@ namespace Protobuff.P2P
                         SendAsyncMessage(in clientId, reply);
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     MiniLogger.Log(MiniLogger.LogLevel.Error,
-                        "Registration routine encountered an error: "+ ex.Message);
+                        "Registration routine encountered an error: " + ex.Message);
                 }
 
             });
 
-            
+
         }
 
         protected virtual async Task<bool> GenerateSeureUdpChannel(Guid clientId)
@@ -184,21 +178,21 @@ namespace Protobuff.P2P
             requestUdpRegistration.Header = InternalMessageResources.UdpInit;
             requestUdpRegistration.To = clientId;
             requestUdpRegistration.Payload = ServerUdpInitKey;
-            requestUdpRegistration.IsInternal= true;
+            requestUdpRegistration.IsInternal = true;
 
             var udpREsponse = await SendMessageAndWaitResponse(clientId, requestUdpRegistration, 10000).ConfigureAwait(false);
             if (udpREsponse.Header.Equals(MessageEnvelope.RequestTimeout)) return false;
 
             IPEndPoint ClientEp = null;
-            if (!RegisteredUdpEndpoints.TryGetValue(clientId,out ClientEp))
+            if (!RegisteredUdpEndpoints.TryGetValue(clientId, out ClientEp))
             {
                 var resentInitMessage = new MessageEnvelope();
                 resentInitMessage.Header = InternalMessageResources.UdpInitResend;
                 resentInitMessage.To = clientId;
-                resentInitMessage.IsInternal= true;
+                resentInitMessage.IsInternal = true;
 
                 int tries = 0;
-                while (!RegisteredUdpEndpoints.TryGetValue(clientId, out ClientEp) && ClientEp == null && tries<500)
+                while (!RegisteredUdpEndpoints.TryGetValue(clientId, out ClientEp) && ClientEp == null && tries < 500)
                 {
                     udpREsponse = await SendMessageAndWaitResponse(clientId, resentInitMessage, 10000).ConfigureAwait(false);
                     if (udpREsponse.Header.Equals(MessageEnvelope.RequestTimeout)) return false;
@@ -223,8 +217,8 @@ namespace Protobuff.P2P
             udpFinalize.Payload = random;
             udpFinalize.IsInternal = true;
 
-            UdpCryptos[ClientEp] = new ConcurrentAesAlgorithm(random,random);
-            
+            UdpCryptos[ClientEp] = new ConcurrentAesAlgorithm(random, random);
+
             udpREsponse = await SendMessageAndWaitResponse(clientId, udpFinalize, 10000).ConfigureAwait(false);
             if (udpREsponse.Header.Equals(MessageEnvelope.RequestTimeout))
                 return false;
@@ -247,7 +241,7 @@ namespace Protobuff.P2P
         protected override void HandleClientDisconnected(Guid clientId)
         {
             RegisteredPeers.TryRemove(clientId, out _);
-            if(RegisteredUdpEndpoints.TryRemove(clientId, out var key))
+            if (RegisteredUdpEndpoints.TryRemove(clientId, out var key))
             {
                 UdpCryptos.TryRemove(key, out _);
                 udpServer.RemoveClient(key);
@@ -269,11 +263,11 @@ namespace Protobuff.P2P
         {
             try
             {
-                RouterHeader message = serialiser.DeserialiseOnlyRouterHeader(bytes, offset, count);
+                var message = serialiser.DeserialiseOnlyRouterHeader(bytes, offset, count);
                 if (message.IsInternal)
                 {
                     var messageEnvelope = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-                    HandleMessageReceived( guid, messageEnvelope);   
+                    HandleMessageReceived(guid, messageEnvelope);
                 }
                 else server.SendBytesToClient(message.To, bytes, offset, count);
 
@@ -283,12 +277,12 @@ namespace Protobuff.P2P
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "While deserializing envelope, an error occured: " +
                     e.Message);
             }
-           
+
         }
 
         bool HandleMessageReceived(Guid clientId, MessageEnvelope message)
         {
-            
+
             if (!sm.HandleMessage(message)
                 && !CheckAwaiter(message))
             {
@@ -301,15 +295,15 @@ namespace Protobuff.P2P
                         sm.CreateState(this, message);
                         return true;
                     case "WhatsMyIp":
-                        SendEndpoint(clientId,message);
+                        SendEndpoint(clientId, message);
                         return true;
-                    
+
                     default:
                         return false;
                 }
             }
             return true;
-                
+
         }
         #endregion
 
@@ -322,8 +316,8 @@ namespace Protobuff.P2P
             };
 
             var env = new MessageEnvelope();
-            env.IsInternal= true;
-            env.MessageId= message.MessageId;
+            env.IsInternal = true;
+            env.MessageId = message.MessageId;
             SendAsyncMessage(clientId, env, info);
         }
 
@@ -337,7 +331,7 @@ namespace Protobuff.P2P
             // Client is trying to register its Udp endpoint here
             if (!UdpCryptos.ContainsKey(adress))
             {
-                HandleUnregistreredMessage(adress,bytes,offset,count);
+                HandleUnregistreredMessage(adress, bytes, offset, count);
                 return;
             }
 
@@ -348,7 +342,7 @@ namespace Protobuff.P2P
                 return;
             }
 
-            var buffer = BufferPool.RentBuffer(count+256);
+            var buffer = BufferPool.RentBuffer(count + 256);
             try
             {
                 int decrptedAmount = crypto.DecryptInto(bytes, offset, count, buffer, 0);
@@ -364,9 +358,9 @@ namespace Protobuff.P2P
                     }
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to deserialise envelope message "+e.Message);
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to deserialise envelope message " + e.Message);
                 return;
             }
             finally
@@ -384,7 +378,7 @@ namespace Protobuff.P2P
                 var message1 = serialiser.DeserialiseEnvelopedMessage(result, 0, result.Length);
                 sm.HandleUdpMessage(adress, message1);
 
-                if (message1.Header!=null && message1.Header.Equals(InternalMessageResources.UdpInit))
+                if (message1.Header != null && message1.Header.Equals(InternalMessageResources.UdpInit))
                 {
                     RegisteredUdpEndpoints.TryAdd(message1.From, adress);
                 }
@@ -395,7 +389,7 @@ namespace Protobuff.P2P
             }
         }
 
-       
+
 
     }
 }

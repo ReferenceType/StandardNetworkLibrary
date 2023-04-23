@@ -1,13 +1,8 @@
-﻿using System.Security.Cryptography;
-
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NetworkLibrary.Components;
 using NetworkLibrary.Utils;
 using System;
 using System.Diagnostics;
-using System.Linq;
-using System.Net.Sockets;
-using System.Threading;
 
 namespace UnitTests
 {
@@ -18,7 +13,7 @@ namespace UnitTests
         [TestMethod]
         public void TestMessageParser()
         {
-            Stopwatch sw= new Stopwatch();
+            Stopwatch sw = new Stopwatch();
             int NumMsg = 0;
             ByteMessageReader msgMan = new ByteMessageReader(new Guid(), 128000);
             msgMan.OnMessageReady += (byte[] msg, int off, int ct) => NumMsg++;
@@ -31,10 +26,10 @@ namespace UnitTests
             byte[][] data1 = new byte[108][];
             for (int j = 0; j < 108; j++)
             {
-                data1[j]=new byte[1] { data[j] };
+                data1[j] = new byte[1] { data[j] };
             }
 
-           
+
             int cut = 22;
             int iteration = 1000000;
             for (int i = 0; i < iteration; i++)
@@ -48,10 +43,10 @@ namespace UnitTests
                 msgMan.ParseBytes(data, 0, cut);
                 msgMan.ParseBytes(data, cut, 108 - cut);
             }
-            Assert.IsTrue(NumMsg == 6*iteration);
+            Assert.IsTrue(NumMsg == 6 * iteration);
         }
 
-      
+
 
     }
 }

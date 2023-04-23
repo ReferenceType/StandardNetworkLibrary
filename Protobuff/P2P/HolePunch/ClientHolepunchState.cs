@@ -1,15 +1,10 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Utils;
-using ProtoBuf;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Drawing;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -34,8 +29,8 @@ namespace Protobuff.P2P.HolePunch
             this.client = client;
             this.stateId = stateId;
             DestinationId = To;
-            this.encrypted= encrypted;
-            MiniLogger.Log(MiniLogger.LogLevel.Info,"---------- Encryption:  " + encrypted.ToString());
+            this.encrypted = encrypted;
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "---------- Encryption:  " + encrypted.ToString());
         }
 
         public void HandleMessage(MessageEnvelope message)
@@ -96,10 +91,10 @@ namespace Protobuff.P2P.HolePunch
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Sending Endpoint");
 
             MessageEnvelope envelope = GetEnvelope("");
-            EndpointTransferMessage innerMsg  =  new EndpointTransferMessage();
+            EndpointTransferMessage innerMsg = new EndpointTransferMessage();
             innerMsg.LocalEndpoints = GetLocalEndpoints();
             envelope.From = client.sessionId;
-           
+
             holepunchClient.SendAsyncMessage(envelope, innerMsg);
         }
         private List<EndpointTransferMessage> GetLocalEndpoints()
@@ -117,7 +112,7 @@ namespace Protobuff.P2P.HolePunch
                     endpoints.Add(new EndpointTransferMessage()
                     {
                         IpRemote = ip.ToString(),
-                        PortRemote=lep.Port
+                        PortRemote = lep.Port
                     });
                 }
             }
@@ -131,7 +126,7 @@ namespace Protobuff.P2P.HolePunch
             MiniLogger.Log(MiniLogger.LogLevel.Info, client.sessionId.ToString() + " --- punching  towards " + endPoint.IpRemote + " - " + endPoint.PortRemote);
             foreach (var item in endPoint.LocalEndpoints)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Info, client.sessionId.ToString() + " --- punching  towards " +item.IpRemote+" - "+item.PortRemote);
+                MiniLogger.Log(MiniLogger.LogLevel.Info, client.sessionId.ToString() + " --- punching  towards " + item.IpRemote + " - " + item.PortRemote);
             }
 
             message.From = client.sessionId;
@@ -142,7 +137,7 @@ namespace Protobuff.P2P.HolePunch
 
             IPEndPoint ep = new IPEndPoint(IPAddress.Parse(endPoint.IpRemote).MapToIPv4(), endPoint.PortRemote);
             var bytes = seri.SerializeMessageEnvelope(message, endPoint);
-          
+
             PunchAlgorithm(bytes, 0, bytes.Length, ep);
 
             foreach (var endpointMsg in endPoint.LocalEndpoints)
@@ -152,9 +147,9 @@ namespace Protobuff.P2P.HolePunch
                 PunchAlgorithm(bytes_, 0, bytes_.Length, epl);
             }
 
-         
+
         }
-        private void PunchAlgorithm(byte[] bytes_,int offset,int count, EndPoint epl)
+        private void PunchAlgorithm(byte[] bytes_, int offset, int count, EndPoint epl)
         {
 
             //message.Payload = null;
@@ -170,36 +165,36 @@ namespace Protobuff.P2P.HolePunch
 
             if (Interlocked.CompareExchange(ref cancelSends, 0, 0) == 1)
                 return;
-           
+
 
             Task.Run(async () =>
             {
                 for (int i = 0; i < 10; i++)
                 {
-                    if(Interlocked.CompareExchange(ref cancelSends,0,0)==1)
+                    if (Interlocked.CompareExchange(ref cancelSends, 0, 0) == 1)
                         return;
                     holepunchClient.SendTo(bytes_, 0, count, epl);
 
-                        await Task.Delay(i).ConfigureAwait(false);
+                    await Task.Delay(i).ConfigureAwait(false);
 
                 }
             });
         }
-        ConcurrentDictionary<EndpointTransferMessage,bool> successes = new ConcurrentDictionary<EndpointTransferMessage,bool>();
+        ConcurrentDictionary<EndpointTransferMessage, bool> successes = new ConcurrentDictionary<EndpointTransferMessage, bool>();
         int endReceives = 0;
         int msgSent = 0;
         private void OnBytesReceived(byte[] arg1, int arg2, int arg3)
         {
             if (Interlocked.CompareExchange(ref endReceives, 0, 0) == 1)
                 return;
-            if(arg1 == null)
+            if (arg1 == null)
             {
                 var any = new IPEndPoint(IPAddress.Any, 0);
                 holepunchClient.ReceiveOnceFrom(any, OnBytesReceived);
                 return;
             }
 
-            if (Interlocked.CompareExchange(ref msgSent, 1,0) == 1)
+            if (Interlocked.CompareExchange(ref msgSent, 1, 0) == 1)
             {
                 var any = new IPEndPoint(IPAddress.Any, 0);
                 holepunchClient.ReceiveOnceFrom(any, OnBytesReceived);
@@ -207,13 +202,13 @@ namespace Protobuff.P2P.HolePunch
             }
 
             MessageEnvelope msg = seri.DeserialiseEnvelopedMessage(arg1, 0, arg3);
-            var succesfullEp= msg.UnpackPayload<EndpointTransferMessage>();
-            if (successes.TryAdd(succesfullEp,true))
+            var succesfullEp = msg.UnpackPayload<EndpointTransferMessage>();
+            if (successes.TryAdd(succesfullEp, true))
             {
                 var envelope = GetEnvelope(HolepunchHeaders.SuccesAck);
                 envelope.From = client.sessionId;
                 envelope.MessageId = stateId;
-                client.SendAsyncMessage(DestinationId, envelope,succesfullEp);
+                client.SendAsyncMessage(DestinationId, envelope, succesfullEp);
             }
             var any1 = new IPEndPoint(IPAddress.Any, 0);
             holepunchClient.ReceiveOnceFrom(any1, OnBytesReceived);
@@ -223,7 +218,7 @@ namespace Protobuff.P2P.HolePunch
         {
             if (Interlocked.CompareExchange(ref Success, 1, 0) == 0)
             {
-                Interlocked.Exchange(ref cancelSends,1);
+                Interlocked.Exchange(ref cancelSends, 1);
                 MiniLogger.Log(MiniLogger.LogLevel.Info, "got hp feedback yay!" + client.sessionId.ToString());
                 SendAckToRelay();
             }
@@ -239,19 +234,19 @@ namespace Protobuff.P2P.HolePunch
         // done.
         private void HandleSuccess(MessageEnvelope message)
         {
-            Interlocked.Exchange(ref cancelSends, 1); 
+            Interlocked.Exchange(ref cancelSends, 1);
             message.LockBytes();
             if (message.KeyValuePairs != null)
             {
                 var ip = message.KeyValuePairs["IP"];
                 var port = message.KeyValuePairs["Port"];
-                ThreadPool.UnsafeQueueUserWorkItem(async(s) =>
+                ThreadPool.UnsafeQueueUserWorkItem(async (s) =>
                 {
 
                     await Task.Delay(200);
                     Interlocked.Exchange(ref endReceives, 1);
 
-                    if(encrypted)
+                    if (encrypted)
                         holepunchClient.SwapAlgorith(new ConcurrentAesAlgorithm(message.Payload, message.Payload));
                     else
                         holepunchClient.SwapAlgorith(null);
@@ -273,7 +268,7 @@ namespace Protobuff.P2P.HolePunch
                 // holepunchClient.SwapAlgorith(null);
                 Completion.TrySetResult(holepunchClient);
             }
-         
+
         }
 
         private MessageEnvelope GetEnvelope(string Header)

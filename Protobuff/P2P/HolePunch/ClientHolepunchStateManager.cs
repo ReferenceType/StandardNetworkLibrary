@@ -2,8 +2,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Protobuff.P2P.HolePunch
@@ -23,7 +21,7 @@ namespace Protobuff.P2P.HolePunch
             return false;
         }
 
-        public async Task<ClientHolepunchState> CreateChannel(RelayClient client, MessageEnvelope message,int timeoutMS = 5000)
+        public async Task<ClientHolepunchState> CreateChannel(RelayClient client, MessageEnvelope message, int timeoutMS = 5000)
         {
             var chmsg = message.UnpackPayload<ChanneCreationMessage>();
             var state = new ClientHolepunchState(client, message.MessageId, chmsg.DestinationId, timeoutMS, chmsg.Encrypted);
@@ -32,7 +30,7 @@ namespace Protobuff.P2P.HolePunch
             try
             {
                 return await state.Completion.Task.ConfigureAwait(false) == null ? null : state;
-                    
+
             }
             finally
             {
@@ -51,7 +49,7 @@ namespace Protobuff.P2P.HolePunch
         {
             Guid stateId = Guid.NewGuid();
             MiniLogger.Log(MiniLogger.LogLevel.Info, client.sessionId.ToString() + " is Requested hp with state" + stateId.ToString());
-            ClientHolepunchState state = new ClientHolepunchState(client, stateId, targetId,timeOut, encrypted);
+            ClientHolepunchState state = new ClientHolepunchState(client, stateId, targetId, timeOut, encrypted);
             clientHolepunchStates.TryAdd(stateId, state);
 
             var request = new MessageEnvelope()
@@ -60,7 +58,7 @@ namespace Protobuff.P2P.HolePunch
                 IsInternal = true,
                 MessageId = stateId,
                 KeyValuePairs = new Dictionary<string, string>() { { "Encrypted", encrypted.ToString() } }
-                
+
             };
             client.SendAsyncMessage(targetId, request);
             try

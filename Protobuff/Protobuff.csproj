@@ -14,10 +14,8 @@
     <AssemblyVersion>1.0.4.0</AssemblyVersion>
     <Version>1.1.0</Version>
     <FileVersion>1.0.4.0</FileVersion>
-    <PackageReleaseNotes>Holepunch system is extended.
-Unencrypted Udp holepunch channel option is added.  Old and newer versions are compatible(only encyrpted), but holepunch is not guarantied.
-Task syncronisation contextes are fixed (ConfigureAwait(false) and patch on TaskCompletitionSource TaskCreationOptions.RunContinuationsAsynchronously ) 
-to aviod possible deadlocks on some client applications such as WPF.</PackageReleaseNotes>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,13 +30,23 @@ to aviod possible deadlocks on some client applications such as WPF.</PackageRel
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\Licence.txt">
+    <Resource Include="..\..\Licence.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
+    <Folder Include="P2P\Generic\Interfaces\" />
   </ItemGroup>
 
 </Project>

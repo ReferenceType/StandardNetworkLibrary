@@ -1,18 +1,15 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
-using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
-    public class SslClient:TcpClientBase
+    public class SslClient : TcpClientBase
     {
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         protected Socket clientSocket;
@@ -30,7 +27,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private Socket GetSocket()
         {
-            Socket socket  = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            Socket socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             return socket;
         }
 
@@ -44,14 +41,14 @@ namespace NetworkLibrary.TCP.SSL.Base
                 var clientSocket = GetSocket();
 
                 clientSocket.Connect(new IPEndPoint(IPAddress.Parse(ip), port));
-                Connected(ip,clientSocket);
+                Connected(ip, clientSocket);
             }
-            catch{ throw; }
+            catch { throw; }
             finally
             {
                 IsConnecting = false;
             }
-           
+
         }
 
         public override async Task<bool> ConnectAsyncAwaitable(string ip, int port)
@@ -63,7 +60,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
                 await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port)).ConfigureAwait(false);
 
-                Connected(ip,clientSocket);
+                Connected(ip, clientSocket);
                 return true;
             }
             catch { throw; }
@@ -71,21 +68,21 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 IsConnecting = false;
             }
-            
+
         }
 
         public override void ConnectAsync(string IP, int port)
         {
             Task.Run(async () =>
             {
-                IsConnecting= true;
+                IsConnecting = true;
                 bool result = false;
                 try
                 {
                     result = await ConnectAsyncAwaitable(IP, port).ConfigureAwait(false);
 
                 }
-                catch (Exception ex) 
+                catch (Exception ex)
                 {
                     OnConnectFailed?.Invoke(ex);
                     return;
@@ -94,7 +91,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
                 if (result)
                     OnConnected?.Invoke();
-                
+
             });
         }
 
@@ -122,8 +119,8 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         protected virtual bool ValidateCeriticate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-           return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
-           
+            return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
+
         }
 
         private bool DefaultValidationCallbackHandler(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -162,7 +159,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         public override void SendAsync(byte[] buffer, int offset, int count)
         {
-            clientSession.SendAsync(buffer,offset,count);
+            clientSession.SendAsync(buffer, offset, count);
         }
 
         public override void Disconnect()

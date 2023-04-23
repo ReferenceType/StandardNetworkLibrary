@@ -1,12 +1,7 @@
-﻿using NetworkLibrary.Components;
-using System;
+﻿using NetworkLibrary.Utils;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using NetworkLibrary.Utils;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace NetworkLibrary.Components
 {
@@ -90,6 +85,6 @@ namespace NetworkLibrary.Components
             processor.Dispose();
         }
 
-        public void Flush(){}
+        public void Flush() { }
     }
 }

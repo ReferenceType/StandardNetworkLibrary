@@ -1,13 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Components
 {
+    public interface IByteMessageReader
+    {
+        event Action<byte[], int, int> OnMessageReady;
+
+        void ParseBytes(byte[] bytes, int offset, int count);
+        void ReleaseResources();
+    }
+
     // statefully parse byte messages with 4 byte lenght header,
     // under any fragmentation condition
-    public class ByteMessageReader
+    public class ByteMessageReader : IByteMessageReader
     {
         public const int HeaderLenght = 4;
         private byte[] internalBufer;
@@ -25,7 +31,7 @@ namespace NetworkLibrary.Components
         }
 
         private readonly Guid Guid;
-        public Action<byte[], int, int> OnMessageReady;
+        public event Action<byte[], int, int> OnMessageReady;
 
         private OperationState currentState;
 
@@ -179,10 +185,10 @@ namespace NetworkLibrary.Components
                 fixed (byte* destination = &internalBufer[currentMsgBufferPosition])
                 {
                     fixed (byte* message_ = &bytes[offset])
-                        Buffer.MemoryCopy(message_, destination, count,count);
+                        Buffer.MemoryCopy(message_, destination, count, count);
                 }
             }
-            
+
             currentMsgBufferPosition += count;
         }
 
@@ -238,7 +244,7 @@ namespace NetworkLibrary.Components
 
         public void ReleaseResources()
         {
-            if(internalBufer!= null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
+            if (internalBufer != null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
         }
         #endregion
     }

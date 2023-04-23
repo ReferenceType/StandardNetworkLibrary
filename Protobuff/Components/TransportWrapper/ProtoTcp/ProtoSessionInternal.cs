@@ -1,133 +1,135 @@
-﻿using NetworkLibrary;
-using NetworkLibrary.Components;
-using NetworkLibrary.TCP.Base;
-using Protobuff.Components.TransportWrapper.SecureProtoTcp;
+﻿using MessageProtocol;
 using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace Protobuff.Components.ProtoTcp
 {
-    internal class ProtoSessionInternal : TcpSession, IProtoSession
+    internal class ProtoSessionInternal : MessageSession<MessageEnvelope, ProtoMessageQueue>
     {
-        ProtoMessageQueue mq;
-        private ByteMessageReader reader;
         public ProtoSessionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
-            reader = new ByteMessageReader(sessionId);
-            reader.OnMessageReady += HandleMessage;
-            UseQueue = false;
         }
 
-        protected override IMessageQueue CreateMessageQueue()
+        protected override ProtoMessageQueue GetMesssageQueue()
         {
-            mq = new ProtoMessageQueue(MaxIndexedMemory, true);
-            return mq;
-        }
-        private void HandleMessage(byte[] arg1, int arg2, int arg3)
-        {
-            base.HandleReceived(arg1, arg2, arg3);
+            return new ProtoMessageQueue(MaxIndexedMemory, true);
         }
 
-        protected override void HandleReceived(byte[] buffer, int offset, int count)
-        {
-            reader.ParseBytes(buffer, offset, count);
-        }
-        
+        //ProtoMessageQueue mq;
+        //private ByteMessageReader reader;
+        //public ProtoSessionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
+        //{
+        //    reader = new ByteMessageReader(sessionId);
+        //    reader.OnMessageReady += HandleMessage;
+        //    UseQueue = false;
+        //}
 
-        public void SendAsync(MessageEnvelope message)
-        {
-            if (IsSessionClosing())
-                return;
-            try
-            {
-                SendAsyncInternal(message);
-            }
-            catch { if (!IsSessionClosing()) throw; }
-        }
+        //protected override IMessageQueue CreateMessageQueue()
+        //{
+        //    mq = new ProtoMessageQueue(MaxIndexedMemory, true);
+        //    return mq;
+        //}
+        //private void HandleMessage(byte[] arg1, int arg2, int arg3)
+        //{
+        //    base.HandleReceived(arg1, arg2, arg3);
+        //}
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SendAsyncInternal(MessageEnvelope message)
-        {
-            enqueueLock.Take();
-            if (IsSessionClosing())
-                ReleaseSendResourcesIdempotent();
-            if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(message))
-            {
-                enqueueLock.Release();
-                return;
-            }
-            enqueueLock.Release();
+        //protected override void HandleReceived(byte[] buffer, int offset, int count)
+        //{
+        //    reader.ParseBytes(buffer, offset, count);
+        //}
 
-            if (DropOnCongestion && SendSemaphore.IsTaken())
-                return;
-        
-            SendSemaphore.Take();
-            if (IsSessionClosing())
-            {
-                ReleaseSendResourcesIdempotent();
-                SendSemaphore.Release();
-                return;
-            }
 
-            // you have to push it to queue because queue also does the processing.
-            mq.TryEnqueueMessage(message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            FlushSendBuffer(0,amountWritten);
+        //public void SendAsync(MessageEnvelope message)
+        //{
+        //    if (IsSessionClosing())
+        //        return;
+        //    try
+        //    {
+        //        SendAsyncInternal(message);
+        //    }
+        //    catch { if (!IsSessionClosing()) throw; }
+        //}
 
-        }
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //private void SendAsyncInternal(MessageEnvelope message)
+        //{
+        //    enqueueLock.Take();
+        //    if (IsSessionClosing())
+        //        ReleaseSendResourcesIdempotent();
+        //    if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(message))
+        //    {
+        //        enqueueLock.Release();
+        //        return;
+        //    }
+        //    enqueueLock.Release();
 
-        public void SendAsync<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
-        {
-            if (IsSessionClosing())
-                return;
-            try
-            {
-                SendAsyncInternal(envelope,message);
-            }
-            catch { if (!IsSessionClosing()) throw; }
-        }
+        //    if (DropOnCongestion && SendSemaphore.IsTaken())
+        //        return;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SendAsyncInternal<T>(MessageEnvelope envelope, T message) where T: IProtoMessage
-        {
-            enqueueLock.Take();
-            if (IsSessionClosing())
-                ReleaseSendResourcesIdempotent();
-            if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(envelope,message))
-            {
-                enqueueLock.Release();
-                return;
-            }
-            enqueueLock.Release();
+        //    SendSemaphore.Take();
+        //    if (IsSessionClosing())
+        //    {
+        //        ReleaseSendResourcesIdempotent();
+        //        SendSemaphore.Release();
+        //        return;
+        //    }
 
-            if (DropOnCongestion && SendSemaphore.IsTaken())
-                return;
+        //    // you have to push it to queue because queue also does the processing.
+        //    mq.TryEnqueueMessage(message);
+        //    mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+        //    FlushSendBuffer(0,amountWritten);
 
-            SendSemaphore.Take();
-            if (IsSessionClosing())
-            {
-                ReleaseSendResourcesIdempotent();
-                SendSemaphore.Release();
-                return;
-            }
+        //}
 
-            // you have to push it to queue because queue also does the processing.
-            mq.TryEnqueueMessage(envelope, message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            FlushSendBuffer(0, amountWritten);
-        }
+        //public void SendAsync<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
+        //{
+        //    if (IsSessionClosing())
+        //        return;
+        //    try
+        //    {
+        //        SendAsyncInternal(envelope,message);
+        //    }
+        //    catch { if (!IsSessionClosing()) throw; }
+        //}
 
-        protected override void ReleaseReceiveResources()
-        {
-            base.ReleaseReceiveResources();
-            reader.ReleaseResources();
-            reader = null;
-            mq = null;
-        }
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //private void SendAsyncInternal<T>(MessageEnvelope envelope, T message) where T: IProtoMessage
+        //{
+        //    enqueueLock.Take();
+        //    if (IsSessionClosing())
+        //        ReleaseSendResourcesIdempotent();
+        //    if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(envelope,message))
+        //    {
+        //        enqueueLock.Release();
+        //        return;
+        //    }
+        //    enqueueLock.Release();
+
+        //    if (DropOnCongestion && SendSemaphore.IsTaken())
+        //        return;
+
+        //    SendSemaphore.Take();
+        //    if (IsSessionClosing())
+        //    {
+        //        ReleaseSendResourcesIdempotent();
+        //        SendSemaphore.Release();
+        //        return;
+        //    }
+
+        //    // you have to push it to queue because queue also does the processing.
+        //    mq.TryEnqueueMessage(envelope, message);
+        //    mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+        //    FlushSendBuffer(0, amountWritten);
+        //}
+
+        //protected override void ReleaseReceiveResources()
+        //{
+        //    base.ReleaseReceiveResources();
+        //    reader.ReleaseResources();
+        //    reader = null;
+        //    mq = null;
+        //}
 
     }
 }

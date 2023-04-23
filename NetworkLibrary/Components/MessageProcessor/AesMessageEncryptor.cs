@@ -1,11 +1,7 @@
-﻿using NetworkLibrary.Utils;
-using System.IO;
-using System.Security.Cryptography;
-
-namespace NetworkLibrary.Components
+﻿namespace NetworkLibrary.Components
 {
 
-    public class AesMessageEncryptor:IMessageProcessor
+    public class AesMessageEncryptor : IMessageProcessor
     {
         public byte[] Buffer { get; private set; }
         private int offset;
@@ -36,7 +32,7 @@ namespace NetworkLibrary.Components
         {
             if (IsHoldingMessage)
                 throw new System.InvalidOperationException("You can not process new message before heldover message is fully flushed");
-            if (Buffer.Length-offset > algorithm.EncryptorInputBlockSize*2+4)
+            if (Buffer.Length - offset > algorithm.EncryptorInputBlockSize * 2 + 4)
             {
                 int output = algorithm.GetEncriptorOutputSize(message.Length);
                 Buffer[offset++] = (byte)output;
@@ -49,15 +45,15 @@ namespace NetworkLibrary.Components
             {
                 pendingMessage = message;
                 pendingMessageOffset = 0;
-                pendingRemaining=message.Length;
-                writeHeaderOnflush=true;
-                IsHoldingMessage=true;
+                pendingRemaining = message.Length;
+                writeHeaderOnflush = true;
+                IsHoldingMessage = true;
                 return false;
             }
-          
+
             if (algorithm.GetEncriptorOutputSize(message.Length) > Buffer.Length - offset)
             {
-                int availableSpace=Buffer.Length - offset;
+                int availableSpace = Buffer.Length - offset;
                 pendingMessage = message;
 
                 int amountToEncrypt = (availableSpace - (availableSpace % algorithm.DecryptorOutputBlockSize)) - algorithm.DecryptorInputBlockSize;
@@ -76,8 +72,8 @@ namespace NetworkLibrary.Components
             {
                 int amountEnc = algorithm.EncryptInto(message, 0, message.Length, Buffer, offset);
                 offset += amountEnc;
-                count+= amountEnc;
-                return true ;
+                count += amountEnc;
+                return true;
             }
         }
 
@@ -99,22 +95,22 @@ namespace NetworkLibrary.Components
                 int amountToEncrypt = (availableSpace - availableSpace % algorithm.DecryptorOutputBlockSize) - algorithm.DecryptorInputBlockSize;
                 int enct = algorithm.PartialEncrpytInto(pendingMessage, pendingMessageOffset, amountToEncrypt, Buffer, offset);
 
-                offset+= enct;
-                count+=enct;
+                offset += enct;
+                count += enct;
 
                 pendingMessageOffset += amountToEncrypt;
                 pendingRemaining = pendingMessage.Length - pendingMessageOffset;
 
                 return false;
             }
-            
+
             int encryptedAmount_ = algorithm.EncryptInto(pendingMessage, pendingMessageOffset, pendingRemaining, Buffer, offset);
-            count+=encryptedAmount_;
-            offset+=encryptedAmount_;
+            count += encryptedAmount_;
+            offset += encryptedAmount_;
 
             pendingMessage = null;
-            pendingRemaining=0;
-            pendingMessageOffset=0;
+            pendingRemaining = 0;
+            pendingMessageOffset = 0;
             IsHoldingMessage = false;
 
             return true;
@@ -124,7 +120,7 @@ namespace NetworkLibrary.Components
         {
             Buffer = this.Buffer;
             offset = originalOffset;
-            count=this.count;
+            count = this.count;
         }
 
         public void Dispose()

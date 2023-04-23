@@ -1,13 +1,12 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
     public abstract class TcpClientBase
     {
+
         /// <summary>
         /// Use queue if your messages are from static resources such a a byte[] without segmentation.
         /// Use buffer if your messsages are mainly from segment of byte[] i.e. buffer, offset, count.
@@ -20,7 +19,7 @@ namespace NetworkLibrary.TCP.Base
         /// <param name="bytes"></param>
         /// <param name="offset"></param>
         /// <param name="count"></param>
-        public delegate void BytesRecieved( byte[] bytes, int offset, int count);
+        public delegate void BytesRecieved(byte[] bytes, int offset, int count);
 
         /// <summary>
         /// Fires when client is connected;

@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    public interface IMessageQueue:IDisposable
+    public interface IMessageQueue : IDisposable
     {
         /// <summary>
         /// Enqueues the message if there is enough space available
@@ -19,7 +16,7 @@ namespace NetworkLibrary.Components
         /// </summary>
         /// <param name="bytes"></param>
         /// <returns>true if message is enqueued.</returns>
-        bool TryEnqueueMessage(byte[] bytes, int offset,int count);
+        bool TryEnqueueMessage(byte[] bytes, int offset, int count);
 
         /// <summary>
         /// Flushes the queue if there is anything to flush.

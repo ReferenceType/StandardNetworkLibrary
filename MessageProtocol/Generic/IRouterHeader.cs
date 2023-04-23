@@ -1,0 +1,10 @@
+﻿using System;
+
+
+public interface IRouterHeader
+{
+    Guid From { get; }
+    bool IsInternal { get; }
+    Guid To { get; }
+}
+

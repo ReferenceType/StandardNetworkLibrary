@@ -1,21 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 
 namespace NetworkLibrary.Components.MessageBuffer
 {
-    public class MessageBuffer:IMessageQueue
+    public class MessageBuffer : IMessageQueue
     {
-        public int CurrentIndexedMemory { get => Volatile.Read( ref currentIndexedMemory); }
+        public int CurrentIndexedMemory { get => Volatile.Read(ref currentIndexedMemory); }
         public int MaxIndexedMemory;
         public long TotalMessageDispatched { get; protected set; }
 
         protected PooledMemoryStream writeStream = new PooledMemoryStream();
         protected PooledMemoryStream flushStream = new PooledMemoryStream();
-        protected readonly object loki =  new object();
+        protected readonly object loki = new object();
         protected bool writeLengthPrefix;
         protected int currentIndexedMemory;
         protected bool disposedValue;
@@ -28,16 +24,16 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool IsEmpty()
         {
-             return Volatile.Read(ref disposedValue) || writeStream.Position == 0;
+            return Volatile.Read(ref disposedValue) || writeStream.Position == 0;
         }
 
         public bool TryEnqueueMessage(byte[] bytes)
         {
             lock (loki)
             {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory&& !disposedValue)
+                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
                 {
-                
+
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
@@ -53,7 +49,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
                     return true;
                 }
-               
+
             }
             return false;
 
@@ -64,7 +60,7 @@ namespace NetworkLibrary.Components.MessageBuffer
             {
                 if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
                 {
-                
+
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
@@ -107,7 +103,7 @@ namespace NetworkLibrary.Components.MessageBuffer
                 return true;
             }
 
-            
+
         }
 
         protected virtual void Dispose(bool disposing)
@@ -126,7 +122,7 @@ namespace NetworkLibrary.Components.MessageBuffer
                     }
                 }
             }
-           
+
         }
 
         public void Dispose()
@@ -137,7 +133,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public void Flush()
         {
-            flushStream.Flush();   
+            flushStream.Flush();
         }
     }
 }

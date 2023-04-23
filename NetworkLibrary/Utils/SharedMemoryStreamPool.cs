@@ -1,12 +1,9 @@
 ﻿using NetworkLibrary.Components;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
 
 namespace NetworkLibrary.Utils
 {
-    public class SharerdMemoryStreamPool:IDisposable
+    public class SharerdMemoryStreamPool : IDisposable
     {
         private ConcurrentObjectPool<PooledMemoryStream> pool = new ConcurrentObjectPool<PooledMemoryStream>();
         private bool disposedValue;
@@ -16,7 +13,7 @@ namespace NetworkLibrary.Utils
             if (disposedValue)
                 throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
-                return pool.RentObject();
+            return pool.RentObject();
         }
 
         public void ReturnStream(PooledMemoryStream stream)
@@ -36,7 +33,7 @@ namespace NetworkLibrary.Utils
                 {
                     for (int i = 0; i < pool.pool.Count; i++)
                     {
-                        if(pool.pool.TryTake(out var stram))
+                        if (pool.pool.TryTake(out var stram))
                             stram.Dispose();
                     }
                 }

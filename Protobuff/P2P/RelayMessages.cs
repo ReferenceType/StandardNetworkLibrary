@@ -1,15 +1,11 @@
 ﻿using ProtoBuf;
-using Protobuff.Components;
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Protobuff.P2P
 {
     [ProtoContract]
-    public class PeerInfo: IProtoMessage
+    public class PeerInfo : IProtoMessage
     {
         [ProtoMember(1)]
         public string IP;
@@ -18,11 +14,11 @@ namespace Protobuff.P2P
     }
 
     [ProtoContract]
-    public class PeerList<T>: IProtoMessage
+    public class PeerList<T> : IProtoMessage
     {
         [ProtoMember(1)]
-        public Dictionary<Guid,T> PeerIds;
-        
+        public Dictionary<Guid, T> PeerIds;
+
     }
     public class InternalMessageResources
     {
@@ -38,14 +34,14 @@ namespace Protobuff.P2P
         public const string RegisteryFail = "%9";
         public const string RegisteryAck = "%%";
 
-       
 
-        public static MessageEnvelope MakeRelayMessage(Guid fromId,Guid toId, byte[] payload)
+
+        public static MessageEnvelope MakeRelayMessage(Guid fromId, Guid toId, byte[] payload)
         {
             var msg = new MessageEnvelope()
             {
                 From = fromId,
-                To= toId,
+                To = toId,
                 Payload = payload
             };
             return msg;
@@ -56,7 +52,7 @@ namespace Protobuff.P2P
         {
             var msg = new MessageEnvelope()
             {
-                MessageId=requestId,
+                MessageId = requestId,
                 From = fromId,
                 To = toId,
                 Payload = payload
@@ -65,7 +61,7 @@ namespace Protobuff.P2P
 
         }
 
-     
+
 
 
     }

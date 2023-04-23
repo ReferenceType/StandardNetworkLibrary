@@ -1,147 +1,140 @@
-﻿using NetworkLibrary.Components;
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.Utils;
-using ProtoBuf;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading;
-
+﻿using MessageProtocol;
+using Protobuff.Components.Serialiser;
 namespace Protobuff.Components
 {
-    public interface IProtoMessageQueue : IMessageQueue
+
+    public class ProtoMessageQueue : GenericMessageQueue<ProtoSerializer, MessageEnvelope>
     {
-        bool TryEnqueueMessage<T>(MessageEnvelope envelope, T message) where T : IProtoMessage;
-        bool TryEnqueueMessage(MessageEnvelope envelope);
-    }
-    internal class ProtoMessageQueue : MessageBuffer, IProtoMessageQueue
-    {
+
+        // private ProtoSerializer Serializer = new ProtoSerializer();
         public ProtoMessageQueue(int maxIndexedMemory, bool writeLengthPrefix = true) : base(maxIndexedMemory, writeLengthPrefix)
         {
 
         }
 
-        public bool TryEnqueueMessage<T>(MessageEnvelope envelope, T message) where T : IProtoMessage
-        {
-            lock (loki)
-            {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
-                {
-                    TotalMessageDispatched++;
+        //public bool TryEnqueueMessage<U,T>(U envelope, T message) where U : IMessageEnvelope
+        //{
+        //    lock (loki)
+        //    {
+        //        if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
+        //        {
+        //            TotalMessageDispatched++;
 
-                    // offset 4 for lenght prefix (reserve)
-                    var originalPos = writeStream.Position;
-                    writeStream.Position += 4;
+        //            // offset 4 for lenght prefix (reserve)
+        //            var originalPos = writeStream.Position;
+        //            writeStream.Position += 4;
 
-                    SerializeMessageWithInnerMessage(writeStream, envelope, message);
+        //            SerializeMessageWithInnerMessage(writeStream, envelope, message);
 
-                    int msgLen = (int)(writeStream.Position - (originalPos + 4));
-                    var msgLenBytes = BitConverter.GetBytes(msgLen);
+        //            int msgLen = (int)(writeStream.Position - (originalPos + 4));
+        //            var msgLenBytes = BitConverter.GetBytes(msgLen);
 
-                    // write the message lenght on reserved field
-                    var lastPos = writeStream.Position;
-                    writeStream.Position = originalPos;
-                    writeStream.Write(msgLenBytes, 0, 4);
-                    writeStream.Position = lastPos;
-                    Interlocked.Add(ref currentIndexedMemory, msgLen + 4);
+        //            // write the message lenght on reserved field
+        //            var lastPos = writeStream.Position;
+        //            writeStream.Position = originalPos;
+        //            writeStream.Write(msgLenBytes, 0, 4);
+        //            writeStream.Position = lastPos;
+        //            Interlocked.Add(ref currentIndexedMemory, msgLen + 4);
 
-                    return true;
+        //            return true;
 
-                }
-            }
-            return false;
-        }
+        //        }
+        //    }
+        //    return false;
+        //}
 
-        public bool TryEnqueueMessage(MessageEnvelope envelope)
-        {
-            
-            lock (loki)
-            {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
-                {
-                    TotalMessageDispatched++;
+        //public bool TryEnqueueMessage<E>(E envelope) where E : IMessageEnvelope
+        //{
 
-                    var originalPos = writeStream.Position;
-                    writeStream.Position += 4;
-                    SerializeMessage(writeStream, envelope);
+        //    lock (loki)
+        //    {
+        //        if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
+        //        {
+        //            TotalMessageDispatched++;
 
-                    int msgLen = (int)(writeStream.Position - (originalPos + 4));
-                    var msgLenBytes = BitConverter.GetBytes(msgLen);
+        //            var originalPos = writeStream.Position;
+        //            writeStream.Position += 4;
+        //            SerializeMessage(writeStream, envelope);
 
-                    var lastPos = writeStream.Position;
-                    writeStream.Position = originalPos;
-                    writeStream.Write(msgLenBytes, 0, 4);
+        //            int msgLen = (int)(writeStream.Position - (originalPos + 4));
+        //            var msgLenBytes = BitConverter.GetBytes(msgLen);
 
-                    writeStream.Position = lastPos;
-                    Interlocked.Add(ref currentIndexedMemory, msgLen + 4);
+        //            var lastPos = writeStream.Position;
+        //            writeStream.Position = originalPos;
+        //            writeStream.Write(msgLenBytes, 0, 4);
 
-                    return true;
+        //            writeStream.Position = lastPos;
+        //            Interlocked.Add(ref currentIndexedMemory, msgLen + 4);
 
-                }
-            }
-            return false;
-        }
+        //            return true;
 
-        internal void SerializeMessageWithInnerMessage<T>(Stream serialisationStream, MessageEnvelope empyEnvelope, T innerMsg) where T : IProtoMessage
-        {
-            // envelope+2
-            var originalPos = serialisationStream.Position;
+        //        }
+        //    }
+        //    return false;
+        //}
 
-            serialisationStream.Position = originalPos + 2;
-            Serializer.Serialize(serialisationStream, empyEnvelope);
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //internal void SerializeMessageWithInnerMessage<E,T>(Stream serialisationStream, E empyEnvelope, T innerMsg) where E : IMessageEnvelope
+        //{
+        //    // envelope+2
+        //    var originalPos = serialisationStream.Position;
 
-            if (serialisationStream.Position - originalPos >= ushort.MaxValue)
-            {
-                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
-            }
-            ushort oldpos = (ushort)(serialisationStream.Position - originalPos);//msglen +2 
+        //    serialisationStream.Position = originalPos + 2;
+        //    Serializer.Serialize(serialisationStream, empyEnvelope);
 
-            if (innerMsg == null)
-            {
-                serialisationStream.Position = originalPos;
-                serialisationStream.Write(new byte[2], 0, 2);
-                serialisationStream.Position = oldpos + originalPos;
-                return;
+        //    if (serialisationStream.Position - originalPos >= ushort.MaxValue)
+        //    {
+        //        throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+        //    }
+        //    ushort oldpos = (ushort)(serialisationStream.Position - originalPos);//msglen +2 
 
-            }
+        //    if (innerMsg == null)
+        //    {
+        //        serialisationStream.Position = originalPos;
+        //        serialisationStream.Write(new byte[2], 0, 2);
+        //        serialisationStream.Position = oldpos + originalPos;
+        //        return;
 
-            var envLen = BitConverter.GetBytes(oldpos);
-            serialisationStream.Position = originalPos;
-            serialisationStream.Write(envLen, 0, 2);
+        //    }
 
-            serialisationStream.Position = oldpos + originalPos;
-            Serializer.Serialize(serialisationStream, innerMsg);
-        }
+        //    var envLen = BitConverter.GetBytes(oldpos);
+        //    serialisationStream.Position = originalPos;
+        //    serialisationStream.Write(envLen, 0, 2);
 
-        internal void SerializeMessage(Stream serialisationStream, MessageEnvelope envelope)
-        {
-            // envelope+2, reserve for payload start index
-            var originalPos = serialisationStream.Position;
-            serialisationStream.Position = originalPos + 2;
+        //    serialisationStream.Position = oldpos + originalPos;
+        //    Serializer.Serialize(serialisationStream, innerMsg);
+        //}
 
-            Serializer.Serialize(serialisationStream, envelope);
-            if (serialisationStream.Position - originalPos >= ushort.MaxValue)
-            {
-                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
-            }
-            ushort oldpos = (ushort)(serialisationStream.Position - originalPos);//msglen +2 
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //internal void SerializeMessage<E>(Stream serialisationStream, E envelope) where E : IMessageEnvelope
+        //{
+        //    // envelope+2, reserve for payload start index
+        //    var originalPos = serialisationStream.Position;
+        //    serialisationStream.Position = originalPos + 2;
 
-            if (envelope.PayloadCount == 0)
-            {
-                serialisationStream.Position = originalPos;
-                serialisationStream.Write(new byte[2], 0, 2);
-                serialisationStream.Position = oldpos + originalPos;
-                return;
-            }
+        //    Serializer.Serialize(serialisationStream, envelope);
+        //    if (serialisationStream.Position - originalPos >= ushort.MaxValue)
+        //    {
+        //        throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+        //    }
+        //    ushort oldpos = (ushort)(serialisationStream.Position - originalPos);//msglen +2 
 
-            var envLen = BitConverter.GetBytes(oldpos);
-            serialisationStream.Position = originalPos;
-            serialisationStream.Write(envLen, 0, 2);
+        //    if (envelope.PayloadCount == 0)
+        //    {
+        //        serialisationStream.Position = originalPos;
+        //        serialisationStream.Write(new byte[2], 0, 2);
+        //        serialisationStream.Position = oldpos + originalPos;
+        //        return;
+        //    }
 
-            serialisationStream.Position = oldpos + originalPos;
-            serialisationStream.Write(envelope.Payload, envelope.PayloadOffset, envelope.PayloadCount);
-        }
+        //    var envLen = BitConverter.GetBytes(oldpos);
+        //    serialisationStream.Position = originalPos;
+        //    serialisationStream.Write(envLen, 0, 2);
+
+        //    serialisationStream.Position = oldpos + originalPos;
+        //    serialisationStream.Write(envelope.Payload, envelope.PayloadOffset, envelope.PayloadCount);
+        //}
+
 
     }
 }

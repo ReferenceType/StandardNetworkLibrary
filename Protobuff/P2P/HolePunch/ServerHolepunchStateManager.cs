@@ -2,27 +2,25 @@
 using Protobuff.P2P.HolePunch;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
-using System.Text;
 
 namespace Protobuff.P2P
 {
     internal class ServerHolepunchStateManager
     {
-         readonly ConcurrentDictionary<Guid, ServerHolepunchState> activeStates
-            = new ConcurrentDictionary<Guid, ServerHolepunchState>();
+        readonly ConcurrentDictionary<Guid, ServerHolepunchState> activeStates
+           = new ConcurrentDictionary<Guid, ServerHolepunchState>();
 
         // upon request on relay, this is called
-        public void CreateState(SecureProtoRelayServer server,MessageEnvelope message)
+        public void CreateState(SecureProtoRelayServer server, MessageEnvelope message)
         {
             bool encrypted = true;
             Guid stateId = message.MessageId;
             if (message.KeyValuePairs != null)
             {
-                if(message.KeyValuePairs.TryGetValue("Encrypted", out string value))
+                if (message.KeyValuePairs.TryGetValue("Encrypted", out string value))
                 {
-                    if( bool.TryParse(value, out var e))
+                    if (bool.TryParse(value, out var e))
                     {
                         encrypted = e;
                     }
@@ -38,7 +36,7 @@ namespace Protobuff.P2P
 
         public bool HandleMessage(MessageEnvelope message)
         {
-            if(activeStates.TryGetValue(message.MessageId,out var state))
+            if (activeStates.TryGetValue(message.MessageId, out var state))
             {
                 state?.HandleMessage(message);
                 return true;
@@ -50,7 +48,7 @@ namespace Protobuff.P2P
         {
             if (activeStates.TryGetValue(message.MessageId, out var state))
             {
-                state?.HandleUdpMsg(ep,message);
+                state?.HandleUdpMsg(ep, message);
                 return true;
             }
             return false;

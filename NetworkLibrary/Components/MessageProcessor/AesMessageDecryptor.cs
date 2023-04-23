@@ -40,10 +40,10 @@ namespace NetworkLibrary.Components
                 pendingMessageOffset += amountToDecrypt;
                 pendingRemaining = pendingMessage.Length - pendingMessageOffset;
 
-                IsHoldingMessage=true;
+                IsHoldingMessage = true;
                 return false;
             }
-            
+
             int encryptedAmount_ = algorithm.DecryptInto(pendingMessage, pendingMessageOffset, pendingRemaining, Buffer, offset);
 
             count += encryptedAmount_;
@@ -51,7 +51,7 @@ namespace NetworkLibrary.Components
 
             pendingMessage = null;
             pendingMessageOffset = 0;
-            pendingRemaining=0;
+            pendingRemaining = 0;
             IsHoldingMessage = false;
             return true;
         }
@@ -98,19 +98,19 @@ namespace NetworkLibrary.Components
                 int encryptedAmount = algorithm.PartialDecrpytInto(message, 0, amountToDecrypt, Buffer, offset);
 
                 count += encryptedAmount;
-                offset+= encryptedAmount;
+                offset += encryptedAmount;
 
                 pendingMessageOffset = amountToDecrypt;
                 pendingRemaining = pendingMessage.Length - pendingMessageOffset;
 
-                IsHoldingMessage=true;
+                IsHoldingMessage = true;
                 return false;
             }
             else
             {
-                int Am= algorithm.DecryptInto(message, 0, message.Length, Buffer, offset);
-                count+=Am;
-                offset+=Am;
+                int Am = algorithm.DecryptInto(message, 0, message.Length, Buffer, offset);
+                count += Am;
+                offset += Am;
                 return true;
             }
         }
@@ -119,20 +119,20 @@ namespace NetworkLibrary.Components
         {
             Buffer = buffer;
             this.offset = offset;
-            originalOffset=offset;
+            originalOffset = offset;
             count = 0;
         }
 
         public void GetBuffer(out byte[] Buffer, out int offset, out int count)
         {
             Buffer = this.Buffer;
-            offset= originalOffset;
+            offset = originalOffset;
             count = this.count;
         }
 
         public void Dispose()
         {
-          algorithm.Dispose();
+            algorithm.Dispose();
         }
     }
 }

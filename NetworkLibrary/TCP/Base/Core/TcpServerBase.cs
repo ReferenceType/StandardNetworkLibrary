@@ -1,10 +1,8 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 public enum ScatterGatherConfig
 {
@@ -26,7 +24,7 @@ namespace NetworkLibrary.TCP.Base
         /// Client accepted callback delegate with session id as Guid
         /// </summary>
         /// <param name="guid"></param>
-        public delegate void ClientAccepted( Guid guid);
+        public delegate void ClientAccepted(Guid guid);
 
         /// <summary>
         /// Bytes received callback delegate with client session Id
@@ -50,7 +48,7 @@ namespace NetworkLibrary.TCP.Base
         /// <param name="guid"></param>
         public delegate void ClientDisconnected(Guid guid);
 
-        
+
 
         /// <summary>
         /// Client send buffer size
@@ -97,7 +95,7 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         public abstract void StartServer();
 
-        public abstract void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid,TcpStatistics> sessionStats);
+        public abstract void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats);
 
         public abstract IPEndPoint GetSessionEndpoint(Guid sessionId);
 

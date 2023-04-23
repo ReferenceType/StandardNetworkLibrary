@@ -1,7 +1,4 @@
-﻿using NetworkLibrary.Components;
-using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.SSL.ByteMessage;
-using NetworkLibrary.Utils;
+﻿using NetworkLibrary.Components.Statistics;
 using Protobuff.Components.TransportWrapper.SecureProtoTcp;
 using System;
 using System.Collections.Concurrent;
@@ -23,19 +20,17 @@ namespace Protobuff
 
         internal readonly SecureProtoServerInternal server;
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
-        private MessageAwaiter awaiter;
 
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
-        public SecureProtoServer(int port,X509Certificate2 cerificate)
+        public SecureProtoServer(int port, X509Certificate2 cerificate)
         {
-            awaiter = new MessageAwaiter();
-
-            server = new SecureProtoServerInternal(port,cerificate);
+            server = new SecureProtoServerInternal(port, cerificate);
             server.DeserializeMessages = false;
 
             server.OnClientAccepted += HandleClientAccepted;
             server.OnBytesReceived += OnBytesReceived;
+
             server.OnClientDisconnected += HandleClientDisconnected;
             server.RemoteCertificateValidationCallback += DefaultValidationCallback;
 
@@ -56,7 +51,7 @@ namespace Protobuff
         private bool DefaultValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             if (RemoteCertificateValidationCallback != null)
-                return RemoteCertificateValidationCallback.Invoke(sender,certificate,chain,sslPolicyErrors);
+                return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
             return true;
         }
 
@@ -71,8 +66,8 @@ namespace Protobuff
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(in Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
         {
-            message.SetPayload(buffer, offset, count);
-            server.SendAsyncMessage(clientId, message);
+            //message.SetPayload(buffer, offset, count);
+            server.SendAsyncMessage(clientId, message,buffer,offset,count);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,36 +78,19 @@ namespace Protobuff
         #endregion
 
         #region SendAndWait
-        public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
+        public Task<MessageEnvelope> SendMessageAndWaitResponse(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
         {
-            if(message.MessageId == Guid.Empty)
-                message.MessageId= Guid.NewGuid();
-
-            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
-            SendAsyncMessage(clientId, message, buffer, offset, count);
-            return task;
+            return server.SendMessageAndWaitResponse<MessageEnvelope>(clientId, message, buffer, offset, count);
         }
 
         public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(Guid clientId, MessageEnvelope message, T payload, int timeoutMs = 10000) where T : IProtoMessage
         {
-            if (message.MessageId == Guid.Empty)
-                message.MessageId = Guid.NewGuid();
-
-            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
-
-            SendAsyncMessage(clientId, message, payload);
-            return task;
+            return server.SendMessageAndWaitResponse(clientId, message, payload, timeoutMs);
         }
 
         public Task<MessageEnvelope> SendMessageAndWaitResponse(Guid clientId, MessageEnvelope message, int timeoutMs = 10000)
         {
-            if (message.MessageId == Guid.Empty)
-                message.MessageId = Guid.NewGuid();
-
-            var task = awaiter.RegisterWait(message.MessageId, timeoutMs);
-            
-            SendAsyncMessage(clientId, message);
-            return task;
+            return server.SendMessageAndWaitResponse(clientId, message, timeoutMs);
         }
         #endregion
 
@@ -137,17 +115,17 @@ namespace Protobuff
 
         protected bool CheckAwaiter(MessageEnvelope message)
         {
-            if (awaiter.IsWaiting(message.MessageId))
+            if (server.awaiter.IsWaiting(message.MessageId))
             {
                 message.LockBytes();
-                awaiter.ResponseArrived(message);
+                server.awaiter.ResponseArrived(message);
                 return true;
             }
             return false;
         }
 
-        public void Shutdown()=>server.ShutdownServer();
-        
+        public void Shutdown() => server.ShutdownServer();
+
 
     }
 }

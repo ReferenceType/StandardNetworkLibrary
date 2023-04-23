@@ -1,15 +1,10 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.UDP.Secure
 {
-    public class SecureUdpClient:AsyncUdpClient
+    public class SecureUdpClient : AsyncUdpClient
     {
         public ConcurrentAesAlgorithm algorithm;
         public SecureUdpClient(ConcurrentAesAlgorithm algorithm, int port) : base(port)
@@ -29,7 +24,7 @@ namespace NetworkLibrary.UDP.Secure
 
         protected override void HandleBytesReceived(byte[] buffer, int offset, int count)
         {
-            var decryptBuffer = BufferPool.RentBuffer(count+256);
+            var decryptBuffer = BufferPool.RentBuffer(count + 256);
             try
             {
                 if (algorithm != null)
@@ -41,11 +36,11 @@ namespace NetworkLibrary.UDP.Secure
                 {
                     HandleDecrypedBytes(buffer, offset, count);
                 }
-                
+
             }
             catch (Exception e)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Error,nameof(SecureUdpClient) + " Encountered an error whie handling incoming bytes: " +e.Message);
+                MiniLogger.Log(MiniLogger.LogLevel.Error, nameof(SecureUdpClient) + " Encountered an error whie handling incoming bytes: " + e.Message);
             }
             finally
             {
@@ -53,14 +48,14 @@ namespace NetworkLibrary.UDP.Secure
             }
         }
 
-        protected virtual void HandleDecrypedBytes(byte[] buffer,int offset,int amount)
+        protected virtual void HandleDecrypedBytes(byte[] buffer, int offset, int amount)
         {
             base.HandleBytesReceived(buffer, offset, amount);
         }
 
         public override void SendAsync(byte[] bytes, int offset, int count)
         {
-            var buffer = BufferPool.RentBuffer(count+256);
+            var buffer = BufferPool.RentBuffer(count + 256);
             try
             {
                 if (algorithm != null)
@@ -72,17 +67,17 @@ namespace NetworkLibrary.UDP.Secure
                 {
                     base.SendAsync(bytes, offset, count);
                 }
-               
+
 
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "AnErroroccured while sending udp message: " + ex.Message);
             }
-            finally { BufferPool.ReturnBuffer(buffer);}
- 
+            finally { BufferPool.ReturnBuffer(buffer); }
+
         }
-       
+
 
     }
 }

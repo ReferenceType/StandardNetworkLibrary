@@ -1,25 +1,14 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.ByteMessage;
-using NetworkLibrary.UDP.Secure;
 using NetworkLibrary.Utils;
 using Protobuff.Components;
 using Protobuff.P2P.HolePunch;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Net;
 using System.Net.Security;
-using System.Net.Sockets;
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Protobuff.P2P
@@ -37,9 +26,9 @@ namespace Protobuff.P2P
 
         public void Set(EncryptedUdpProtoClient cl)
         {
-            if(ch1 == null)
-                ch1= cl;
-            else ch2= cl;
+            if (ch1 == null)
+                ch1 = cl;
+            else ch2 = cl;
         }
     }
     public class RelayClient
@@ -206,7 +195,7 @@ namespace Protobuff.P2P
         {
             while (true)
             {
-                await Task.Delay(intervalMs/2).ConfigureAwait(false);
+                await Task.Delay(intervalMs / 2).ConfigureAwait(false);
 
                 MessageEnvelope msg = new MessageEnvelope();
                 msg.Header = PingHandler.Ping;
@@ -224,7 +213,7 @@ namespace Protobuff.P2P
                     await Task.Delay(intervalMs / 2).ConfigureAwait(false);
                     foreach (var peer in Peers.Keys)
                     {
-                        msg.TimeStamp = DateTime.Now;   
+                        msg.TimeStamp = DateTime.Now;
                         SendAsyncMessage(peer, msg);
                         pinger.NotifyTcpPingSent(peer, msg.TimeStamp);
 
@@ -324,7 +313,7 @@ namespace Protobuff.P2P
             else
                 udpRelayClient.SendAsyncMessage(message);
         }
-        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message,T innerMessage, int channel = 0) where T: IProtoMessage
+        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message, T innerMessage, int channel = 0) where T : IProtoMessage
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
@@ -448,12 +437,12 @@ namespace Protobuff.P2P
             return response;
         }
 
-        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message ,int timeoutMs = 10000) where T:IProtoMessage
+        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message, int timeoutMs = 10000) where T : IProtoMessage
         {
             envelope.From = sessionId;
             envelope.To = toId;
 
-            var response = protoClient.SendMessageAndWaitResponse(envelope,message, timeoutMs);
+            var response = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
             return response;
         }
 
@@ -532,7 +521,7 @@ namespace Protobuff.P2P
         {
             await Task.Delay(20).ConfigureAwait(false);
             int attemps = 500;
-            while (connecting && attemps>0)
+            while (connecting && attemps > 0)
             {
                 await Task.Delay(20).ConfigureAwait(false);
                 attemps--;
@@ -622,7 +611,7 @@ namespace Protobuff.P2P
         #endregion
 
         #region Hole Punch
-        public bool RequestHolePunch(Guid peerId, int timeOut = 10000,bool encrypted = true)
+        public bool RequestHolePunch(Guid peerId, int timeOut = 10000, bool encrypted = true)
         {
             return RequestHolePunchAsync(peerId, timeOut, encrypted).Result;
         }
@@ -655,7 +644,7 @@ namespace Protobuff.P2P
             }
             return ret;
 
-            
+
         }
 
         #endregion
@@ -702,9 +691,9 @@ namespace Protobuff.P2P
 
                 foreach (var peer in serverPeerInfo.PeerIds.Keys)
                 {
-                    if(!Peers.TryGetValue(peer, out _))
+                    if (!Peers.TryGetValue(peer, out _))
                     {
-                        Peers.TryAdd(peer,true);
+                        Peers.TryAdd(peer, true);
                         OnPeerRegistered?.Invoke(peer);
                         pinger.PeerRegistered(peer);
                         PeerInfos.TryAdd(peer, serverPeerInfo.PeerIds[peer]);

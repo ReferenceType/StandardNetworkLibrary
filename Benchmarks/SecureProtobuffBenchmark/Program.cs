@@ -1,13 +1,9 @@
 ﻿using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP;
-using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
 using Protobuff;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Security;
-using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,7 +33,7 @@ internal class Program
     private static ThreadLocal<long> TotalNumMsgServer = new ThreadLocal<long>(true);
     static void Main(string[] args)
     {
-       
+
         var config = ConsoleInputHandler.ObtainConfig();
         runAsClient = config.runAsClient;
         runAsServer = config.runAsServer;
@@ -142,7 +138,7 @@ internal class Program
 
         });
     }
-   
+
     private static void ShowStatus()
     {
         while (Console.ReadLine() != "e")
@@ -158,7 +154,7 @@ internal class Program
             if (runAsClient)
             {
                 totMsgClient = 0;
-                var stats =  new List<TcpStatistics>();
+                var stats = new List<TcpStatistics>();
                 foreach (var client in clients)
                 {
                     client.GetStatistics(out TcpStatistics stat);
@@ -192,7 +188,7 @@ internal class Program
             }
             Thread.Sleep(1000);
         }
-        
+
     }
 
 }

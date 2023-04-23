@@ -1,15 +1,12 @@
-﻿using NetworkLibrary.Utils;
-using ProtoBuf;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Protobuff.Components
 {
     class PingData
     {
-        private object locker =  new object();
+        private object locker = new object();
         internal enum State
         {
             NotReady,
@@ -27,7 +24,7 @@ namespace Protobuff.Components
                 PingState = PingData.State.PongReceived;
                 latency = (DateTime.Now - timeStamp).TotalMilliseconds;
             }
-       
+
         }
 
         internal void PingDispatched(DateTime timeStamp)
@@ -40,8 +37,8 @@ namespace Protobuff.Components
                     PingState = State.PingDispatched;
                 }
             }
-           
-          
+
+
         }
 
         public double GetLatency()
@@ -70,12 +67,12 @@ namespace Protobuff.Components
     {
         public const string Ping = "Ping";
         public const string Pong = "Pong";
-        private readonly ConcurrentDictionary<Guid,PingData> tcpPingDatas =  new ConcurrentDictionary<Guid, PingData>();
-        private readonly ConcurrentDictionary<Guid,PingData> udpPingDatas =  new ConcurrentDictionary<Guid, PingData>();
-        
+        private readonly ConcurrentDictionary<Guid, PingData> tcpPingDatas = new ConcurrentDictionary<Guid, PingData>();
+        private readonly ConcurrentDictionary<Guid, PingData> udpPingDatas = new ConcurrentDictionary<Guid, PingData>();
+
         internal void HandleTcpPongMessage(MessageEnvelope message)
         {
-            if(tcpPingDatas.TryGetValue(message.From, out var data))
+            if (tcpPingDatas.TryGetValue(message.From, out var data))
             {
                 data.Update(message.TimeStamp);
             }
@@ -95,7 +92,7 @@ namespace Protobuff.Components
             udpPingDatas.TryAdd(peerId, new PingData());
         }
 
-        internal void PeerUnregistered(Guid peerId) 
+        internal void PeerUnregistered(Guid peerId)
         {
             tcpPingDatas.TryRemove(peerId, out _);
             udpPingDatas.TryRemove(peerId, out _);
@@ -115,14 +112,14 @@ namespace Protobuff.Components
             {
                 data.PingDispatched(timeStamp);
             }
-            
+
         }
 
-       
 
-        internal Dictionary<Guid, double> GetTcpLatencies() 
+
+        internal Dictionary<Guid, double> GetTcpLatencies()
         {
-            var ret= new Dictionary<Guid, double>();    
+            var ret = new Dictionary<Guid, double>();
             foreach (var item in tcpPingDatas)
             {
                 ret[item.Key] = item.Value.GetLatency();

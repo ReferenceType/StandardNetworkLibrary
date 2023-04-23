@@ -1,16 +1,10 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using NetworkLibrary;
-using NetworkLibrary.TCP;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,7 +30,7 @@ namespace UnitTests
                 //Console.WriteLine(ex.StackTrace);
                 //Debug.Assert(false);
             }
-           
+
         }
         [TestMethod]
         public void SeriesOfDisconnectTestSSl()
@@ -155,14 +149,14 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
 
-            SslByteMessageServer server = new SslByteMessageServer(2008,scert);
+            SslByteMessageServer server = new SslByteMessageServer(2008, scert);
             List<SslByteMessageClient> clients = new List<SslByteMessageClient>();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
 
             server.MaxIndexedMemoryPerClient = 1280000;
             server.DropOnBackPressure = false;
             server.OnBytesReceived += OnServerReceviedMessage;
-            server.RemoteCertificateValidationCallback += (a,b,c,d)=> true; 
+            server.RemoteCertificateValidationCallback += (a, b, c, d) => true;
 
             server.StartServer();
 
@@ -180,7 +174,7 @@ namespace UnitTests
                 clients.Add(client);
             }
 
-           // Task.WaitAll(toWait);
+            // Task.WaitAll(toWait);
 
             // Messages starts here
             Parallel.ForEach(clients, client =>
@@ -290,7 +284,7 @@ namespace UnitTests
             // Deploy timed disconnections.
             //foreach (var client in clients)
             Thread.Sleep(2000);
-            List<Task> pending  =  new List<Task>();
+            List<Task> pending = new List<Task>();
             Parallel.ForEach(clients, (client) =>
             {
                 Interlocked.Increment(ref totDisconnectRequest);
@@ -301,11 +295,11 @@ namespace UnitTests
                 client.DropOnCongestion = false;
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
 
-                pending.Add(client.ConnectAsyncAwaitable("127.0.0.1", 2008).ContinueWith((c) => { client.Disconnect(); }) );
+                pending.Add(client.ConnectAsyncAwaitable("127.0.0.1", 2008).ContinueWith((c) => { client.Disconnect(); }));
 
                 if (Interlocked.CompareExchange(ref totDisconnectRequest, 0, 0) >= clAmount)
                 {
-                    client.OnDisconnected += async()  => { await Task.WhenAll(pending); testCompletionEvent.Set(); };
+                    client.OnDisconnected += async () => { await Task.WhenAll(pending); testCompletionEvent.Set(); };
                 }
 
 

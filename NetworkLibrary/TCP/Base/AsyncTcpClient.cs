@@ -1,20 +1,13 @@
 ﻿using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public class AsyncTpcClient : TcpClientBase,IDisposable
+    public class AsyncTpcClient : TcpClientBase, IDisposable
     {
         protected bool connected = false;
         internal IAsyncSession session;
@@ -23,13 +16,13 @@ namespace NetworkLibrary.TCP.Base
         private Socket clientSocket;
         private TaskCompletionSource<bool> connectedCompletionSource;
 
-        public AsyncTpcClient() {}
+        public AsyncTpcClient() { }
 
         #region Connect
 
         public override void Connect(string IP, int port)
         {
-           _ =  ConnectAsyncAwaitable(IP, port).Result;
+            _ = ConnectAsyncAwaitable(IP, port).Result;
         }
 
         public override async Task<bool> ConnectAsyncAwaitable(string IP, int port)
@@ -100,10 +93,10 @@ namespace NetworkLibrary.TCP.Base
         {
             var ses = new TcpSession(e, sessionId);
             ses.socketSendBufferSize = SocketSendBufferSize;
-            ses.socketRecieveBufferSize = SocketRecieveBufferSize;
+            ses.SocketRecieveBufferSize = SocketRecieveBufferSize;
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.DropOnCongestion = DropOnCongestion;
-            ses.OnSessionClosed+=(id)=>OnDisconnected?.Invoke();
+            ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 ses.UseQueue = true;
@@ -124,7 +117,7 @@ namespace NetworkLibrary.TCP.Base
         public override void SendAsync(byte[] buffer, int offset, int count)
         {
             if (connected)
-                session?.SendAsync(buffer,offset,count);
+                session?.SendAsync(buffer, offset, count);
         }
 
         protected virtual void HandleBytesRecieved(byte[] bytes, int offset, int count)
@@ -162,7 +155,7 @@ namespace NetworkLibrary.TCP.Base
                 }
                 catch { }
             }
-            
+
         }
 
         public override void GetStatistics(out TcpStatistics generalStats)

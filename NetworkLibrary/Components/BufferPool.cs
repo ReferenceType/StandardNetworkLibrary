@@ -1,12 +1,8 @@
-﻿using NetworkLibrary.Utils;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Threading;
 
 namespace NetworkLibrary
@@ -27,8 +23,8 @@ namespace NetworkLibrary
         public static int MaxMemoryBeforeForceGc = 100000000;
         public const int MaxBufferSize = 1073741824;
         public const int MinBufferSize = 256;
-        private static readonly ConcurrentBag<WeakReference<byte[]>> weakReferencePool= new ConcurrentBag<WeakReference<byte[]>>();
-        private static readonly ConcurrentBag<WeakReference<byte[]>>[] bufferBuckets =  new ConcurrentBag<WeakReference<byte[]>>[32];
+        private static readonly ConcurrentBag<WeakReference<byte[]>> weakReferencePool = new ConcurrentBag<WeakReference<byte[]>>();
+        private static readonly ConcurrentBag<WeakReference<byte[]>>[] bufferBuckets = new ConcurrentBag<WeakReference<byte[]>>[32];
         private static SortedDictionary<int, int> bucketCapacityLimits = new SortedDictionary<int, int>()
         {
             { 256,10000 },
@@ -57,13 +53,13 @@ namespace NetworkLibrary
 
         };
         static readonly Process process = Process.GetCurrentProcess();
-        static ManualResetEvent autoGcHandle =  new ManualResetEvent(false);
+        static ManualResetEvent autoGcHandle = new ManualResetEvent(false);
 
         static BufferPool()
         {
             Init();
             Thread thread = new Thread(MaintainMemory);
-            thread.Priority= ThreadPriority.Lowest;
+            thread.Priority = ThreadPriority.Lowest;
             thread.Start();
         }
 
@@ -106,11 +102,11 @@ namespace NetworkLibrary
                 var deltaT = (lastTime - currentProcTime).TotalMilliseconds;
                 lastTime = currentProcTime;
 
-                if (deltaT <100 && process.WorkingSet64< MaxMemoryBeforeForceGc)
+                if (deltaT < 100 && process.WorkingSet64 < MaxMemoryBeforeForceGc)
                     GC.Collect();
                 process.Refresh();
             }
-           
+
         }
 
 
@@ -124,14 +120,14 @@ namespace NetworkLibrary
         public static byte[] RentBuffer(int size)
         {
             byte[] buffer;
-            if(MaxBufferSize < size)
+            if (MaxBufferSize < size)
                 throw new InvalidOperationException(
-                    string.Format("Unable to rent buffer bigger than max buffer size: {0}",MaxBufferSize));
+                    string.Format("Unable to rent buffer bigger than max buffer size: {0}", MaxBufferSize));
             if (size <= MinBufferSize) return new byte[size];
 
             int idx = GetBucketIndex(size);
 
-            while(bufferBuckets[idx].TryTake(out WeakReference<byte[]> bufferRef))
+            while (bufferBuckets[idx].TryTake(out WeakReference<byte[]> bufferRef))
             {
                 if (bufferRef.TryGetTarget(out buffer))
                 {
@@ -140,7 +136,7 @@ namespace NetworkLibrary
                 }
             }
             buffer = new byte[GetBucketSize(idx)];
-           return buffer;
+            return buffer;
 
         }
 
@@ -154,14 +150,14 @@ namespace NetworkLibrary
             if (buffer.Length <= MinBufferSize) return;
 
             int idx = GetBucketIndex(buffer.Length);
-            if(weakReferencePool.TryTake(out var wr))
+            if (weakReferencePool.TryTake(out var wr))
             {
                 wr.SetTarget(buffer);
                 bufferBuckets[idx - 1].Add(wr);
 
             }
             else
-            bufferBuckets[idx-1].Add(new WeakReference<byte[]>(buffer));
+                bufferBuckets[idx - 1].Add(new WeakReference<byte[]>(buffer));
             buffer = null;
         }
 

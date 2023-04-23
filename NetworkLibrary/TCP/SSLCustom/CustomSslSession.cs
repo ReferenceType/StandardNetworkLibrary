@@ -1,9 +1,7 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
 
 namespace NetworkLibrary.TCP.SSL.Custom
 {
@@ -13,20 +11,20 @@ namespace NetworkLibrary.TCP.SSL.Custom
         //AesDecryptor processor;
         private AesMessageDecryptor decr;
 
-        internal CustomSslSession(SocketAsyncEventArgs acceptedArg, Guid sessionId,byte[] aesKey) : base(acceptedArg, sessionId)
+        internal CustomSslSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, byte[] aesKey) : base(acceptedArg, sessionId)
         {
             encryptor = new AesAlgorithm(aesKey, aesKey);
-            decr =new AesMessageDecryptor(encryptor);
+            decr = new AesMessageDecryptor(encryptor);
         }
 
         public override void SendAsync(byte[] bytes)
         {
-           
+
             base.SendAsync(bytes);
             //base.SendAsync(encryptor.Encrypt(bytes));
         }
 
-       
+
         protected override void HandleMessage(byte[] buffer, int offset, int count)
         {
             // here we are sure that encypted message is more or equal than original message.
@@ -52,7 +50,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
         protected override IMessageQueue CreateMessageQueue()
         {
             var a = new AesMessageEncryptor(algorithm: encryptor);
-            var Q = new MessageQueue<AesMessageEncryptor>(MaxIndexedMemory,a);
+            var Q = new MessageQueue<AesMessageEncryptor>(MaxIndexedMemory, a);
 
 
             return Q;

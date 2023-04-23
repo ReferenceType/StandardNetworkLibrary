@@ -12,16 +12,16 @@ internal class Program
 
     static void Main(string[] args)
     {
-        
+
         UdpTest();
 
     }
     static void UdpTest()
     {
-        MiniLogger.AllLog+=(string log)=>Console.WriteLine(log);
+        MiniLogger.AllLog += (string log) => Console.WriteLine(log);
         int clAmount = 100;
-        int timeClientsComplete=0;
-        int timeServerComplete=0;
+        int timeClientsComplete = 0;
+        int timeServerComplete = 0;
 
         AsyncUdpServer sw = new AsyncUdpServer(2008);
         sw.SocketSendBufferSize = 1280000000;
@@ -39,13 +39,13 @@ internal class Program
             //cl.SocketSendBufferSize = 128000000;
             //cl.ReceiveBufferSize = 12800000;
 
-            cl.OnBytesRecieved +=(bytes,offset,count)=> ClientBytesRecieved(cl,bytes,offset,count);
+            cl.OnBytesRecieved += (bytes, offset, count) => ClientBytesRecieved(cl, bytes, offset, count);
             cl.Connect("127.0.0.1", 2008);
 
             cl.SendAsync(new byte[32]);
             clients.Add(cl);
         }
-        
+
         Thread.Sleep(2222);
         Console.WriteLine("Test Starting");
 
@@ -54,7 +54,7 @@ internal class Program
 
         var t = new Thread(() =>
         {
-        sw1.Start();
+            sw1.Start();
             for (int i = 0; i < nummsg; i++)
             //Parallel.For(0, nummsg, (i) =>
             {
@@ -65,7 +65,7 @@ internal class Program
             }
             //);
             //sw1.Stop();
-            
+
             timeClientsComplete = (int)sw1.ElapsedMilliseconds;
             Console.WriteLine("Done Clients " + timeClientsComplete);
             PrintResults();
@@ -74,13 +74,13 @@ internal class Program
         sw2.Start();
 
         t.Start();
-       // t.Join();
+        // t.Join();
         //t2.Join();
         while (Console.ReadLine() != "e")
         {
-           PrintResults();
+            PrintResults();
         }
-       
+
 
         Console.ReadLine();
 
@@ -100,16 +100,16 @@ internal class Program
         }
 
 
-        void UdpSWBytsRec(IPEndPoint endpoint, byte[] bytes,int offset, int count)
+        void UdpSWBytsRec(IPEndPoint endpoint, byte[] bytes, int offset, int count)
         {
-            sw.SendBytesToClient(endpoint, bytes,offset,count);
+            sw.SendBytesToClient(endpoint, bytes, offset, count);
 
             Interlocked.Increment(ref totMsgsw);
         }
 
         void ClientBytesRecieved(AsyncUdpClient cl, byte[] bytes, int offset, int count)
         {
-            cl.SendAsync(bytes,offset,count);
+            cl.SendAsync(bytes, offset, count);
 
             Interlocked.Increment(ref totMsgCl);
         }

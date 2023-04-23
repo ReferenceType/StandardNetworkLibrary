@@ -27,6 +27,12 @@
     <Optimize>True</Optimize>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="Generic\**" />
+    <EmbeddedResource Remove="Generic\**" />
+    <None Remove="Generic\**" />
+  </ItemGroup>
+
   
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
@@ -40,13 +46,6 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\..\Licence.txt">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-  </ItemGroup>
-
 
   <ItemGroup>
     <Resource Include="TCP\SSL\Certificates\client.pfx">
@@ -55,6 +54,14 @@
     <Resource Include="TCP\SSL\Certificates\server.pfx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Resource>
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <None Update="Licence.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

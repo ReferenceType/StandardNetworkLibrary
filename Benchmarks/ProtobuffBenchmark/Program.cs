@@ -1,15 +1,9 @@
 ﻿using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP;
-using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
-using ProtoBuf;
 using Protobuff;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Security;
-using System.Runtime.ConstrainedExecution;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -160,7 +154,7 @@ internal class Program
             if (runAsClient)
             {
                 totMsgClient = 0;
-                var stats =  new List<TcpStatistics>(); 
+                var stats = new List<TcpStatistics>();
                 foreach (var client in clients)
                 {
                     client.GetStatistics(out TcpStatistics stat);

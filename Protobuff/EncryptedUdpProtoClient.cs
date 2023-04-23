@@ -1,25 +1,19 @@
-﻿using NetworkLibrary.Components;
+﻿using MessageProtocol;
+using NetworkLibrary.Components;
 using NetworkLibrary.UDP.Secure;
 using NetworkLibrary.Utils;
-using ProtoBuf;
+using Protobuff.Components.Serialiser;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace Protobuff
 {
     internal class EncryptedUdpProtoClient : SecureUdpClient
     {
         public Action<MessageEnvelope> OnMessageReceived;
-        private readonly ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
+        private readonly GenericMessageSerializer<MessageEnvelope, ProtoSerializer> serialiser = new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
         private readonly SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
-        public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm) : base(algorithm) {}
+        public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm) : base(algorithm) { }
 
         protected override void HandleDecrypedBytes(byte[] buffer, int offset, int count)
         {

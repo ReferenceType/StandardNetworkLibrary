@@ -1,14 +1,8 @@
 ﻿using NetworkLibrary.TCP.Base;
 using System;
-using System.CodeDom.Compiler;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Text;
-using System.Threading.Tasks;
-using static NetworkLibrary.TCP.Base.AsyncTcpServer;
-using static System.Collections.Specialized.BitVector32;
 
 namespace NetworkLibrary.Components.Statistics
 {
@@ -28,7 +22,7 @@ namespace NetworkLibrary.Components.Statistics
 
     public class TcpStatistics
     {
-        TcpStatisticsStringData sessionStatsJson =  new TcpStatisticsStringData();
+        TcpStatisticsStringData sessionStatsJson = new TcpStatisticsStringData();
         public int PendingBytes;
         public float CongestionLevel;
         public long TotalBytesSent;
@@ -60,8 +54,8 @@ namespace NetworkLibrary.Components.Statistics
             TotalMessageSent = refstats.TotalMessageDispatched;
             TotalMessageReceived = refstats.TotalMessageReceived;
 
-            DeltaBytesReceived= refstats.TotalBytesSent;
-            DeltaBytesSent= refstats.TotalBytesReceived;
+            DeltaBytesReceived = refstats.TotalBytesSent;
+            DeltaBytesSent = refstats.TotalBytesReceived;
             DeltaMessageReceived = refstats.TotalMessageReceived;
             DeltaMessageSent = refstats.TotalMessageDispatched;
 
@@ -75,12 +69,12 @@ namespace NetworkLibrary.Components.Statistics
             lastTimeStamp = currentTimestamp;
             currentTimestamp = elapsedMilliseconds;
             var deltaTMs = currentTimestamp - lastTimeStamp;
-            
-            DeltaBytesReceived = refstats.DeltaBytesReceived;
-            DeltaBytesSent= refstats.DeltaBytesSent;
 
-            SendRate = (float)((refstats.DeltaBytesSent ) / (double)(1 + deltaTMs)) * 1000;
-            ReceiveRate = (float)((refstats.DeltaBytesReceived ) / (double)(1 + deltaTMs)) * 1000;
+            DeltaBytesReceived = refstats.DeltaBytesReceived;
+            DeltaBytesSent = refstats.DeltaBytesSent;
+
+            SendRate = (float)((refstats.DeltaBytesSent) / (double)(1 + deltaTMs)) * 1000;
+            ReceiveRate = (float)((refstats.DeltaBytesReceived) / (double)(1 + deltaTMs)) * 1000;
 
             MessageDispatchRate = (float)((refstats.TotalMessageDispatched - TotalMessageSent) / (double)(1 + deltaTMs)) * 1000;
             MessageReceiveRate = (float)((refstats.TotalMessageReceived - TotalMessageReceived) / (double)(1 + deltaTMs)) * 1000;
@@ -92,15 +86,15 @@ namespace NetworkLibrary.Components.Statistics
             TotalMessageSent = refstats.TotalMessageDispatched;
             TotalMessageReceived = refstats.TotalMessageReceived;
 
-            DeltaMessageReceived= refstats.DeltaMessageReceived;
-            DeltaMessageSent= refstats.DeltaMessageSent;
+            DeltaMessageReceived = refstats.DeltaMessageReceived;
+            DeltaMessageSent = refstats.DeltaMessageSent;
         }
 
         internal void Clear()
         {
             PendingBytes = 0;
             CongestionLevel = 0;
-           
+
             MessageDispatchRate = 0;
             MessageReceiveRate = 0;
 
@@ -132,8 +126,8 @@ namespace NetworkLibrary.Components.Statistics
             averageStats.CongestionLevel /= statList.Count;
             return averageStats;
         }
-       
-        
+
+
 
         public override string ToString()
         {
@@ -147,7 +141,7 @@ namespace NetworkLibrary.Components.Statistics
                 "Total Message Received:      {7}\n" +
                 "Data Send Rate:              {4}\n" +
                 "Data Receive Rate:           {5}\n" +
-              
+
                 "Message Send Rate:           {8} Msg/s\n" +
                 "Message Receive Rate:        {9} Msg/s\n",
 
@@ -169,7 +163,7 @@ namespace NetworkLibrary.Components.Statistics
             sessionStatsJson.CongestionLevel = CongestionLevel.ToString("P");
             sessionStatsJson.TotalBytesSent = TcpServerStatisticsPublisher.BytesToString(TotalBytesSent);
             sessionStatsJson.TotalBytesReceived = TcpServerStatisticsPublisher.BytesToString(TotalBytesReceived);
-            sessionStatsJson.SendRate = TcpServerStatisticsPublisher.BytesToString((long)SendRate)+"/s";
+            sessionStatsJson.SendRate = TcpServerStatisticsPublisher.BytesToString((long)SendRate) + "/s";
             sessionStatsJson.ReceiveRate = TcpServerStatisticsPublisher.BytesToString((long)ReceiveRate) + "/s";
             sessionStatsJson.MessageDispatchRate = MessageDispatchRate.ToString("N1");
             sessionStatsJson.TotalMessageDispatched = TotalMessageSent.ToString();
@@ -209,10 +203,10 @@ namespace NetworkLibrary.Components.Statistics
             TotalBytesReceived = totalBytesReceived;
             TotalMessageDispatched = totalMessageSent;
             DeltaBytesReceived = deltaBytesReveived;
-            DeltaBytesSent= deltaBytesSent;
+            DeltaBytesSent = deltaBytesSent;
             TotalMessageReceived = totalMessageReceived;
-            DeltaMessageSent= deltaMessageSent;
-            DeltaMessageReceived= deltaMessageReceived;
+            DeltaMessageSent = deltaMessageSent;
+            DeltaMessageReceived = deltaMessageReceived;
         }
 
 
@@ -278,7 +272,7 @@ namespace NetworkLibrary.Components.Statistics
             long bytes = Math.Abs(byteCount);
             int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
             double num = Math.Round(bytes / Math.Pow(1024, place), 1);
-            return (Math.Sign(byteCount) * num).ToString() +" "+ dataSuffix[place];
+            return (Math.Sign(byteCount) * num).ToString() + " " + dataSuffix[place];
         }
 
         internal void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)

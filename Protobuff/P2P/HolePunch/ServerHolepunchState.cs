@@ -1,12 +1,10 @@
 ﻿using NetworkLibrary.Utils;
 using ProtoBuf;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Net;
 using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -83,7 +81,7 @@ namespace Protobuff.P2P.HolePunch
             MiniLogger.Log(MiniLogger.LogLevel.Info, "------ Server State Encyrption enabled : " + encrypted.ToString());
             CreateChannels(encrypted);
         }
-        
+
         private async void StartLifetimeCounter(int lifeSpanMs)
         {
             await Task.Delay(lifeSpanMs).ConfigureAwait(false);
@@ -109,21 +107,21 @@ namespace Protobuff.P2P.HolePunch
         // both initiator and destination receives a udp socket creation msg.
         public void CreateChannels(bool encrypted)
         {
-            MiniLogger.Log(MiniLogger.LogLevel.Info, "server hp cmd create chhannel encyrption : " +encrypted.ToString());
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "server hp cmd create chhannel encyrption : " + encrypted.ToString());
 
             var channelCreationMsgRequester = new ChanneCreationMessage()
             {
                 SharedSecret = Server.ServerUdpInitKey,
                 RegistrationId = stateId,
-                DestinationId= destinationId,
-                Encrypted= encrypted
+                DestinationId = destinationId,
+                Encrypted = encrypted
             };
             var channelCreationMsgDestination = new ChanneCreationMessage()
             {
                 SharedSecret = Server.ServerUdpInitKey,
                 RegistrationId = stateId,
-                DestinationId= requesterId,
-                Encrypted= encrypted
+                DestinationId = requesterId,
+                Encrypted = encrypted
             };
 
             var envelope = GetEnvelope(HolepunchHeaders.CreateChannel);
@@ -150,9 +148,9 @@ namespace Protobuff.P2P.HolePunch
                 if (envelope.From == requesterId)
                 {
                     RequesterEndpoint = ep as IPEndPoint;
-                    RequesterLocalEndpoints =  envelope.UnpackPayload<EndpointTransferMessage>();
+                    RequesterLocalEndpoints = envelope.UnpackPayload<EndpointTransferMessage>();
                 }
-                else if(envelope.From == destinationId)
+                else if (envelope.From == destinationId)
                 {
                     DestinationEndpoint = ep as IPEndPoint;
                     DestinationLocalEndpoints = envelope.UnpackPayload<EndpointTransferMessage>();
@@ -227,8 +225,8 @@ namespace Protobuff.P2P.HolePunch
         // if both sides acks positive(both received msg from their udp holes) punch is sucessfull.
         // we also send their private Aes key here.
         // note that enire handsake is under an ssl client so its safe.
-        EndpointTransferMessage msgRequesterSucces =  new EndpointTransferMessage();
-        EndpointTransferMessage msgDestinationSucces =  new EndpointTransferMessage();
+        EndpointTransferMessage msgRequesterSucces = new EndpointTransferMessage();
+        EndpointTransferMessage msgDestinationSucces = new EndpointTransferMessage();
         int completed = 0;
         private void HanldePunchAck(MessageEnvelope m)
         {
@@ -240,7 +238,7 @@ namespace Protobuff.P2P.HolePunch
                 requesterPunchSucess = true;
                 msgRequesterSucces = m.UnpackPayload<EndpointTransferMessage>();
             }
-            else if(m.From == destinationId)
+            else if (m.From == destinationId)
             {
                 destinationPunchSucess = true;
                 msgDestinationSucces = m.UnpackPayload<EndpointTransferMessage>();
@@ -248,7 +246,7 @@ namespace Protobuff.P2P.HolePunch
 
             if (requesterPunchSucess && destinationPunchSucess)
             {
-                if(Interlocked.CompareExchange(ref completed, 1,0) == 1)
+                if (Interlocked.CompareExchange(ref completed, 1, 0) == 1)
                     return;
                 OnComplete?.Invoke();
                 var mdst = GetEnvelope(HolepunchHeaders.SuccessFinalize);
@@ -263,8 +261,8 @@ namespace Protobuff.P2P.HolePunch
 
                 var sharedSecret = new byte[16];
                 rng.GetNonZeroBytes(sharedSecret);
-                mdst.Payload= sharedSecret;
-                mreq.Payload= sharedSecret;
+                mdst.Payload = sharedSecret;
+                mreq.Payload = sharedSecret;
 
                 Server.SendAsyncMessage(destinationId, mdst);
                 Server.SendAsyncMessage(requesterId, mreq);
@@ -274,8 +272,8 @@ namespace Protobuff.P2P.HolePunch
 
         private MessageEnvelope GetEnvelope(string header)
         {
-            return new MessageEnvelope() 
-            { Header = header, IsInternal = true, MessageId= stateId };
+            return new MessageEnvelope()
+            { Header = header, IsInternal = true, MessageId = stateId };
 
         }
     }

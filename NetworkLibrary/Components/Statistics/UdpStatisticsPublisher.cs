@@ -1,12 +1,7 @@
-﻿using NetworkLibrary.UDP;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Schema;
 
 
 namespace NetworkLibrary.Components.Statistics
@@ -24,7 +19,7 @@ namespace NetworkLibrary.Components.Statistics
         public string SendPPS { get; set; }
         public string ReceivePPS { get; set; }
 
-       
+
     }
     public class UdpStatistics
     {
@@ -48,7 +43,7 @@ namespace NetworkLibrary.Components.Statistics
 
         public long PrevTimeStamp;
 
-        private const string seed = 
+        private const string seed =
             "\n# Udp:\n" +
             "Total Datagram Sent:         {0}\n" +
             "Total Datagram Received:     {1}\n" +
@@ -87,7 +82,7 @@ namespace NetworkLibrary.Components.Statistics
             data.ReceivePPS = ReceivePPS.ToString("N1");
             data.SendRate = TcpServerStatisticsPublisher.BytesToString((long)SendRate) + "/s";
             data.ReceiveRate = TcpServerStatisticsPublisher.BytesToString((long)ReceiveRate) + "/s";
-           
+
             return data;
         }
 
@@ -136,7 +131,7 @@ namespace NetworkLibrary.Components.Statistics
 
                 stat.Value.SendPPS = (float)((stat.Value.TotalDatagramSent - stat.Value.TotalDatagramSentPrev) / deltaT) * 1000f;
                 stat.Value.ReceivePPS = (float)((stat.Value.TotalDatagramReceived - stat.Value.TotalDatagramReceivedPrev) / deltaT) * 1000f;
-                stat.Value.SendRate = (float)((stat.Value.TotalBytesSent - stat.Value.TotalBytesSentPrev) / deltaT) *1000;
+                stat.Value.SendRate = (float)((stat.Value.TotalBytesSent - stat.Value.TotalBytesSentPrev) / deltaT) * 1000;
                 stat.Value.ReceiveRate = (float)((stat.Value.TotalBytesReceived - stat.Value.TotalBytesReceivedPrev) / deltaT) * 1000;
 
                 stat.Value.TotalDatagramSentPrev = stat.Value.TotalDatagramSent;
@@ -169,7 +164,7 @@ namespace NetworkLibrary.Components.Statistics
             long bytes = Math.Abs(byteCount);
             int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
             double num = Math.Round(bytes / Math.Pow(1024, place), 1);
-            return (Math.Sign(byteCount) * num).ToString()  +" " + dataSuffix[place];
+            return (Math.Sign(byteCount) * num).ToString() + " " + dataSuffix[place];
         }
 
         internal void GetStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)

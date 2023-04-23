@@ -1,11 +1,9 @@
 ﻿using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
-using System.Collections.Generic;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 
 namespace NetworkLibrary.TCP.SSL.Custom
 {
@@ -21,13 +19,13 @@ namespace NetworkLibrary.TCP.SSL.Custom
         {
             var session = new CustomSslSession(e, sessionId, (byte[])e.UserToken);
             session.socketSendBufferSize = SocketSendBufferSize;
-            session.socketRecieveBufferSize = SocketRecieveBufferSize;
+            session.SocketRecieveBufferSize = SocketRecieveBufferSize;
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.DropOnCongestion = DropOnCongestion;
             return session;
         }
 
-        
+
 
         // this was just for a test.
         protected override void HandleConnected(SocketAsyncEventArgs e)
@@ -38,7 +36,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
             sslStream.AuthenticateAsClient("example.com",
                 new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
 
-            byte[] aesKey= new byte[16];
+            byte[] aesKey = new byte[16];
             sslStream.Read(aesKey, 0, 16);
             e.UserToken = aesKey;
             // ack

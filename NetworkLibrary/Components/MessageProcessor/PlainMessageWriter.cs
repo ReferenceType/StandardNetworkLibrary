@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    internal class PlainMessageWriter:IMessageProcessor
+    internal class PlainMessageWriter : IMessageProcessor
     {
         public byte[] Buffer { get; private set; }
         private int offset;
@@ -57,7 +55,7 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Flush()
         {
-           
+
             if (pendingRemaining <= Buffer.Length - offset)
             {
                 System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, Buffer, offset, pendingRemaining);
@@ -66,8 +64,8 @@ namespace NetworkLibrary.Components
 
                 pendingMessage = null;
                 IsHoldingMessage = false;
-                pendingRemaining=0;
-                pendingMessageOffset=0;
+                pendingRemaining = 0;
+                pendingMessageOffset = 0;
                 return true;
             }
             else
@@ -92,7 +90,7 @@ namespace NetworkLibrary.Components
 
         public void Dispose()
         {
-            Buffer= null;
+            Buffer = null;
         }
     }
 }

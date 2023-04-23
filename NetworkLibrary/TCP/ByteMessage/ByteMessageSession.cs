@@ -3,23 +3,20 @@ using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.Components.MessageProcessor.Unmanaged;
 using NetworkLibrary.TCP.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.ByteMessage
 {
     internal class ByteMessageSession : TcpSession
     {
-        ByteMessageReader messageManager= null;
+        ByteMessageReader messageManager = null;
         public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
         }
 
         public override void StartSession()
         {
-            messageManager = new ByteMessageReader(SessionId, socketRecieveBufferSize);
+            messageManager = new ByteMessageReader(SessionId, SocketRecieveBufferSize);
             messageManager.OnMessageReady += HandleMessage;
 
             base.StartSession();

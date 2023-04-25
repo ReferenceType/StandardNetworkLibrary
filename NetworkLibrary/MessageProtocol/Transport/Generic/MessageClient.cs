@@ -6,20 +6,20 @@ using System.Threading.Tasks;
 
 namespace MessageProtocol
 {
-    public abstract class MessageClient<Q, E, S> : AsyncTpcClient
-        where Q : class, ISerialisableMessageQueue<E>
+    public class MessageClient< E, S> : AsyncTpcClient
+        //where Q : class, ISerialisableMessageQueue<E>
         where E : IMessageEnvelope, new()
-        where S : IMessageSerialiser<E>
+        where S : ISerializer, new()
     {
         public Action<E> OnMessageReceived;
         public bool DeserializeMessages = true;
-        private S serializer;
-        private new MessageSession<E, Q> session;
+        private GenericMessageSerializer<E,S> serializer;
+        private new MessageSession<E, S> session;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
-        protected abstract S CreateMessageSerializer();
+       
         protected virtual void MapReceivedBytes()
         {
-            serializer = CreateMessageSerializer();
+            serializer = new GenericMessageSerializer<E, S>();
             OnBytesReceived += HandleBytes;
         }
 
@@ -36,7 +36,10 @@ namespace MessageProtocol
                 OnMessageReceived?.Invoke(message);
         }
 
-        protected abstract MessageSession<E, Q> MakeSession(SocketAsyncEventArgs e, Guid sessionId);
+        protected virtual MessageSession<E, S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
+        {
+            return new MessageSession<E, S>(e,sessionId);
+        }
         protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = MakeSession(e, sessionId);

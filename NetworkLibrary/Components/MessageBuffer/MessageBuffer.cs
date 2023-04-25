@@ -115,8 +115,8 @@ namespace NetworkLibrary.Components.MessageBuffer
                     Volatile.Write(ref disposedValue, true);
                     if (disposing)
                     {
-                        writeStream.Flush();
-                        flushStream.Flush();
+                        writeStream.Clear();
+                        flushStream.Clear();
                         writeStream.Dispose();
                         flushStream.Dispose();
                     }
@@ -133,7 +133,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public void Flush()
         {
-            flushStream.Flush();
+            flushStream.Clear();
         }
     }
 }

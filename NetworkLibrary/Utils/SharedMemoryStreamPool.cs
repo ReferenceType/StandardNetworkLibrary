@@ -21,7 +21,7 @@ namespace NetworkLibrary.Utils
             if (disposedValue)
                 throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
-            stream.Flush();
+            stream.Clear();
             pool.ReturnObject(stream);
         }
 

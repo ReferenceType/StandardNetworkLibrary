@@ -5,17 +5,17 @@ namespace MessageProtocol
 {
     public interface IMessageEnvelope
     {
-        Guid From { get; }
+        Guid From { get; set; }
         string Header { get; set; }
-        bool IsLocked { get; }
+        bool IsLocked { get;  }
         Dictionary<string, string> KeyValuePairs { get; set; }
         Guid MessageId { get; set; }
         byte[] Payload { get; set; }
         int PayloadCount { get; }
-        int PayloadOffset { get; }
+        int PayloadOffset { get;  }
         DateTime TimeStamp { get; set; }
-        Guid To { get; }
-        bool IsInternal { get; }
+        Guid To { get; set; }
+        bool IsInternal { get; set; }
 
         void LockBytes();
         void SetPayload(byte[] payloadBuffer, int offset, int count);

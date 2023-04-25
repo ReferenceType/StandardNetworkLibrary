@@ -9,15 +9,14 @@ using System.Threading.Tasks;
 
 namespace MessageProtocol
 {
-    public abstract class SecureMessageClient<Q, E, S> : SslClient
-        where Q : class, ISerialisableMessageQueue<E>
+    public class SecureMessageClient<E, S> : SslClient
         where E : IMessageEnvelope, new()
-        where S : IMessageSerialiser<E>
+        where S : ISerializer, new()
     {
         public Action<E> OnMessageReceived;
         public bool DeserializeMessages = true;
-        private S serializer;
-        private SecureMessageSession<E, Q> messageSession;
+        private GenericMessageSerializer<E,S> serializer;
+        private SecureMessageSession<E, S> messageSession;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
 
 
@@ -32,11 +31,9 @@ namespace MessageProtocol
             return true;
         }
 
-        protected abstract S CreateMessageSerializer();
-
         protected virtual void MapReceivedBytes()
         {
-            serializer = CreateMessageSerializer();
+            serializer = new GenericMessageSerializer<E, S>();
             OnBytesReceived += HandleBytes;
         }
         private void HandleBytes(byte[] bytes, int offset, int count)
@@ -52,7 +49,10 @@ namespace MessageProtocol
                 OnMessageReceived?.Invoke(message);
         }
 
-        protected abstract SecureMessageSession<E, Q> GetSession(Guid guid, SslStream sslStream);
+        protected virtual SecureMessageSession<E, S> GetSession(Guid guid, SslStream sslStream)
+        {
+            return new SecureMessageSession<E, S>(guid, sslStream);
+        }
         protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var session = GetSession(guid, tuple.Item1);//new SecureProtoSessionInternal(guid, tuple.Item1);

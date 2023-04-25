@@ -54,7 +54,9 @@ internal class Program
         fixedMessage = isFixedMessage ? new MessageEnvelope()
         {
             Header = "Test",
-            Payload = new byte[fixedMessageSize]
+            Payload = new byte[fixedMessageSize],
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
 
         } : new MessageEnvelope();
 
@@ -80,7 +82,9 @@ internal class Program
         clientMessage = new MessageEnvelope()
         {
             Header = "Test",
-            Payload = new byte[messageSize]
+            Payload = new byte[messageSize],
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
 
         };
         clients = new List<SecureProtoClient>();

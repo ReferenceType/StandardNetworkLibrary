@@ -1,20 +1,20 @@
 ﻿using NetworkLibrary.TCP.Base;
 using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace MessageProtocol
 {
-    public abstract class MessageServer<Q, E, S> : AsyncTcpServer
-                                        where Q : class, ISerialisableMessageQueue<E>
+    public class MessageServer<E, S> : AsyncTcpServer
                                         where E : IMessageEnvelope, new()
-                                        where S : IMessageSerialiser<E>
+                                        where S : ISerializer, new()
     {
         public Action<Guid, E> OnMessageReceived;
         public bool DeserializeMessages = true;
 
-        private S serializer;
+        private GenericMessageSerializer<E,S> serializer;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
         public MessageServer(int port) : base(port)
         {
@@ -28,7 +28,10 @@ namespace MessageProtocol
 
             base.StartServer();
         }
-        protected abstract S CreateMessageSerializer();
+        protected virtual GenericMessageSerializer<E, S> CreateMessageSerializer()
+        {
+            return new GenericMessageSerializer<E, S>();
+        }
         protected virtual void MapReceivedBytes()
         {
             serializer = CreateMessageSerializer();
@@ -44,7 +47,10 @@ namespace MessageProtocol
             }
         }
 
-        protected abstract MessageSession<E, Q> MakeSession(SocketAsyncEventArgs e, Guid sessionId);
+        protected virtual MessageSession<E, S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
+        {
+            return new MessageSession<E, S>(e, sessionId);
+        }
         protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = MakeSession(e, sessionId);//new GenericMessageSession(e, sessionId);
@@ -59,7 +65,7 @@ namespace MessageProtocol
         public void SendAsyncMessage(in Guid clientId, E message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
-                ((MessageSession<E, Q>)session).SendAsync(message);
+                ((MessageSession<E, S>)session).SendAsync(message);
 
         }
 
@@ -67,7 +73,7 @@ namespace MessageProtocol
         public void SendAsyncMessage<T>(in Guid clientId, E envelope, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
-                ((MessageSession<E, Q>)session).SendAsync(envelope, message);
+                ((MessageSession<E, S>)session).SendAsync(envelope, message);
 
         }
 
@@ -108,7 +114,10 @@ namespace MessageProtocol
             return task;
         }
 
-
+        public IPEndPoint GetIPEndPoint(Guid cliendId)
+        {
+            return GetSessionEndpoint(cliendId);
+        }
         //protected override void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         //{
         //    if (!DeserializeMessages)

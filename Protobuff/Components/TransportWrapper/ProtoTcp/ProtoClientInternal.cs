@@ -6,16 +6,10 @@ using System.Net.Sockets;
 namespace Protobuff.Components.ProtoTcp
 {
     internal class ProtoClientInternal :
-        MessageClient<ProtoMessageQueue, MessageEnvelope, GenericMessageSerializer<MessageEnvelope,ProtoSerializer>>
+        MessageClient<MessageEnvelope, ProtoSerializer>
     {
-        protected override MessageSession<MessageEnvelope, ProtoMessageQueue> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
-        {
-            return new ProtoSessionInternal(e, sessionId);
-        }
-        protected override GenericMessageSerializer<MessageEnvelope, ProtoSerializer> CreateMessageSerializer()
-        {
-            return new GenericMessageSerializer<MessageEnvelope,ProtoSerializer>();
-        }
+        
+       
 
         //public Action<MessageEnvelope> OnMessageReceived;
         //public bool DeserializeMessages = true;

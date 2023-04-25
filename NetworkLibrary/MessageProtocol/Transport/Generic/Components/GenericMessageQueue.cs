@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components.MessageBuffer;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
 using System;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -28,9 +29,9 @@ namespace MessageProtocol
                     var originalPos = writeStream.Position;
                     writeStream.Position += 4;
 
-                    SerializeMessageWithInnerMessage(writeStream, envelope, message);
+                     int msgLen = SerializeMessageWithInnerMessage(writeStream, envelope, message);
 
-                    int msgLen = (int)(writeStream.Position - (originalPos + 4));
+                    //int msgLen = (int)(writeStream.Position - (originalPos + 4));
                     var msgLenBytes = BitConverter.GetBytes(msgLen);
 
                     // write the message lenght on reserved field
@@ -58,9 +59,9 @@ namespace MessageProtocol
 
                     var originalPos = writeStream.Position;
                     writeStream.Position += 4;
-                    SerializeMessage(writeStream, envelope);
+                    int msgLen = SerializeMessage(writeStream, envelope);
 
-                    int msgLen = (int)(writeStream.Position - (originalPos + 4));
+                   // int msgLen = (int)(writeStream.Position - (originalPos + 4));
                     var msgLenBytes = BitConverter.GetBytes(msgLen);
 
                     var lastPos = writeStream.Position;
@@ -78,7 +79,7 @@ namespace MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void SerializeMessageWithInnerMessage<T>(Stream serialisationStream, E empyEnvelope, T innerMsg)
+        internal int SerializeMessageWithInnerMessage<T>(PooledMemoryStream serialisationStream, E empyEnvelope, T innerMsg)
         {
             // envelope+2
             var originalPos = serialisationStream.Position;
@@ -97,7 +98,7 @@ namespace MessageProtocol
                 serialisationStream.Position = originalPos;
                 serialisationStream.Write(new byte[2], 0, 2);
                 serialisationStream.Position = oldpos + originalPos;
-                return;
+                return (int)serialisationStream.Position - (int)originalPos;
 
             }
 
@@ -107,10 +108,12 @@ namespace MessageProtocol
 
             serialisationStream.Position = oldpos + originalPos;
             Serializer.Serialize(serialisationStream, innerMsg);
+
+            return (int)serialisationStream.Position - (int)originalPos;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void SerializeMessage(Stream serialisationStream, E envelope)
+        internal int SerializeMessage(PooledMemoryStream serialisationStream, E envelope)
         {
             // envelope+2, reserve for payload start index
             var originalPos = serialisationStream.Position;
@@ -128,7 +131,7 @@ namespace MessageProtocol
                 serialisationStream.Position = originalPos;
                 serialisationStream.Write(new byte[2], 0, 2);
                 serialisationStream.Position = oldpos + originalPos;
-                return;
+                return (int)serialisationStream.Position - (int)originalPos; ;
             }
 
             var envLen = BitConverter.GetBytes(oldpos);
@@ -137,6 +140,8 @@ namespace MessageProtocol
 
             serialisationStream.Position = oldpos + originalPos;
             serialisationStream.Write(envelope.Payload, envelope.PayloadOffset, envelope.PayloadCount);
+
+            return (int)serialisationStream.Position - (int)originalPos; ;
         }
     }
 }

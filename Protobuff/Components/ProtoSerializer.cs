@@ -13,16 +13,14 @@ namespace Protobuff.Components.Serialiser
     public class ProtoSerializer : ISerializer
     {
         private ConcurrentObjectPool<PooledMemoryStream> streamPool = new ConcurrentObjectPool<PooledMemoryStream>();
-        private RuntimeTypeModel Serializer;
+        //private RuntimeTypeModel Serializer;
 
         public ProtoSerializer()
         {
             ProtoBuf.Serializer.PrepareSerializer<MessageEnvelope>();
-            ProtoBuf.Serializer.PrepareSerializer<IMessageEnvelope>();
+            //ProtoBuf.Serializer.PrepareSerializer<IMessageEnvelope>();
             ProtoBuf.Serializer.PrepareSerializer<RouterHeader>();
-            Serializer = RuntimeTypeModel.Default;
-            
-            
+           // Serializer = RuntimeTypeModel.Default;  
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -34,13 +32,13 @@ namespace Protobuff.Components.Serialiser
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe T Deserialize<T>(byte[] buffer, int offset, int count)
         {
-            fixed (byte* startPointer = &buffer[offset])
-            {
-                var span = new ReadOnlySpan<byte>(startPointer, count);
-                return Serializer.Deserialize<T>(span);
-            }
+            //fixed (byte* startPointer = &buffer[offset])
+            //{
+            //    var span = new ReadOnlySpan<byte>(startPointer, count);
+            //    return Serializer.Deserialize<T>(span);
+            //}
 
-           // return Serializer.Deserialize<T>(new ReadOnlySpan<byte>(buffer, offset, count));
+            return Serializer.Deserialize<T>(new ReadOnlySpan<byte>(buffer, offset, count));
         }
 
 
@@ -60,7 +58,7 @@ namespace Protobuff.Components.Serialiser
             var buffer = _stream.GetBuffer();
             var bytes = ByteCopy.ToArray(buffer, 0, (int)_stream.Position);
 
-            _stream.Flush();
+            _stream.Clear();
             streamPool.ReturnObject(_stream);
             return bytes;
         }

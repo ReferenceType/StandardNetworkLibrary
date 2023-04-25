@@ -1,19 +1,23 @@
 ﻿using MessageProtocol;
+using Protobuff.Components.Serialiser;
 using System;
 using System.Net.Sockets;
 
 namespace Protobuff.Components.ProtoTcp
 {
-    internal class ProtoSessionInternal : MessageSession<MessageEnvelope, ProtoMessageQueue>
+    internal class ProtoSessionInternal : MessageSession<MessageEnvelope, ProtoSerializer>
     {
         public ProtoSessionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
         }
 
-        protected override ProtoMessageQueue GetMesssageQueue()
-        {
-            return new ProtoMessageQueue(MaxIndexedMemory, true);
-        }
+      
+       
+
+        //protected override ProtoMessageQueue GetMesssageQueue()
+        //{
+        //    return new ProtoMessageQueue(MaxIndexedMemory, true);
+        //}
 
         //ProtoMessageQueue mq;
         //private ByteMessageReader reader;

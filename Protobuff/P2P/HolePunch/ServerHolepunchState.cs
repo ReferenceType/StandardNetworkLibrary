@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.Utils;
 using ProtoBuf;
+using Protobuff.P2P.Generic.Interfaces.Messages;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -22,7 +23,7 @@ namespace Protobuff.P2P.HolePunch
     }
 
     [ProtoContract]
-    internal class ChanneCreationMessage : IProtoMessage
+    internal class ChanneCreationMessage : IChanneCreationMessage,IProtoMessage
     {
         [ProtoMember(1)]
         public byte[] SharedSecret { get; set; }
@@ -38,12 +39,12 @@ namespace Protobuff.P2P.HolePunch
     }
 
     [ProtoContract]
-    internal class EndpointTransferMessage : IProtoMessage
+    internal class EndpointTransferMessage : IEndpointTransferMessage<EndpointTransferMessage>, IProtoMessage
     {
         [ProtoMember(1)]
-        public string IpRemote;
+        public string IpRemote { get; set; }
         [ProtoMember(2)]
-        public int PortRemote;
+        public int PortRemote { get; set; }
         [ProtoMember(3)]
         public List<EndpointTransferMessage> LocalEndpoints { get; set; } = new List<EndpointTransferMessage>();
 

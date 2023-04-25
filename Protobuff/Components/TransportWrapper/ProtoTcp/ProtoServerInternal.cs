@@ -5,21 +5,13 @@ using System.Net.Sockets;
 
 namespace Protobuff.Components.ProtoTcp
 {
-    internal class ProtoServerInternal : MessageServer<ProtoMessageQueue, MessageEnvelope, GenericMessageSerializer<MessageEnvelope, ProtoSerializer>>
+    internal class ProtoServerInternal : MessageServer< MessageEnvelope,ProtoSerializer>
     {
         internal ProtoServerInternal(int port) : base(port)
         {
         }
 
-        protected override GenericMessageSerializer<MessageEnvelope, ProtoSerializer> CreateMessageSerializer()
-        {
-            return new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
-        }
-
-        protected override MessageSession<MessageEnvelope, ProtoMessageQueue> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
-        {
-            return new ProtoSessionInternal(e, sessionId);
-        }
+      
         //public MessageReceived OnMessageReceived;
         //public bool DeserializeMessages = true;
         //private readonly ConcurrentProtoSerialiser serializer = new ConcurrentProtoSerialiser();

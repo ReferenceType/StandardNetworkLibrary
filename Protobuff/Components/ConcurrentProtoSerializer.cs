@@ -37,7 +37,7 @@ namespace Protobuff
             var buffer = serialisationStream.GetBuffer();
             var ret = ByteCopy.ToArray(buffer, 0, (int)serialisationStream.Position);
 
-            serialisationStream.Flush();
+            serialisationStream.Clear();
             streamPool.Add(serialisationStream);
             return ret;
 
@@ -52,7 +52,7 @@ namespace Protobuff
             }
             Serializer.Serialize(serialisationStream, record);
             count = (int)serialisationStream.Position;
-            serialisationStream.Flush();
+            serialisationStream.Clear();
 
             return true;
         }
@@ -127,7 +127,7 @@ namespace Protobuff
             EnvelopeMessageWithInnerMessage(serialisationStream, empyEnvelope, payload);
             var ret = ByteCopy.ToArray(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
-            serialisationStream.Flush();
+            serialisationStream.Clear();
             streamPool.Add(serialisationStream);
             return ret;
 
@@ -180,7 +180,7 @@ namespace Protobuff
             EnvelopeMessageWithBytes(serialisationStream, empyEnvelope, payloadBuffer, offset, count);
             var ret = ByteCopy.ToArray(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
 
-            serialisationStream.Flush();
+            serialisationStream.Clear();
             streamPool.Add(serialisationStream);
             return ret;
 

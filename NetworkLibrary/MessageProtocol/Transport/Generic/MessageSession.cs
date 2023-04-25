@@ -6,12 +6,11 @@ using System.Runtime.CompilerServices;
 
 namespace MessageProtocol
 {
-    public abstract class MessageSession<E, Q> : TcpSession
-        where Q : class, ISerialisableMessageQueue<E>
+    public class MessageSession<E, S> : TcpSession
+        where S :ISerializer, new()
         where E : IMessageEnvelope, new()
-
     {
-        protected Q mq;
+        protected GenericMessageQueue<S, E> mq;
         private ByteMessageReader reader;
         public MessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
@@ -20,7 +19,10 @@ namespace MessageProtocol
             UseQueue = false;
         }
 
-        protected abstract Q GetMesssageQueue();
+        protected virtual GenericMessageQueue<S, E> GetMesssageQueue()
+        {
+            return new GenericMessageQueue<S, E>(MaxIndexedMemory,true);
+        }
 
         protected override IMessageQueue CreateMessageQueue()
         {

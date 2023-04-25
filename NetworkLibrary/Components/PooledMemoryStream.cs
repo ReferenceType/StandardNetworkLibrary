@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.Contracts;
+using System.Drawing;
 using System.IO;
 using System.Runtime.CompilerServices;
 
@@ -25,10 +26,11 @@ namespace NetworkLibrary.Components
 
         public override bool CanWrite => true;
 
-        public override long Length => bufferInternal.LongLength;
+        private int length;
 
-        private long position = 0;
+        private int position = 0;
         private int _origin = 0;
+        private int _capacity => bufferInternal.Length;
 
         public override long Position
         {
@@ -38,12 +40,21 @@ namespace NetworkLibrary.Components
                 if (bufferInternal.Length < value)
                     ExpandInternalBuffer((int)value);
 
-                position = value;
+                position = (int)value;
+                
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override long Length { get => length;  }
+
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Flush()
+        {
+
+
+        }
+
+        public void Clear()
         {
             position = 0;
             if (bufferInternal.Length > 65537)
@@ -51,12 +62,10 @@ namespace NetworkLibrary.Components
                 BufferPool.ReturnBuffer(bufferInternal);
                 bufferInternal = BufferPool.RentBuffer(64000);
             }
-
         }
-
         public override int Read(byte[] buffer, int offset, int count)
         {
-            count = count>Length-position? (int)Length - (int)position : count;
+            count = count>_capacity-position? (int)_capacity - (int)position : count;
             unsafe
             {
                 fixed (byte* destination = &buffer[offset])
@@ -67,9 +76,9 @@ namespace NetworkLibrary.Components
                 Position += count;
                 return count;
             }
-           
-        }
 
+        }
+     
         public override long Seek(long offset, SeekOrigin origin)
         {
             if (offset > BufferPool.MaxBufferSize)
@@ -78,15 +87,15 @@ namespace NetworkLibrary.Components
             {
                 case SeekOrigin.Begin:
                     {
-                        int tempPosition = unchecked(_origin + (int)offset);
-                        if (offset < 0 || tempPosition < _origin)
+                        int tempPosition = unchecked( (int)offset);
+                        if (offset < 0 || tempPosition < 0)
                             throw new IOException("IO.IO_SeekBeforeBegin");
                         Position = tempPosition;
                         break;
                     }
                 case SeekOrigin.Current:
                     {
-                        int tempPosition = unchecked((int)position + (int)offset);
+                        int tempPosition = unchecked(position + (int)offset);
                         if (unchecked(position + offset) < _origin || tempPosition < _origin)
                             throw new IOException("IO.IO_SeekBeforeBegin");
                         Position = tempPosition;
@@ -94,8 +103,8 @@ namespace NetworkLibrary.Components
                     }
                 case SeekOrigin.End:
                     {
-                        int tempPosition = unchecked((int)position + (int)offset);
-                        if (unchecked(position + offset) < _origin || tempPosition < _origin)
+                        int tempPosition = unchecked(length + (int)offset);
+                        if (unchecked(length + offset) < _origin || tempPosition < _origin)
                             throw new IOException("IO.IO_SeekBeforeBegin");
                         Position = tempPosition;
                         break;
@@ -111,8 +120,9 @@ namespace NetworkLibrary.Components
 
         public override void SetLength(long value)
         {
-            if (Length < value)
+            if (_capacity < value)
                 ExpandInternalBuffer((int)value);
+            length = (int)value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -129,7 +139,26 @@ namespace NetworkLibrary.Components
                 else
                     ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
             }
-            // fastest copy
+            
+            //if (count < 8)
+            //{
+            //    int byteCount = count;
+            //    while (--byteCount >= 0)
+            //        bufferInternal[position + byteCount] = buffer[offset + byteCount];
+            //}
+            //else
+            //{
+            //    unsafe
+            //    {
+            //        fixed (byte* destination = &bufferInternal[position])
+            //        {
+            //            fixed (byte* toCopy = &buffer[offset])
+            //                Buffer.MemoryCopy(toCopy, destination, count, count);
+            //        }
+            //    }
+            //    position += count;
+            //}
+
             unsafe
             {
                 fixed (byte* destination = &bufferInternal[position])
@@ -139,6 +168,10 @@ namespace NetworkLibrary.Components
                 }
             }
             position += count;
+
+
+            if (length<position)
+                length = position;
         }
 
 
@@ -166,6 +199,64 @@ namespace NetworkLibrary.Components
             bufferInternal = newBuf;
         }
 
+        public void Reserve(int count)
+        {
+            if (bufferInternal.Length - position < count)
+            {
+                int demandSize = count + (bufferInternal.Length);
+                if (demandSize > BufferPool.MaxBufferSize)
+                    throw new InvalidOperationException($"Cannot expand internal buffer to more than max amount: {BufferPool.MaxBufferSize}");
+                else
+                    ExpandInternalBuffer(demandSize);
+            }
+        }
+
+        public override void WriteByte(byte value)
+        {
+            if (bufferInternal.Length - position < 1)
+            {
+                int demandSize = 1 + (bufferInternal.Length);
+                if (demandSize > BufferPool.MaxBufferSize)
+                    throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+                else
+                    ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            }
+
+            bufferInternal[position++] = value;
+        }
+        public override int ReadByte()
+        {
+            if (position >= length) return -1;
+            return bufferInternal[position++];
+        }
+
+        /// <summary>
+        /// Gets a memory region from stream internal buffer, after the current position.
+        /// Size is atleast the amount hinted, and minimum is 256 bytes
+        /// </summary>
+        /// <param name="sizeHint"></param>
+        /// <param name="buff"></param>
+        /// <param name="offst"></param>
+        /// <param name="cnt"></param>
+        /// <exception cref="InvalidOperationException"></exception>
+        public void GetMemory(int sizeHint, out byte[] buff, out int offst, out int cnt)
+        {
+            if (sizeHint < 256)
+                sizeHint = 256;
+
+            if (bufferInternal.Length - position < sizeHint)
+            {
+                int demandSize = sizeHint + (bufferInternal.Length);
+                if (demandSize > BufferPool.MaxBufferSize)
+                    throw new InvalidOperationException($"Cannot expand internal buffer to more than max amount: {BufferPool.MaxBufferSize}");
+                else
+                    ExpandInternalBuffer(demandSize);
+            }
+
+            buff = bufferInternal;
+            offst = (int)position;
+            cnt = sizeHint;
+        }
         protected override void Dispose(bool disposing)
         {
             if (disposing)

@@ -6,7 +6,7 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
 {
-    public class SecureProtoClientInternal : SecureMessageClient<ProtoMessageQueue, MessageEnvelope, GenericMessageSerializer<MessageEnvelope, ProtoSerializer>>
+    public class SecureProtoClientInternal : SecureMessageClient< MessageEnvelope, ProtoSerializer>
     {
 
         public SecureProtoClientInternal(X509Certificate2 certificate) : base(certificate)
@@ -14,15 +14,7 @@ namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
 
         }
 
-        protected override GenericMessageSerializer<MessageEnvelope, ProtoSerializer> CreateMessageSerializer()
-        {
-            return new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
-        }
-
-        protected override SecureMessageSession<MessageEnvelope, ProtoMessageQueue> GetSession(Guid guid, SslStream sslStream)
-        {
-            return new SecureProtoSessionInternal(guid, sslStream);
-        }
+       
 
         //public Action<MessageEnvelope> OnMessageReceived;
         //public bool DeserializeMessages = true;

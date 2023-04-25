@@ -40,16 +40,16 @@ namespace Protobuff
         public string Header { get; set; }
 
         [ProtoMember(4)]
-        public Guid From { get; internal set; }
+        public Guid From { get;  set; }
 
         [ProtoMember(5)]
-        public Guid To { get; internal set; }
+        public Guid To { get;  set; }
 
         [ProtoMember(6)]
         public Dictionary<string, string> KeyValuePairs { get; set; }
 
         [ProtoMember(7)]
-        public bool IsInternal { get; internal set; }
+        public bool IsInternal { get;  set; }
         public bool IsLocked { get; private set; } = true;
 
         private byte[] payload;

@@ -6,20 +6,23 @@ using System.Runtime.CompilerServices;
 
 namespace MessageProtocol
 {
-    public abstract class SecureMessageSession<E, Q> : SslSession
+    public class SecureMessageSession<E, S> : SslSession
          where E : IMessageEnvelope, new()
-         where Q : class, ISerialisableMessageQueue<E>
+         where S : ISerializer, new()
     {
-        protected Q mq;
+        protected GenericMessageQueue<S,E> mq;
         private ByteMessageReader reader;
-        protected SecureMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
+        public SecureMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
             reader = new ByteMessageReader(sessionId);
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }
 
-        protected abstract Q GetMesssageQueue();
+        protected virtual GenericMessageQueue<S, E> GetMesssageQueue()
+        {
+            return new GenericMessageQueue<S, E>(MaxIndexedMemory, true);
+        }
 
         protected override IMessageQueue CreateMessageQueue()
         {

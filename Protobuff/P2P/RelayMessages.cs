@@ -1,23 +1,24 @@
 ﻿using ProtoBuf;
+using Protobuff.P2P.Generic.Interfaces.Messages;
 using System;
 using System.Collections.Generic;
 
 namespace Protobuff.P2P
 {
     [ProtoContract]
-    public class PeerInfo : IProtoMessage
+    public class PeerInfo : IProtoMessage, IPeerInfo
     {
         [ProtoMember(1)]
-        public string IP;
+        public string IP { get; set; }
         [ProtoMember(2)]
-        public int Port;
+        public int Port { get; set; }
     }
 
     [ProtoContract]
-    public class PeerList<T> : IProtoMessage
+    public class PeerList<T> : IProtoMessage, IPeerList<T>
     {
         [ProtoMember(1)]
-        public Dictionary<Guid, T> PeerIds;
+        public Dictionary<Guid, T> PeerIds { get; set; }
 
     }
     public class InternalMessageResources

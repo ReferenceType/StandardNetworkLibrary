@@ -32,6 +32,8 @@ internal class Program
     private static ThreadLocal<long> TotalNumMsgServer = new ThreadLocal<long>(true);
     static void Main(string[] args)
     {
+       // Process.GetCurrentProcess().PriorityBoostEnabled= true;
+      //  Process.GetCurrentProcess().PriorityClass= ProcessPriorityClass.RealTime;
         //TcpTest();
         //TcpTest2();
         var config = ConsoleInputHandler.ObtainConfig();
@@ -54,7 +56,9 @@ internal class Program
         fixedMessage = isFixedMessage ? new MessageEnvelope()
         {
             Header = "Test",
-            Payload = new byte[fixedMessageSize]
+            Payload = new byte[fixedMessageSize],
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
 
         } : new MessageEnvelope();
 
@@ -79,8 +83,9 @@ internal class Program
         clientMessage = new MessageEnvelope()
         {
             Header = "Test",
-            Payload = new byte[messageSize]
-
+            Payload = new byte[messageSize],
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
         };
         clients = new List<ProtoClient>();
 

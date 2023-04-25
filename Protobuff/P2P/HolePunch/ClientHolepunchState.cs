@@ -12,7 +12,8 @@ namespace Protobuff.P2P.HolePunch
 {
     internal class ClientHolepunchState
     {
-        public TaskCompletionSource<EncryptedUdpProtoClient> Completion = new TaskCompletionSource<EncryptedUdpProtoClient>(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<EncryptedUdpProtoClient> Completion
+            = new TaskCompletionSource<EncryptedUdpProtoClient>(TaskCreationOptions.RunContinuationsAsynchronously);
         private int Success = 0;
 
         internal EncryptedUdpProtoClient holepunchClient;

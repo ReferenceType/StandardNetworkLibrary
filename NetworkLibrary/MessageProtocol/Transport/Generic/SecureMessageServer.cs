@@ -2,6 +2,7 @@
 using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
@@ -10,16 +11,15 @@ using static System.Collections.Specialized.BitVector32;
 
 namespace MessageProtocol
 {
-    public abstract class SecureMessageServer<Q, E, S> : SslServer
-         where Q : class, ISerialisableMessageQueue<E>
+    public class SecureMessageServer<E, S> : SslServer
          where E : IMessageEnvelope, new()
-         where S : IMessageSerialiser<E>
+         where S : ISerializer, new()
     {
         public Action<Guid, E> OnMessageReceived;
         public bool DeserializeMessages = true;
         public GenericMessageAwaiter<E> awaiter = new GenericMessageAwaiter<E>();
 
-        private S serializer;
+        private GenericMessageSerializer<E,S> serializer;
         public SecureMessageServer(int port, X509Certificate2 certificate) : base(port, certificate)
         {
             RemoteCertificateValidationCallback += ValidateCert;
@@ -39,7 +39,10 @@ namespace MessageProtocol
             base.StartServer();
         }
 
-        protected abstract S CreateMessageSerializer();
+        protected virtual GenericMessageSerializer<E, S> CreateMessageSerializer()
+        {
+            return new GenericMessageSerializer<E, S>();
+        }
 
         protected virtual void MapReceivedBytes()
         {
@@ -56,7 +59,10 @@ namespace MessageProtocol
             }
         }
 
-        protected abstract SecureMessageSession<E, Q> GetSession(Guid guid, SslStream sslStream);
+        protected virtual SecureMessageSession<E, S> GetSession(Guid guid, SslStream sslStream)
+        {
+            return new SecureMessageSession<E, S>(guid, sslStream);
+        }
         protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var session = GetSession(guid, tuple.Item1);//new SecureProtoSessionInternal(guid, tuple.Item1);
@@ -69,14 +75,14 @@ namespace MessageProtocol
         public void SendAsyncMessage(in Guid clientId, E message)
         {
             if (Sessions.TryGetValue(clientId, out IAsyncSession session))
-                ((SecureMessageSession<E, Q>)session).SendAsync(message);
+                ((SecureMessageSession<E, S>)session).SendAsync(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage<T>(in Guid clientId, E envelope, T message)
         {
             if (Sessions.TryGetValue(clientId, out IAsyncSession session))
-                ((SecureMessageSession<E, Q>)session).SendAsync(envelope, message);
+                ((SecureMessageSession<E, S>)session).SendAsync(envelope, message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -115,7 +121,10 @@ namespace MessageProtocol
             SendAsyncMessage(clientId, message);
             return task;
         }
-
+        public IPEndPoint GetIPEndPoint(Guid cliendId)
+        {
+            return GetSessionEndpoint(cliendId);
+        }
 
         //protected override void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         //{
@@ -133,7 +142,7 @@ namespace MessageProtocol
         //}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool CheckAwaiter(E message)
+        protected bool CheckAwaiter(E message)
         {
             if (awaiter.IsWaiting(message.MessageId))
             {

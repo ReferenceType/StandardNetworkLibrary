@@ -1,20 +1,18 @@
 ﻿using MessageProtocol;
+using Protobuff.Components.Serialiser;
 using System;
 using System.Net.Security;
 
 namespace Protobuff.Components.TransportWrapper.SecureProtoTcp
 {
 
-    internal class SecureProtoSessionInternal : SecureMessageSession<MessageEnvelope, ProtoMessageQueue>
+    internal class SecureProtoSessionInternal : SecureMessageSession<MessageEnvelope, ProtoSerializer>
     {
 
         public SecureProtoSessionInternal(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
         }
-        protected override ProtoMessageQueue GetMesssageQueue()
-        {
-            return new ProtoMessageQueue(MaxIndexedMemory, true);
-        }
+
 
         //ProtoMessageQueue mq;
         //private ByteMessageReader reader;

@@ -1,5 +1,4 @@
 ﻿using MessagePack;
-using MessageProtocol;
 using NetworkLibrary.Components;
 using System;
 using System.Buffers;
@@ -9,7 +8,7 @@ using System.Text;
 
 namespace MessagePackNetwork.Network.Components
 {
-    public class MessagepackSerializer : ISerializer
+    public class MessagepackSerializer : NetworkLibrary.MessageProtocol.ISerializer
     {
         [ThreadStatic]
         BufferWriter wrt = new BufferWriter();

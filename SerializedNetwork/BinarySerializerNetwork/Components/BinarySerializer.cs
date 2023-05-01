@@ -1,5 +1,5 @@
-﻿using MessageProtocol;
-using NetworkLibrary.Components;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -29,6 +29,11 @@ namespace BinarySerializerNetwork.Components
                 return (T)serializer.Deserialize(stream);
         }
 
+        public MessageEnvelope Deserialize(byte[] buffer, int offset, int count)
+        {
+           return Deserialize<MessageEnvelope>(buffer, offset, count);
+        }
+
         public void Serialize<T>(Stream destination, T instance)
         {
           //  var ms  = new MemoryStream();
@@ -49,6 +54,11 @@ namespace BinarySerializerNetwork.Components
             }
 
              
+        }
+
+        public void Serialize(Stream destination, MessageEnvelope instance)
+        {
+            Serialize<MessageEnvelope>(destination, instance);
         }
     }
 }

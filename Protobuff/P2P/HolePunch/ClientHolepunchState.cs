@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary.Components;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;

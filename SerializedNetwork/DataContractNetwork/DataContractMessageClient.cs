@@ -1,5 +1,5 @@
 ﻿using DataContractNetwork.Components;
-using MessageProtocol;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Components.Statistics;
 using System;
 using System.Collections.Generic;

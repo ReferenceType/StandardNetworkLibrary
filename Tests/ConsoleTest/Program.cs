@@ -1,6 +1,8 @@
 ﻿using MessageProtocol;
+using MessageProtocol.Serialization;
 using NetworkLibrary;
 using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
@@ -11,11 +13,13 @@ using ProtoBuf;
 using Protobuff;
 using Protobuff.Components.Serialiser;
 using Protobuff.P2P;
+using Serialization;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -53,7 +57,12 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
-            PerfSerializer();
+
+            //SerializerTest();
+            //SerializerTestProto();
+          
+
+            //PerfSerializer();
             ////Parallel.For(0, 2, j =>
             ////{
             //    for (int i = 0; i < 10000000; i++)
@@ -103,6 +112,78 @@ namespace ConsoleTest
 
         }
 
+        private static void SerializerTestProto()
+        {
+            MessageEnvelope env = new MessageEnvelope()
+            {
+                IsInternal = true,
+                From = Guid.NewGuid(),
+                To = Guid.NewGuid(),
+                Header = "rattatta",
+
+                MessageId = Guid.NewGuid(),
+                TimeStamp = DateTime.Now,
+                KeyValuePairs = new Dictionary<string, string>() {
+                    { "K1", "v2" } ,
+                    { "K3", "" },
+                    { "K2", null } ,
+                    { "K4", "%%" } ,
+                }
+            };
+            var stream =  new PooledMemoryStream();
+            Serializer.Serialize(stream, env);
+            stream.Position = 0;
+            //var res = Serializer.Deserialize<MessageEnvelope>(stream);
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < 1000000; i++)
+            {
+                Serializer.Serialize(stream, env);
+                var r = Serializer.Deserialize<MessageEnvelope>(new ReadOnlySpan<byte>( stream.GetBuffer(),0,(int)stream.Position));
+                stream.Position = 0;
+
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+        }
+
+        private static void SerializerTest()
+        {
+            PooledMemoryStream stream= new PooledMemoryStream();
+            MessageEnvelope env = new MessageEnvelope()
+            {
+                IsInternal = true,
+                From = Guid.NewGuid(),
+                To = Guid.NewGuid(),
+                Header = "rattatta",
+
+                MessageId = Guid.NewGuid(),
+                TimeStamp = DateTime.Now,
+                KeyValuePairs = new Dictionary<string, string>() {
+                    { "K1", "v2" } ,
+                    { "K3", "" },
+                    { "K2", null } ,
+                    { "K4", "%%" } ,
+                }
+            };
+            EnvelopeSerializer.Serialize(stream, env);
+            var result = EnvelopeSerializer.Deserialize(stream.GetBuffer(),0);
+            stream.Position = 0;
+
+            Stopwatch sw =  new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < 1000000; i++)
+            {
+                Serialization.EnvelopeSerializer.Serialize(stream, env);
+                var r = Serialization.EnvelopeSerializer.Deserialize(stream.GetBuffer(),0);
+                stream.Position = 0;
+
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+        }
+
         private static void PerfSerializer()
         {
             var ser1 = new ConcurrentProtoSerialiser();
@@ -110,16 +191,24 @@ namespace ConsoleTest
 
             var message = new MessageEnvelope()
             {
+                IsInternal = true,
                 From = Guid.NewGuid(),
                 To = Guid.NewGuid(),
-                Header = "Somebody",
-                Payload = new byte[32]
+                //MessageId = Guid.NewGuid(),
+                //TimeStamp = DateTime.Now,
+                Header = "rattatta",
+                //KeyValuePairs = new Dictionary<string, string>() {
+                //    { "K1", "v2" } ,
+                //    { "K3", "" },
+                //    { "K2", null } ,
+                //    { "K4", "%%" } ,
+                //}
             };
             PooledMemoryStream stream= new PooledMemoryStream();
             Stopwatch sw =  new Stopwatch();
             var bytes = ser1.SerializeMessageEnvelope(message);
             sw.Start();
-            for (int i = 0; i < 5000000; i++)
+            for (int i = 0; i < 1000000; i++)
             {
                 //ser1.SerializeMessageEnvelope(message);
                 ser2.SerializeMessageEnvelope(message);
@@ -504,7 +593,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         private static void RelayTest()
         {
-            string ip = "82.60.167.182";
+            string ip = "127.0.0.1";
             MessageEnvelope testMessage = new MessageEnvelope()
             {
                 Header = "Test",
@@ -515,7 +604,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-            var server = new SecureProtoRelayServer(20011, scert);
+            //var server = new SecureProtoRelayServer(20011, scert);
             // Thread.Sleep(1000000000);
             //Task.Run(async () =>
             //{
@@ -532,7 +621,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //});
 
             var clients = new List<RelayClient>();
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 200; i++)
             {
                 var client = new RelayClient(cert);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
@@ -587,15 +676,15 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     Payload = new byte[32]
                 };
 
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 100; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                        //client.SendAsyncMessage(peer, testMessage_); 
+                        client.SendAsyncMessage(peer, testMessage_); 
 
-                        client.SendUdpMesssage(peer, testMessage);
+                        //client.SendUdpMesssage(peer, testMessage);
                     }
                 }
 

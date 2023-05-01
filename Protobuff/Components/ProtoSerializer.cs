@@ -1,5 +1,6 @@
-﻿using MessageProtocol;
+﻿using MessageProtocol.Serialization;
 using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using ProtoBuf.Meta;
@@ -13,14 +14,10 @@ namespace Protobuff.Components.Serialiser
     public class ProtoSerializer : ISerializer
     {
         private ConcurrentObjectPool<PooledMemoryStream> streamPool = new ConcurrentObjectPool<PooledMemoryStream>();
-        //private RuntimeTypeModel Serializer;
 
         public ProtoSerializer()
         {
-            ProtoBuf.Serializer.PrepareSerializer<MessageEnvelope>();
-            //ProtoBuf.Serializer.PrepareSerializer<IMessageEnvelope>();
-            ProtoBuf.Serializer.PrepareSerializer<RouterHeader>();
-           // Serializer = RuntimeTypeModel.Default;  
+          
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -30,17 +27,15 @@ namespace Protobuff.Components.Serialiser
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe T Deserialize<T>(byte[] buffer, int offset, int count)
+        public  T Deserialize<T>(byte[] buffer, int offset, int count)
         {
-            //fixed (byte* startPointer = &buffer[offset])
-            //{
-            //    var span = new ReadOnlySpan<byte>(startPointer, count);
-            //    return Serializer.Deserialize<T>(span);
-            //}
-
             return Serializer.Deserialize<T>(new ReadOnlySpan<byte>(buffer, offset, count));
         }
 
+        public MessageEnvelope Deserialize(byte[] buffer, int offset, int count)
+        {
+            return Serializer.Deserialize<MessageEnvelope>(new ReadOnlySpan<byte>(buffer, offset, count));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize<T>(Stream destination, T instance)
@@ -61,6 +56,11 @@ namespace Protobuff.Components.Serialiser
             _stream.Clear();
             streamPool.ReturnObject(_stream);
             return bytes;
+        }
+
+        public void Serialize(Stream destination, MessageEnvelope instance)
+        {
+            Serializer.Serialize<MessageEnvelope>(destination, instance);
         }
     }
 }

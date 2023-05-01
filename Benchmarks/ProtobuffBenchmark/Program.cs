@@ -1,14 +1,20 @@
-﻿using NetworkLibrary.Components.Statistics;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
-using Protobuff;
+using ProtoBuf;
+using ProtobufNetwork;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+[ProtoContract]
+
 internal class Program
 {
+
     static int port = 20007;
     static bool runAsServer;
     static bool isFixedMessage;
@@ -28,14 +34,16 @@ internal class Program
     private static long totMsgServer;
     private static long lastTimeStamp = 1;
 
+
     private static ThreadLocal<long> TotalNumMsgClients = new ThreadLocal<long>(true);
     private static ThreadLocal<long> TotalNumMsgServer = new ThreadLocal<long>(true);
     static void Main(string[] args)
     {
-       // Process.GetCurrentProcess().PriorityBoostEnabled= true;
-      //  Process.GetCurrentProcess().PriorityClass= ProcessPriorityClass.RealTime;
+        
         //TcpTest();
         //TcpTest2();
+        //SerializerTestProto();
+
         var config = ConsoleInputHandler.ObtainConfig();
         runAsClient = config.runAsClient;
         runAsServer = config.runAsServer;
@@ -50,6 +58,42 @@ internal class Program
 
         ShowStatus();
         Console.ReadLine();
+    }
+    private static void SerializerTestProto()
+    {
+        MessageEnvelope env = new MessageEnvelope()
+        {
+            IsInternal = true,
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
+            Header = "rattatta",
+
+            MessageId = Guid.NewGuid(),
+            TimeStamp = DateTime.Now,
+            KeyValuePairs = new Dictionary<string, string>() {
+                    { "K1", "v2" } ,
+                    { "K3", "" },
+                    { "K2", null } ,
+                    { "K4", "%%" } ,
+                }
+        };
+        var stream = new MemoryStream();
+        Serializer.Serialize(stream, env);
+        stream.Position = 0;
+        var res = Serializer.Deserialize<MessageEnvelope>(stream);
+
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
+        for (int i = 0; i < 5000000; i++)
+        {
+            Serializer.Serialize(stream, env);
+            //stream.Position = 0;
+            //var r = Serializer.Deserialize<MessageEnvelope>(stream);
+            var r = Serializer.Deserialize<MessageEnvelope>(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Position));
+            stream.Position = 0;
+        }
+        sw.Stop();
+        Console.WriteLine(sw.ElapsedMilliseconds);
     }
     private static void InitializeServer()
     {

@@ -7,11 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="protobuf-net" Version="3.1.25" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\Protobuff\ProtobuffNetwork.csproj" />
+    <ProjectReference Include="..\..\SerializedNetwork\ProtobufNetwork\ProtobufNetwork.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-﻿using MessageProtocol;
+﻿using NetworkLibrary.MessageProtocol;
 using NetSerializerNetwork.Components;
 using NetSerializerNetwork.Internal;
 using NetworkLibrary.Components.Statistics;
@@ -16,7 +16,7 @@ namespace NetSerializerNetwork
         public Action OnDisconnected;
 
         private NetSerializerClientInternal client;
-        private GenericMessageSerializer<MessageEnvelope, NetSerializer_> serialiser = new GenericMessageSerializer<MessageEnvelope, NetSerializer_>();
+        private GenericMessageSerializer<MessageEnvelope, NetSerialiser> serialiser = new GenericMessageSerializer<MessageEnvelope, NetSerialiser>();
 
         public NetSerializerClient()
         {

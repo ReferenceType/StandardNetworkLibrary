@@ -1,6 +1,6 @@
 ﻿using JsonMessageNetwork.Components;
 using JsonMessageNetwork.Internal;
-using MessageProtocol;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Components.Statistics;
 using System;
 using System.Collections.Generic;

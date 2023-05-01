@@ -6,7 +6,7 @@ using System.Text;
 
 namespace JsonMessageNetwork.Internal
 {
-    internal class JsonMessageClientInternal:MessageClient<MessageEnvelope,JsonSerializer>
+    internal class JsonMessageClientInternal:MessageClient<MessageEnvelope, JsonSerializer>
     {
     }
 }

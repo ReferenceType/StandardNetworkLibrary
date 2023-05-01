@@ -7,7 +7,7 @@ namespace NetworkLibrary.Components
 {
     internal sealed class MessageQueue<T> : IMessageQueue where T : IMessageProcessor
     {
-        public int CurrentIndexedMemory => currentIndexedMemory;
+        public int CurrentIndexedMemory =>Volatile.Read(ref currentIndexedMemory);
         public long TotalMessageDispatched => totalMessageFlushed;
 
         internal ConcurrentQueue<byte[]> SendQueue = new ConcurrentQueue<byte[]>();
@@ -26,9 +26,9 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryEnqueueMessage(byte[] bytes)
         {
-            if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
+            if ( currentIndexedMemory < MaxIndexedMemory)
             {
-                Interlocked.Add(ref currentIndexedMemory, bytes.Length);
+                currentIndexedMemory+= bytes.Length;
                 SendQueue.Enqueue(bytes);
                 return true;
             }
@@ -60,10 +60,9 @@ namespace NetworkLibrary.Components
                     flushNext = true;
                     break;
                 };
-                bytes = null;
 
             }
-            Interlocked.Add(ref currentIndexedMemory, -memcount);
+            currentIndexedMemory -= memcount;
             processor.GetBuffer(out buffer, out _, out amountWritten);
             return amountWritten != 0;
 

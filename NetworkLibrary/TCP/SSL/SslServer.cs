@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -32,7 +33,6 @@ namespace NetworkLibrary.TCP.SSL.Base
         private X509Certificate2 certificate;
         private TcpServerStatisticsPublisher statisticsPublisher;
 
-
         public SslServer(int port, X509Certificate2 certificate)
         {
             ServerPort = port;
@@ -43,6 +43,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
         }
 
+       
         public override void StartServer()
         {
             serverSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -50,35 +51,46 @@ namespace NetworkLibrary.TCP.SSL.Base
             serverSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
 
             serverSocket.Listen(10000);
-            serverSocket.BeginAccept(Accepted, null);
-        }
 
-        private void Accepted(IAsyncResult ar)
+            // serverSocket.BeginAccept(Accepted, null);
+            for (int i = 0; i < Environment.ProcessorCount; i++)
+            {
+                SocketAsyncEventArgs e = new SocketAsyncEventArgs();
+                e.Completed += Accepted;
+                if (!serverSocket.AcceptAsync(e))
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem((s) => Accepted(null, e), null);
+                }
+            }
+
+           
+        }
+        private void Accepted(object sender, SocketAsyncEventArgs acceptedArg)
         {
             if (Stopping)
                 return;
-            Socket clientsocket = null;
-            try
-            {
-                clientsocket = serverSocket.EndAccept(ar);
 
-            }
-            catch (ObjectDisposedException) { return; }
+            SocketAsyncEventArgs nextClient = new SocketAsyncEventArgs();
+            nextClient.Completed += Accepted;
 
-            if (ar.CompletedSynchronously)
+            if (!serverSocket.AcceptAsync(nextClient))
             {
-                ThreadPool.UnsafeQueueUserWorkItem(s => serverSocket.BeginAccept(Accepted, null), null);
+                ThreadPool.UnsafeQueueUserWorkItem((s) => Accepted(null, nextClient), null);
             }
-            else
+
+            if (acceptedArg.SocketError != SocketError.Success)
             {
-                serverSocket.BeginAccept(Accepted, null);
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "While Accepting Client an Error Occured:"
+                    + Enum.GetName(typeof(SocketError),acceptedArg.SocketError));
+                return;
             }
-            if (!ValidateConnection(clientsocket))
+
+            if (!ValidateConnection(acceptedArg.AcceptSocket))
             {
                 return;
             }
 
-            var sslStream = new SslStream(new NetworkStream(clientsocket, true), false, ValidateCeriticate);
+            var sslStream = new SslStream(new NetworkStream(acceptedArg.AcceptSocket, true), false, ValidateCeriticate);
             try
             {
                 sslStream.BeginAuthenticateAsServer(certificate,
@@ -86,7 +98,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                                                System.Security.Authentication.SslProtocols.Tls12,
                                                false,
                                                EndAuthenticate,
-                                               new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientsocket.RemoteEndPoint));
+                                               new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint));
             }
             catch (Exception ex)
             when (ex is AuthenticationException || ex is ObjectDisposedException)
@@ -94,7 +106,50 @@ namespace NetworkLibrary.TCP.SSL.Base
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + ex.Message);
             }
 
+            acceptedArg.Dispose();
         }
+        //private void Accepted_(IAsyncResult ar)
+        //{
+        //    if (Stopping)
+        //        return;
+        //    Socket clientsocket = null;
+        //    try
+        //    {
+        //        clientsocket = serverSocket.EndAccept(ar);
+
+        //    }
+        //    catch (ObjectDisposedException) { return; }
+
+        //    if (ar.CompletedSynchronously)
+        //    {
+        //        ThreadPool.UnsafeQueueUserWorkItem(s => serverSocket.BeginAccept(Accepted, null), null);
+        //    }
+        //    else
+        //    {
+        //        serverSocket.BeginAccept(Accepted, null);
+        //    }
+        //    if (!ValidateConnection(clientsocket))
+        //    {
+        //        return;
+        //    }
+
+        //    var sslStream = new SslStream(new NetworkStream(clientsocket, true), false, ValidateCeriticate);
+        //    try
+        //    {
+        //        sslStream.BeginAuthenticateAsServer(certificate,
+        //                                       true,
+        //                                       System.Security.Authentication.SslProtocols.Tls12,
+        //                                       false,
+        //                                       EndAuthenticate,
+        //                                       new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientsocket.RemoteEndPoint));
+        //    }
+        //    catch (Exception ex)
+        //    when (ex is AuthenticationException || ex is ObjectDisposedException)
+        //    {
+        //        MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + ex.Message);
+        //    }
+
+        //}
         protected virtual bool ValidateConnection(Socket clientsocket)
         {
             return OnClientRequestedConnection.Invoke(clientsocket);

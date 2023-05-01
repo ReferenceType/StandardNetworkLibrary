@@ -8,14 +8,18 @@ using System.Text;
 
 namespace DataContractNetwork.Components
 {
-    public class DataContractSerialiser : ISerializer
+    public class DataContractSerialiser : NetworkLibrary.MessageProtocol.ISerializer
     {
         static ConcurrentDictionary<Type, DataContractSerializer> seralizers = new ConcurrentDictionary<Type, DataContractSerializer>();
-        DataContractSerializer serializer;
+        static DataContractSerializer serializer;
         public DataContractSerialiser()
         {
-            serializer = new DataContractSerializer(typeof(MessageEnvelope));
-            seralizers.TryAdd(typeof(MessageEnvelope), serializer);
+            if(serializer == null)
+            {
+                serializer = new DataContractSerializer(typeof(MessageEnvelope));
+                seralizers.TryAdd(typeof(MessageEnvelope), serializer);
+            }
+           
         }
 
         private DataContractSerializer GetSerializer<T>()

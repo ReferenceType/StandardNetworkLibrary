@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
 using Protobuff.Components;
@@ -39,10 +40,13 @@ namespace Protobuff.P2P
         public Action<MessageEnvelope> OnMessageReceived;
         public Action OnDisconnected;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => protoClient.RemoteCertificateValidationCallback;
-        private SecureProtoClient protoClient;
-        private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
         public Guid sessionId { get; private set; }
         public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
+        public bool IsConnected { get => isConnected; private set => isConnected = value; }
+
+
+        private SecureProtoClient protoClient;
+        private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
 
         private ConcurrentDictionary<Guid, EncryptedUdpProtoClient> holePunchCandidates = new ConcurrentDictionary<Guid, EncryptedUdpProtoClient>();
         private ConcurrentDictionary<Guid, UdpP2PChannels> directUdpClients = new ConcurrentDictionary<Guid, UdpP2PChannels>();
@@ -50,13 +54,12 @@ namespace Protobuff.P2P
 
         private EncryptedUdpProtoClient udpRelayClient;
         private bool connecting;
-        public bool IsConnected { get => isConnected; private set => isConnected = value; }
         internal ConcurrentDictionary<Guid, PeerInfo> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInfo>();
 
         internal string connectHost;
         internal int connectPort;
         private PingHandler pinger = new PingHandler();
-        ClientHolepunchStateManager holepunchManager = new ClientHolepunchStateManager();
+        private ClientHolepunchStateManager holepunchManager = new ClientHolepunchStateManager();
         private object registeryLocker = new object();
         private bool isConnected;
 
@@ -519,6 +522,9 @@ namespace Protobuff.P2P
 
         private async void SendRegisteryFinalisationMsg(MessageEnvelope message)
         {
+            if(!connecting)
+                protoClient.SendAsyncMessage(message);
+
             await Task.Delay(20).ConfigureAwait(false);
             int attemps = 500;
             while (connecting && attemps > 0)
@@ -529,14 +535,8 @@ namespace Protobuff.P2P
             try
             {
                 protoClient.SendAsyncMessage(message);
-
             }
-            catch
-            {
-
-            }
-
-
+            catch {}
         }
 
         private void HandleHoplePunchChannelCreation(MessageEnvelope message)
@@ -544,7 +544,6 @@ namespace Protobuff.P2P
             holepunchManager.CreateChannel(this, message)
                    .ContinueWith((result, nill) =>
                    {
-                       var a = result.Result;
                        ClientHolepunchState state = result.GetAwaiter().GetResult();
                        if (state != null)
                        {

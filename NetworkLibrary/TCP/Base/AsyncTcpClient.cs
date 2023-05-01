@@ -58,7 +58,7 @@ namespace NetworkLibrary.TCP.Base
             {
                 HandleError(e, "While Connecting an Error Eccured: ");
                 OnConnectFailed?.Invoke(e.ConnectByNameError);
-                connectedCompletionSource?.SetException(new SocketException((int)e.SocketError));
+                connectedCompletionSource?.TrySetException(new SocketException((int)e.SocketError));
             }
             else
             {
@@ -66,7 +66,7 @@ namespace NetworkLibrary.TCP.Base
                 connected = true;
 
                 HandleConnected(e);
-                connectedCompletionSource?.SetResult(true);
+                connectedCompletionSource?.TrySetResult(true);
             }
         }
 

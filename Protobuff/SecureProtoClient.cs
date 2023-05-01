@@ -1,5 +1,6 @@
-﻿using NetworkLibrary.Components.Statistics;
-using Protobuff.Components.TransportWrapper.SecureProtoTcp;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary.Components.Statistics;
+using Protobuff.Components.Internal;
 using System;
 using System.Net.Security;
 using System.Runtime.CompilerServices;

@@ -1,6 +1,6 @@
 ﻿using MessagePackNetwork.Network;
 using MessagePackNetwork.Network.Components;
-using MessageProtocol;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Components.Statistics;
 
 using System;

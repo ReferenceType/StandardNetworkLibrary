@@ -9,7 +9,7 @@ namespace NetworkLibrary.TCP.ByteMessage
 {
     internal class ByteMessageSession : TcpSession
     {
-        ByteMessageReader messageManager = null;
+        ByteMessageReader messageManager;
         public ByteMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
         }

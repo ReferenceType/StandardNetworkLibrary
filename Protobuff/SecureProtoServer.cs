@@ -1,5 +1,6 @@
-﻿using NetworkLibrary.Components.Statistics;
-using Protobuff.Components.TransportWrapper.SecureProtoTcp;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary.Components.Statistics;
+using Protobuff.Components.Internal;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
@@ -75,6 +76,7 @@ namespace Protobuff
         {
             server.SendAsyncMessage(clientId, message, payload);
         }
+
         #endregion
 
         #region SendAndWait

@@ -1,4 +1,5 @@
-﻿using NetworkLibrary;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary;
 using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.UDP;

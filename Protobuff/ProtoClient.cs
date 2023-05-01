@@ -1,6 +1,8 @@
 ﻿using MessageProtocol;
+using MessageProtocol.Serialization;
 using NetworkLibrary.Components.Statistics;
-using Protobuff.Components.ProtoTcp;
+using NetworkLibrary.MessageProtocol;
+using Protobuff.Components.Internal;
 using Protobuff.Components.Serialiser;
 using System;
 using System.Runtime.CompilerServices;
@@ -14,8 +16,7 @@ namespace Protobuff
         public Action OnDisconnected;
 
         private ProtoClientInternal client;
-        private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
-        //private GenericMessageSerializer<MessageEnvelope, ProtoSerializer> serialiser = new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
+        private GenericMessageSerializer<ProtoSerializer> serialiser = new GenericMessageSerializer<ProtoSerializer>();
 
         public ProtoClient()
         {

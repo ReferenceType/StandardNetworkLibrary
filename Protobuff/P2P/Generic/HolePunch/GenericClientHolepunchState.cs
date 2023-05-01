@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 using System.Threading;
 using MessageProtocol;
 using Protobuff.P2P.Generic.Interfaces.Messages;
+using NetworkLibrary.MessageProtocol;
+using MessageProtocol.Serialization;
 
 namespace Protobuff.P2P.Generic.HolePunch
 {

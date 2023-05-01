@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,6 +29,7 @@ namespace NetworkLibrary.TCP.Base
             ServerPort = port;
         }
 
+       
         #region Start
         public override void StartServer()
         {
@@ -37,11 +39,14 @@ namespace NetworkLibrary.TCP.Base
             ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
             ServerSocket.Listen(10000);
 
-            SocketAsyncEventArgs e = new SocketAsyncEventArgs();
-            e.Completed += Accepted;
-            if (!ServerSocket.AcceptAsync(e))
+            for (int i = 0; i < Environment.ProcessorCount; i++)
             {
-                Accepted(null, e);
+                SocketAsyncEventArgs e = new SocketAsyncEventArgs();
+                e.Completed += Accepted;
+                if (!ServerSocket.AcceptAsync(e))
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem((s) => Accepted(null, e), null);
+                }
             }
 
             statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
@@ -67,6 +72,7 @@ namespace NetworkLibrary.TCP.Base
             if (acceptedArg.SocketError != SocketError.Success)
             {
                 HandleError(acceptedArg.SocketError, "While Accepting Client an Error Occured :");
+                acceptedArg.Dispose();
                 return;
             }
 
@@ -91,6 +97,8 @@ namespace NetworkLibrary.TCP.Base
             session.StartSession();
 
             HandleClientAccepted(clientGuid, acceptedArg);
+
+            acceptedArg.Dispose();
         }
 
         protected virtual bool IsConnectionAllowed(SocketAsyncEventArgs acceptArgs)

@@ -31,22 +31,19 @@ namespace NetworkLibrary.Components.MessageBuffer
         {
             lock (loki)
             {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
+                if  (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
 
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
                     {
-                        var len = BitConverter.GetBytes(bytes.Length);
-                        Interlocked.Add(ref currentIndexedMemory, 4);
-                        writeStream.Write(len, 0, 4);
-
+                        currentIndexedMemory += 4;
+                        writeStream.WriteInt(bytes.Length);
                     }
 
                     writeStream.Write(bytes, 0, bytes.Length);
-                    Interlocked.Add(ref currentIndexedMemory, bytes.Length);
-
+                    currentIndexedMemory += bytes.Length;
                     return true;
                 }
 
@@ -58,22 +55,19 @@ namespace NetworkLibrary.Components.MessageBuffer
         {
             lock (loki)
             {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
 
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
                     {
-                        var len = BitConverter.GetBytes(count);
-
-                        Interlocked.Add(ref currentIndexedMemory, 4);
-                        writeStream.Write(len, 0, 4);
-
+                        currentIndexedMemory += 4;
+                        writeStream.WriteInt(count);
                     }
 
                     writeStream.Write(bytes, offset, count);
-                    Interlocked.Add(ref currentIndexedMemory, count);
+                    currentIndexedMemory += count;
                     return true;
                 }
 
@@ -97,7 +91,7 @@ namespace NetworkLibrary.Components.MessageBuffer
                 buffer = flushStream.GetBuffer();
                 amountWritten = (int)flushStream.Position;
 
-                Interlocked.Add(ref currentIndexedMemory, -amountWritten);
+                currentIndexedMemory -= amountWritten;
                 flushStream.Position = 0;
 
                 return true;

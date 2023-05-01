@@ -1,4 +1,5 @@
 ﻿using MessageProtocol;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Utils;
 using Protobuff.P2P.Generic.Interfaces.Messages;
 using Protobuff.P2P.HolePunch;

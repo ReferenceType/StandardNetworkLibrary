@@ -1,5 +1,6 @@
 ﻿using MessageProtocol;
 using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.UDP.Secure;
 using NetworkLibrary.Utils;
 using System;

@@ -6,6 +6,7 @@ using NetworkLibrary.Utils;
 using System;
 using System.Net;
 using System.Net.Security;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace NetworkLibrary.TCP.SSL.Base
@@ -314,6 +315,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             EndSession();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected bool IsSessionClosing()
         {
             return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;

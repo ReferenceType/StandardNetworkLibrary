@@ -1,5 +1,4 @@
-﻿using MessageProtocol;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
@@ -9,6 +8,7 @@ using static BinarySerializerNetwork.Internal.ServerClientSession;
 using System.Threading.Tasks;
 using BinarySerializerNetwork.Components;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
 
 namespace BinarySerializerNetwork
 {

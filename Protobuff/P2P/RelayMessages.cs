@@ -1,4 +1,5 @@
-﻿using ProtoBuf;
+﻿using MessageProtocol.Serialization;
+using ProtoBuf;
 using Protobuff.P2P.Generic.Interfaces.Messages;
 using System;
 using System.Collections.Generic;

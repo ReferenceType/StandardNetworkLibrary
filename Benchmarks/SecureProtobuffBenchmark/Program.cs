@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components.Statistics;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
 using Protobuff;
 using System;

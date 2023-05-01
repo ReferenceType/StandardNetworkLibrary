@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Utils;
+﻿using MessageProtocol.Serialization;
+using NetworkLibrary.Utils;
 using Protobuff.P2P.HolePunch;
 using System;
 using System.Collections.Concurrent;

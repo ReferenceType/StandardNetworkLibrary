@@ -1,4 +1,4 @@
-﻿using MessageProtocol;
+﻿using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;

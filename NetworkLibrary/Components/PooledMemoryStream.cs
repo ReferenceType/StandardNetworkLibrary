@@ -45,6 +45,19 @@ namespace NetworkLibrary.Components
             }
         }
 
+        public int Position32
+        {
+            get => position;
+            set
+            {
+                if (bufferInternal.Length < value)
+                    ExpandInternalBuffer((int)value);
+
+                position = (int)value;
+
+            }
+        }
+
         public override long Length { get => length;  }
 
         //[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -223,12 +236,93 @@ namespace NetworkLibrary.Components
             }
 
             bufferInternal[position++] = value;
+            if (length < position)
+                length = position;
         }
         public override int ReadByte()
         {
             if (position >= length) return -1;
             return bufferInternal[position++];
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void WriteIntUnchecked(int value)
+        {
+            //if (bufferInternal.Length - position < 4)
+            //{
+            //    int demandSize = 4 + (bufferInternal.Length);
+            //    if (demandSize > BufferPool.MaxBufferSize)
+            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+            //    else
+            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            //}
+            unsafe
+            {
+                fixed (byte* b = &bufferInternal[position])
+                    *(int*)b = value;
+            }
+            position += 4;
+          
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void WriteInt(int value)
+        {
+            if (bufferInternal.Length - position < 4)
+            {
+                int demandSize = 4 + (bufferInternal.Length);
+                if (demandSize > BufferPool.MaxBufferSize)
+                    throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+                else
+                    ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            }
+            unsafe
+            {
+                fixed (byte* b = &bufferInternal[position])
+                    *(int*)b = value;
+            }
+            position += 4;
+
+
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteUshortUnchecked(ushort value)
+        {
+            //if (bufferInternal.Length - position < 2)
+            //{
+            //    int demandSize = 2 + (bufferInternal.Length);
+            //    if (demandSize > BufferPool.MaxBufferSize)
+            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+            //    else
+            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            //}
+            unsafe
+            {
+                fixed (byte* b = &bufferInternal[position])
+                    *(short*)b = (short)value;
+            }
+            position += 2;
+
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteTwoZerosUnchecked()
+        {
+            //if (bufferInternal.Length - position < 2)
+            //{
+            //    int demandSize = 2 + (bufferInternal.Length);
+            //    if (demandSize > BufferPool.MaxBufferSize)
+            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+            //    else
+            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            //}
+
+            bufferInternal[position] = 0;
+            bufferInternal[position+1] = 0;
+            position+= 2;
+            
+        }
+
 
         /// <summary>
         /// Gets a memory region from stream internal buffer, after the current position.
@@ -241,8 +335,8 @@ namespace NetworkLibrary.Components
         /// <exception cref="InvalidOperationException"></exception>
         public void GetMemory(int sizeHint, out byte[] buff, out int offst, out int cnt)
         {
-            if (sizeHint < 256)
-                sizeHint = 256;
+            if (sizeHint < 128)
+                sizeHint = 128;
 
             if (bufferInternal.Length - position < sizeHint)
             {
@@ -256,6 +350,13 @@ namespace NetworkLibrary.Components
             buff = bufferInternal;
             offst = (int)position;
             cnt = sizeHint;
+        }
+
+        internal void Advance(int amount)
+        {
+            position +=amount;
+            if (length < position)
+                length = position;
         }
         protected override void Dispose(bool disposing)
         {

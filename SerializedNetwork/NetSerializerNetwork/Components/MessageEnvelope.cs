@@ -1,4 +1,4 @@
-﻿using MessageProtocol;
+﻿using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
@@ -11,8 +11,8 @@ namespace NetSerializerNetwork.Components
     public class MessageEnvelope : IMessageEnvelope
     {
         [NonSerialized]
-        public static GenericMessageSerializer<MessageEnvelope, NetSerializer_> serialiser
-            = new GenericMessageSerializer<MessageEnvelope, NetSerializer_>();
+        public static GenericMessageSerializer<MessageEnvelope, NetSerialiser> serialiser
+            = new GenericMessageSerializer<MessageEnvelope, NetSerialiser>();
         [NonSerialized]
         public const string RequestTimeout = "RequestTimedOut";
         [NonSerialized]

@@ -1,5 +1,6 @@
 ﻿using BinarySerializerNetwork;
 using BinarySerializerNetwork.Components;
+using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
 using System.Diagnostics;
@@ -31,6 +32,7 @@ namespace BinaryMessageBenchmark
         private static ThreadLocal<long> TotalNumMsgServer = new ThreadLocal<long>(true);
         static void Main(string[] args)
         {
+            
             //TcpTest();
             //TcpTest2();
             var config = ConsoleInputHandler.ObtainConfig();
@@ -48,6 +50,9 @@ namespace BinaryMessageBenchmark
             ShowStatus();
             Console.ReadLine();
         }
+
+       
+
         private static void InitializeServer()
         {
             fixedMessage = isFixedMessage ? new MessageEnvelope()

@@ -278,6 +278,7 @@ namespace NetworkLibrary.TCP.Base
             catch { EndSession(); ReleaseSendResourcesIdempotent(); }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SendComplete(object ignored, SocketAsyncEventArgs e)
         {
             if (IsSessionClosing())
@@ -353,9 +354,10 @@ namespace NetworkLibrary.TCP.Base
         protected void HandleError(SocketAsyncEventArgs e, string context)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Error, context + Enum.GetName(typeof(SocketError), e.SocketError));
-            EndSession();
+            EndSession(); 
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected bool IsSessionClosing()
         {
             return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;

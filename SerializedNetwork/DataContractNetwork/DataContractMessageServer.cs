@@ -1,6 +1,7 @@
 ﻿using DataContractNetwork.Components;
 using MessageProtocol;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

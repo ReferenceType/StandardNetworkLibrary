@@ -3,17 +3,9 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components
 {
-    public interface IByteMessageReader
-    {
-        event Action<byte[], int, int> OnMessageReady;
-
-        void ParseBytes(byte[] bytes, int offset, int count);
-        void ReleaseResources();
-    }
-
     // statefully parse byte messages with 4 byte lenght header,
     // under any fragmentation condition
-    public class ByteMessageReader : IByteMessageReader
+    public class ByteMessageReader
     {
         public const int HeaderLenght = 4;
         private byte[] internalBufer;
@@ -24,20 +16,14 @@ namespace NetworkLibrary.Components
         private int currentExpectedByteLenght;
         private int originalCapacity;
 
-        private enum OperationState
-        {
-            AwaitingMsgHeader,
-            AwaitingMsgBody,
-        }
-
         private readonly Guid Guid;
         public event Action<byte[], int, int> OnMessageReady;
 
-        private OperationState currentState;
+        private bool awaitingHeader;
 
         public ByteMessageReader(Guid guid, int bufferSize = 256000)
         {
-            currentState = OperationState.AwaitingMsgHeader;
+            awaitingHeader = true;
             currentExpectedByteLenght = 4;
             Guid = guid;
 
@@ -57,7 +43,7 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void HandleBytes(byte[] incomingBytes, int offset, int count)
         {
-            if (currentState == OperationState.AwaitingMsgHeader)
+            if (awaitingHeader)
             {
                 HandleHeader(incomingBytes, offset, count);
             }
@@ -88,7 +74,7 @@ namespace NetworkLibrary.Components
                 {
                     offset += currentExpectedByteLenght;
                     count -= currentExpectedByteLenght;
-                    currentState = OperationState.AwaitingMsgBody;
+                    awaitingHeader = false;
 
                     currentExpectedByteLenght = expectedMsgLenght;
                     HandleBody(incomingBytes, offset, count);
@@ -143,14 +129,14 @@ namespace NetworkLibrary.Components
                     AppendHeaderChunk(incomingBytes, offset, remaining);
                     currentExpectedByteLenght = 4 - remaining;
 
-                    currentState = OperationState.AwaitingMsgHeader;
+                    awaitingHeader = true;
                     return;
                 }
                 // nothing to store
                 else
                 {
                     currentExpectedByteLenght = 4;
-                    currentState = OperationState.AwaitingMsgHeader;
+                    awaitingHeader = true;
                     return;
                 }
             }

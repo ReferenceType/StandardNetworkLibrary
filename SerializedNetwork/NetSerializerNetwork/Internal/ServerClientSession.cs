@@ -7,18 +7,18 @@ using System.Text;
 
 namespace NetSerializerNetwork.Internal
 {
-    internal class NetSerializerClientInternal : MessageClient<MessageEnvelope, NetSerializer_>
+    internal class NetSerializerClientInternal : MessageClient<MessageEnvelope, NetSerialiser>
     {
     }
 
-    internal class NetSerializerServerIntenal : MessageServer<MessageEnvelope, NetSerializer_>
+    internal class NetSerializerServerIntenal : MessageServer<MessageEnvelope, NetSerialiser>
     {
         public NetSerializerServerIntenal(int port) : base(port)
         {
         }
     }
 
-    internal class NetSerializerSesssionInternal : MessageSession<MessageEnvelope, NetSerializer_>
+    internal class NetSerializerSesssionInternal : MessageSession<MessageEnvelope, NetSerialiser>
     {
         public NetSerializerSesssionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {

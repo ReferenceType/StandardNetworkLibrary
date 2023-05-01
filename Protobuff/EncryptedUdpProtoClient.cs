@@ -1,5 +1,7 @@
 ﻿using MessageProtocol;
+using MessageProtocol.Serialization;
 using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.UDP.Secure;
 using NetworkLibrary.Utils;
 using Protobuff.Components.Serialiser;
@@ -10,8 +12,8 @@ namespace Protobuff
     internal class EncryptedUdpProtoClient : SecureUdpClient
     {
         public Action<MessageEnvelope> OnMessageReceived;
-        //private readonly GenericMessageSerializer<MessageEnvelope, ProtoSerializer> serialiser = new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
-        private readonly ConcurrentProtoSerialiser serialiser =  new ConcurrentProtoSerialiser();
+        private readonly GenericMessageSerializer<ProtoSerializer> serialiser = new GenericMessageSerializer< ProtoSerializer>();
+        //private readonly ConcurrentProtoSerialiser serialiser =  new ConcurrentProtoSerialiser();
          private readonly SharerdMemoryStreamPool streamPool = new SharerdMemoryStreamPool();
 
         public EncryptedUdpProtoClient(ConcurrentAesAlgorithm algorithm) : base(algorithm) { }

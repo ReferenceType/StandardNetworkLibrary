@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 using Protobuff.P2P.Generic.Interfaces.Messages;
+using NetworkLibrary.MessageProtocol;
 
 namespace Protobuff.P2P.Generic.HolePunch
 {

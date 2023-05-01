@@ -54,13 +54,13 @@ namespace NetworkLibrary
         };
         static readonly Process process = Process.GetCurrentProcess();
         static ManualResetEvent autoGcHandle = new ManualResetEvent(false);
+        private static Thread memoryMaintainer;
 
         static BufferPool()
         {
             Init();
-            Thread thread = new Thread(MaintainMemory);
-            thread.Priority = ThreadPriority.Lowest;
-            thread.Start();
+            memoryMaintainer = new Thread(MaintainMemory);
+            memoryMaintainer.Priority = ThreadPriority.Lowest;
         }
 
         /// <summary>
@@ -70,6 +70,8 @@ namespace NetworkLibrary
         public static void StartCollectGcOnIdle()
         {
             autoGcHandle.Set();
+            if(!memoryMaintainer.IsAlive)
+                memoryMaintainer.Start();
         }
 
         /// <summary>
@@ -104,7 +106,6 @@ namespace NetworkLibrary
 
                 if (deltaT < 100 && process.WorkingSet64 < MaxMemoryBeforeForceGc)
                     GC.Collect();
-                process.Refresh();
             }
 
         }

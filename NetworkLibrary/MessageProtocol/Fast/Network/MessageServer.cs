@@ -6,9 +6,8 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
-using Serialization;
-using MessageProtocol.Serialization;
 using MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
 
 namespace NetworkLibrary.MessageProtocol
 {

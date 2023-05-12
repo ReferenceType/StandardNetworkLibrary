@@ -89,10 +89,10 @@ namespace NetworkLibrary.Components.MessageBuffer
                 flushStream = temp;
 
                 buffer = flushStream.GetBuffer();
-                amountWritten = (int)flushStream.Position;
+                amountWritten = flushStream.Position32;
 
                 currentIndexedMemory -= amountWritten;
-                flushStream.Position = 0;
+                flushStream.Position32 = 0;
 
                 return true;
             }

@@ -1,7 +1,8 @@
-﻿using MessageProtocol.Serialization;
-using NetworkLibrary;
+﻿using NetworkLibrary;
 using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.UDP;
 using NetworkLibrary.Utils;
 using Protobuff.P2P.HolePunch;
@@ -18,7 +19,7 @@ using System.Threading.Tasks;
 namespace Protobuff.P2P
 {
 
-    public class SecureProtoRelayServer : SecureProtoServer
+    public class SecureProtoRelayServer : SecureProtoMessageServer
     {
         private AsyncUdpServer udpServer;
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
@@ -103,15 +104,16 @@ namespace Protobuff.P2P
                 {
                     peerList[peer.Key] = new PeerInfo()
                     {
-                        IP = GetIPEndPoint(peer.Key).Address.ToString(),
-                        Port = GetIPEndPoint(peer.Key).Port
+                        Address = GetIPEndPoint(peer.Key).Address.GetAddressBytes(),
+                        Port = (ushort)GetIPEndPoint(peer.Key).Port
                     };
                 }
             }
 
-            var listProto = new PeerList<PeerInfo>();
+            var listProto = new PeerList();
             listProto.PeerIds = peerList;
-            SendAsyncMessage(in clientId, peerlistMsg, listProto);
+            SendAsyncMessage(clientId, peerlistMsg, (stream)=>KnownTypeSerializer.SerializePeerList(stream,listProto));
+          //  SendAsyncMessage(in clientId, peerlistMsg, listProto);
         }
 
 
@@ -312,8 +314,8 @@ namespace Protobuff.P2P
         {
             var info = new PeerInfo()
             {
-                IP = GetIPEndPoint(clientId).Address?.ToString(),
-                Port = GetIPEndPoint(clientId).Port
+                Address = GetIPEndPoint(clientId).Address.GetAddressBytes(),
+                Port = (ushort)GetIPEndPoint(clientId).Port
             };
 
             var env = new MessageEnvelope();
@@ -377,7 +379,10 @@ namespace Protobuff.P2P
             {
                 result = relayDectriptor.Decrypt(bytes, offset, count);
                 var message1 = serialiser.DeserialiseEnvelopedMessage(result, 0, result.Length);
-                sm.HandleUdpMessage(adress, message1);
+                if (sm.HandleUdpMessage(adress, message1))
+                {
+                    return;
+                }
 
                 if (message1.Header != null && message1.Header.Equals(InternalMessageResources.UdpInit))
                 {

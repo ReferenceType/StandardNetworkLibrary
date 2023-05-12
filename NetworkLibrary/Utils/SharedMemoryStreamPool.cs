@@ -6,6 +6,7 @@ namespace NetworkLibrary.Utils
     public class SharerdMemoryStreamPool : IDisposable
     {
         private ConcurrentObjectPool<PooledMemoryStream> pool = new ConcurrentObjectPool<PooledMemoryStream>();
+        private static ConcurrentObjectPool<PooledMemoryStream> poolStatic = new ConcurrentObjectPool<PooledMemoryStream>();
         private bool disposedValue;
 
         public PooledMemoryStream RentStream()
@@ -16,6 +17,11 @@ namespace NetworkLibrary.Utils
             return pool.RentObject();
         }
 
+        public static PooledMemoryStream RentStreamStatic()
+        {
+            return poolStatic.RentObject();
+        }
+
         public void ReturnStream(PooledMemoryStream stream)
         {
             if (disposedValue)
@@ -23,6 +29,12 @@ namespace NetworkLibrary.Utils
 
             stream.Clear();
             pool.ReturnObject(stream);
+        }
+
+        public static void ReturnStreamStatic(PooledMemoryStream stream)
+        {
+            stream.Clear();
+            poolStatic.ReturnObject(stream);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -49,4 +61,6 @@ namespace NetworkLibrary.Utils
             GC.SuppressFinalize(this);
         }
     }
+
+
 }

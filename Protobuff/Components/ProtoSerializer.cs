@@ -1,6 +1,6 @@
-﻿using MessageProtocol.Serialization;
-using NetworkLibrary.Components;
-using NetworkLibrary.MessageProtocol;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using ProtoBuf.Meta;
@@ -8,6 +8,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using NetworkLibrary.MessageProtocol;
 
 namespace Protobuff.Components.Serialiser
 {
@@ -58,9 +59,6 @@ namespace Protobuff.Components.Serialiser
             return bytes;
         }
 
-        public void Serialize(Stream destination, MessageEnvelope instance)
-        {
-            Serializer.Serialize<MessageEnvelope>(destination, instance);
-        }
+       
     }
 }

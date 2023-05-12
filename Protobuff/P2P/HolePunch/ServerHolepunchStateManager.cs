@@ -1,4 +1,5 @@
-﻿using MessageProtocol.Serialization;
+﻿using NetworkLibrary;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using Protobuff.P2P.HolePunch;
 using System;
@@ -26,9 +27,14 @@ namespace Protobuff.P2P
                         encrypted = e;
                     }
                 }
-            }
+                else
+                {
 
+                }
+            }
+#if DEBUG
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Server hp state created with id:" + stateId.ToString());
+#endif
             var state = new ServerHolepunchState(server, stateId, message.From, message.To, encrypted);
             state.OnComplete += () => activeStates.TryRemove(stateId, out _);
 

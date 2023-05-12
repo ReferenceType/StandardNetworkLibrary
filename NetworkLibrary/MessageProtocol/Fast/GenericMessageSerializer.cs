@@ -5,9 +5,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Serialization;
 using MessageProtocol;
-using MessageProtocol.Serialization;
+using NetworkLibrary.MessageProtocol.Serialization;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -125,6 +124,39 @@ namespace NetworkLibrary.MessageProtocol
             serialisationStream.WriteUshortUnchecked(oldpos);
             serialisationStream.Position32 = pos1;
             Serializer.Serialize(serialisationStream, innerMsg);
+
+
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EnvelopeMessageWithInnerMessage(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, Action<PooledMemoryStream> serializationCallback)
+        {
+            int originalPos = serialisationStream.Position32;
+            serialisationStream.Position32 += 2;
+
+            EnvelopeSerializer.Serialize(serialisationStream, empyEnvelope);
+            int delta = serialisationStream.Position32 - originalPos;
+
+            if (delta >= ushort.MaxValue)
+            {
+                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+            }
+            ushort oldpos = (ushort)(delta);//msglen +2 
+
+            if (serializationCallback == null)
+            {
+                var pos = serialisationStream.Position32;
+                serialisationStream.Position32 = originalPos;
+                serialisationStream.WriteTwoZerosUnchecked();
+                serialisationStream.Position32 = pos;
+                return;
+
+            }
+            var pos1 = serialisationStream.Position32;
+            serialisationStream.Position32 = originalPos;
+            serialisationStream.WriteUshortUnchecked(oldpos);
+            serialisationStream.Position32 = pos1;
+            serializationCallback.Invoke(serialisationStream);
 
 
         }

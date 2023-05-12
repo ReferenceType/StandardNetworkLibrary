@@ -1,8 +1,8 @@
 ﻿using MessageProtocol;
-using MessageProtocol.Serialization;
 using NetworkLibrary;
 using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
@@ -13,7 +13,7 @@ using ProtoBuf;
 using Protobuff;
 using Protobuff.Components.Serialiser;
 using Protobuff.P2P;
-using Serialization;
+using Protobuff.Pure;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -57,8 +57,10 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
-
+           // PureServerClientTest();
             //SerializerTest();
+            //Console.ReadLine();
+            //return;
             //SerializerTestProto();
           
 
@@ -111,6 +113,40 @@ namespace ConsoleTest
 
 
         }
+        [ProtoContract]
+        class TestMSG
+        {
+            [ProtoMember(1)]
+            public string p1 { get; set; }
+            [ProtoMember(2)]
+            public string p2 { get; set; }
+        }
+        private static void PureServerClientTest()
+        {
+            var msg = new TestMSG() { p1 = "AA", p2 = "BBB"};
+
+            var server = new PureProtoServer(2009);
+            server.BytesReceived += OnbytesReceived;
+            server.StartServer();
+
+            var client = new PureProtoClient();
+            client.BytesReceived+= OnBytesReceivedCL;
+            client.Connect("127.0.0.1",2009);
+            client.SendAsync(msg);
+
+            void OnbytesReceived(in Guid guid, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine("ServerRec");
+                server.SendAsync(guid, msg);
+
+            }
+            void OnBytesReceivedCL( byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine("ClientRecRec");
+            }
+        }
+
+       
 
         private static void SerializerTestProto()
         {
@@ -173,10 +209,10 @@ namespace ConsoleTest
 
             Stopwatch sw =  new Stopwatch();
             sw.Start();
-            for (int i = 0; i < 1000000; i++)
+            for (int i = 0; i < 5000000; i++)
             {
-                Serialization.EnvelopeSerializer.Serialize(stream, env);
-                var r = Serialization.EnvelopeSerializer.Deserialize(stream.GetBuffer(),0);
+                EnvelopeSerializer.Serialize(stream, env);
+                var r = EnvelopeSerializer.Deserialize(stream.GetBuffer(),0);
                 stream.Position = 0;
 
             }
@@ -384,10 +420,10 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
-            SecureProtoServer server = new SecureProtoServer(20008, scert);
+            SecureProtoMessageServer server = new SecureProtoMessageServer(20008, scert);
             server.OnMessageReceived += ServerMessageReceived;
 
-            var client = new SecureProtoClient(cert);
+            var client = new SecureProtoMessageClient(cert);
             client.OnMessageReceived += ClientMessageReceived;
             client.Connect("127.0.0.1", 20008);
 
@@ -604,7 +640,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-            //var server = new SecureProtoRelayServer(20011, scert);
+           // var server = new SecureProtoRelayServer(20011, scert);
             // Thread.Sleep(1000000000);
             //Task.Run(async () =>
             //{
@@ -621,7 +657,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //});
 
             var clients = new List<RelayClient>();
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < 2; i++)
             {
                 var client = new RelayClient(cert);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
@@ -648,11 +684,11 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //clients.Add(client1);
             Thread.Sleep(3500);
             // clients[0].Disconnect();
-            while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First().Key, 5000, encrypted: false).Result)
+            while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First().Key, 20000, encrypted: true).Result)
             {
 
             }
-            Thread.Sleep(5000);
+            Thread.Sleep(500);
             Task.Run(() =>
             {
                 return;
@@ -676,15 +712,15 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     Payload = new byte[32]
                 };
 
-                for (int i = 0; i < 100; i++)
+                for (int i = 0; i < 5; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                        client.SendAsyncMessage(peer, testMessage_); 
+                        //client.SendAsyncMessage(peer, testMessage_); 
 
-                        //client.SendUdpMesssage(peer, testMessage);
+                        client.SendUdpMesssage(peer, testMessage);
                     }
                 }
 
@@ -709,8 +745,8 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             }
             void ClientMsgReceived(RelayClient client, MessageEnvelope reply)
             {
-                Interlocked.Increment(ref totMsgCl);
-                client.SendAsyncMessage(reply.From, reply);
+                //Interlocked.Increment(ref totMsgCl);
+                client.SendAsyncMessage(reply.From, testMessage);
 
             }
 

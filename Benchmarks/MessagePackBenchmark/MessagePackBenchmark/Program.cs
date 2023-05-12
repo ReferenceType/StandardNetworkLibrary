@@ -1,5 +1,6 @@
 ﻿using MessagePack;
-using MessagePackNetwork.Network.Components;
+using MessagePackNetwork;
+using MessagePackNetwork.Components;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
 using System;
@@ -24,8 +25,8 @@ namespace MessagePackBenchmark
         static int messageSize;
         static MessageEnvelope clientMessage;
 
-        private static List<MessagePackClient> clients = new List<MessagePackClient>();
-        private static MessagePackServer server;
+        private static List<MessagePackMessageClient> clients = new List<MessagePackMessageClient>();
+        private static MessagePackMessageServer server;
         private static Stopwatch sw2 = new Stopwatch();
         private static long totMsgClient;
         private static long totMsgServer;
@@ -63,7 +64,7 @@ namespace MessagePackBenchmark
 
             } : new MessageEnvelope();
 
-            server = new MessagePackServer(port);
+            server = new MessagePackMessageServer(port);
             server.OnMessageReceived += isFixedMessage ? EchoStatic : EchoDynamic;
             Console.WriteLine("Server Running");
 
@@ -89,11 +90,11 @@ namespace MessagePackBenchmark
                 To = Guid.NewGuid(),
 
             };
-            clients = new List<MessagePackClient>();
+            clients = new List<MessagePackMessageClient>();
 
             for (int i = 0; i < numClients; i++)
             {
-                var client = new MessagePackClient();
+                var client = new MessagePackMessageClient();
                 client.OnMessageReceived += (reply) => client.SendAsyncMessage(reply);
                 clients.Add(client);
 

@@ -8,9 +8,8 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
-using Serialization;
-using MessageProtocol.Serialization;
-
+using NetworkLibrary.MessageProtocol.Serialization;
+using NetworkLibrary.Components;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -91,6 +90,13 @@ namespace NetworkLibrary.MessageProtocol
         {
             message.SetPayload(buffer, offset, count);
             SendAsyncMessage(message);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SendAsyncMessage(MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
+        {
+            if (clientSession != null)
+                messageSession.SendAsync( message, serializationCallback);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

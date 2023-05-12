@@ -1,6 +1,7 @@
-﻿using MessageProtocol.Serialization;
-using NetworkLibrary.Components;
+﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using Protobuff.Components;
 using Protobuff.P2P.HolePunch;
@@ -11,6 +12,7 @@ using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using System.Net;
 
 namespace Protobuff.P2P
 {
@@ -32,8 +34,26 @@ namespace Protobuff.P2P
             else ch2 = cl;
         }
     }
+    
     public class RelayClient
     {
+        public class PeerInfo_
+        {
+            public string IP;
+            public int Port;
+            public IPAddress IPAddress;
+            public PeerInfo_(PeerInfo info)
+            {
+                IPAddress = new IPAddress(info.Address);
+                IP = IPAddress.ToString();
+                Port= info.Port;
+            }
+           public PeerInfo_()
+            {
+
+            }
+        }
+
         public Action<Guid> OnPeerRegistered;
         public Action<Guid> OnPeerUnregistered;
         public Action<MessageEnvelope> OnUdpMessageReceived;
@@ -45,16 +65,17 @@ namespace Protobuff.P2P
         public bool IsConnected { get => isConnected; private set => isConnected = value; }
 
 
-        private SecureProtoClient protoClient;
+        private SecureProtoMessageClient protoClient;
         private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
 
         private ConcurrentDictionary<Guid, EncryptedUdpProtoClient> holePunchCandidates = new ConcurrentDictionary<Guid, EncryptedUdpProtoClient>();
         private ConcurrentDictionary<Guid, UdpP2PChannels> directUdpClients = new ConcurrentDictionary<Guid, UdpP2PChannels>();
+        private ConcurrentDictionary<Guid, UdpP2PChannels> tempDirectUdpClients = new ConcurrentDictionary<Guid, UdpP2PChannels>();
         private ConcurrentDictionary<Guid, TaskCompletionSource<bool>> awaitingUdpPunchMessage = new ConcurrentDictionary<Guid, TaskCompletionSource<bool>>();
 
         private EncryptedUdpProtoClient udpRelayClient;
         private bool connecting;
-        internal ConcurrentDictionary<Guid, PeerInfo> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInfo>();
+        internal ConcurrentDictionary<Guid, PeerInfo_> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInfo_>();
 
         internal string connectHost;
         internal int connectPort;
@@ -65,7 +86,7 @@ namespace Protobuff.P2P
 
         public RelayClient(X509Certificate2 clientCert)
         {
-            protoClient = new SecureProtoClient(clientCert);
+            protoClient = new SecureProtoMessageClient(clientCert);
             protoClient.OnMessageReceived += HandleMessageReceived;
             protoClient.OnDisconnected += HandleDisconnect;
 
@@ -167,7 +188,7 @@ namespace Protobuff.P2P
                 {
                     OnPeerUnregistered?.Invoke(peer.Key);
                 }
-                PeerInfos = new ConcurrentDictionary<Guid, PeerInfo>();
+                PeerInfos = new ConcurrentDictionary<Guid, PeerInfo_>();
                 Peers.Clear();
                 directUdpClients.Clear();
                 OnDisconnected?.Invoke();
@@ -386,6 +407,16 @@ namespace Protobuff.P2P
             protoClient.SendAsyncMessage(envelope, message);
         }
 
+        public void SendAsyncMessage(Guid toId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
+        {
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+                return;
+
+            envelope.From = sessionId;
+            envelope.To = toId;
+            protoClient.SendAsyncMessage(envelope, serializationCallback);
+        }
+
         public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -544,20 +575,23 @@ namespace Protobuff.P2P
             holepunchManager.CreateChannel(this, message)
                    .ContinueWith((result, nill) =>
                    {
-                       ClientHolepunchState state = result.GetAwaiter().GetResult();
+                       ClientHolepunchState state = result.Result;
                        if (state != null)
                        {
                            var client = state.holepunchClient;
                            client.OnMessageReceived = null;
                            client.OnMessageReceived += HandleUdpMessageReceived;
-                           if (directUdpClients.TryGetValue(state.DestinationId, out var ch))
+                           if (tempDirectUdpClients.TryGetValue(state.DestinationId, out var ch))
                            {
                                ch.Set(client);
+                               tempDirectUdpClients.TryRemove(state.DestinationId, out ch);
+                               directUdpClients.TryAdd(state.DestinationId, ch);
+                             
                            }
                            else
-                               directUdpClients[state.DestinationId] = new UdpP2PChannels(client, null);
+                               tempDirectUdpClients.TryAdd(state.DestinationId , new UdpP2PChannels(client, null));
                        }
-                   }, null);
+                   }, null, TaskContinuationOptions.RunContinuationsAsynchronously);
         }
 
 
@@ -618,28 +652,30 @@ namespace Protobuff.P2P
         public async Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
         {
             bool ret = false;
-            for (int i = 0; i < 2; i++)
+            Task<EncryptedUdpProtoClient>[] pending = new Task<EncryptedUdpProtoClient>[2];
+            pending[0] = holepunchManager.CreateHolepunchRequest(this, peerId, timeOut, encrypted);
+            pending[1] = holepunchManager.CreateHolepunchRequest(this, peerId, timeOut, encrypted);
+            await Task.WhenAll(pending).ConfigureAwait(false);
+            if (pending[0].Result == null || pending[1].Result == null)
             {
-                var udpClient = await holepunchManager.CreateHolepunchRequest(this, peerId, timeOut, encrypted).ConfigureAwait(false);
-                if (udpClient != null)
+                MiniLogger.Log(MiniLogger.LogLevel.Info, "Hole Punch Failed");
+                return false;
+            }
+            foreach (var item in pending)
+            {
+                var udpClient = item.Result;
+              
+                udpClient.OnMessageReceived = null;
+                udpClient.OnMessageReceived += HandleUdpMessageReceived;
+                if (directUdpClients.TryGetValue(peerId, out var ch))
                 {
-                    udpClient.OnMessageReceived = null;
-                    udpClient.OnMessageReceived += HandleUdpMessageReceived;
-                    if (directUdpClients.TryGetValue(peerId, out var ch))
-                    {
-                        ch.Set(udpClient);
-                    }
-                    else
-                        directUdpClients[peerId] = new UdpP2PChannels(udpClient, null);
-                    MiniLogger.Log(MiniLogger.LogLevel.Info, "Sucessfully punched hole");
-                    ret = true;
+                    ch.Set(udpClient);
                 }
                 else
-                {
-                    MiniLogger.Log(MiniLogger.LogLevel.Info, "Hole Punch Failed");
-                    ret = false;
-                    break;
-                }
+                    directUdpClients.TryAdd(peerId, new UdpP2PChannels(udpClient, null));
+                MiniLogger.Log(MiniLogger.LogLevel.Info, "Sucessfully punched hole");
+                ret = true;
+               
             }
             return ret;
 
@@ -657,7 +693,7 @@ namespace Protobuff.P2P
             else OnUdpMessageReceived?.Invoke(message);
         }
 
-        public PeerInfo GetPeerInfo(Guid peerId)
+        public PeerInfo_ GetPeerInfo(Guid peerId)
         {
             PeerInfos.TryGetValue(peerId, out var val);
             return val;
@@ -667,13 +703,14 @@ namespace Protobuff.P2P
         {
             lock (registeryLocker)
             {
-                PeerList<PeerInfo> serverPeerInfo = null;
+                PeerList serverPeerInfo = null;
                 if (message.Payload == null)
-                    serverPeerInfo = new PeerList<PeerInfo>() { PeerIds = new Dictionary<Guid, PeerInfo>() };
+                    serverPeerInfo = new PeerList() { PeerIds = new Dictionary<Guid, PeerInfo>() };
                 else
                 {
-                    serverPeerInfo = serialiser.Deserialize<PeerList<PeerInfo>>
-                        (message.Payload, message.PayloadOffset, message.PayloadCount);
+                    //serverPeerInfo = serialiser.Deserialize<PeerList>
+                    //    (message.Payload, message.PayloadOffset, message.PayloadCount);
+                    serverPeerInfo = KnownTypeSerializer.DeserializePeerList(message.Payload, message.PayloadOffset);
 
                 }
 
@@ -683,6 +720,8 @@ namespace Protobuff.P2P
                     {
                         Peers.TryRemove(peer, out _);
                         OnPeerUnregistered?.Invoke(peer);
+                        tempDirectUdpClients.TryRemove(peer, out _);
+                        directUdpClients.TryRemove(peer, out _);
                         pinger.PeerUnregistered(peer);
                         PeerInfos.TryRemove(peer, out _);
                     }
@@ -693,9 +732,10 @@ namespace Protobuff.P2P
                     if (!Peers.TryGetValue(peer, out _))
                     {
                         Peers.TryAdd(peer, true);
-                        OnPeerRegistered?.Invoke(peer);
                         pinger.PeerRegistered(peer);
-                        PeerInfos.TryAdd(peer, serverPeerInfo.PeerIds[peer]);
+                        PeerInfos.TryAdd(peer, new PeerInfo_( serverPeerInfo.PeerIds[peer]));
+                        OnPeerRegistered?.Invoke(peer);
+
                     }
                 }
 

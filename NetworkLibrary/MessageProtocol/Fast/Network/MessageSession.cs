@@ -1,10 +1,9 @@
 ﻿using MessageProtocol;
-using MessageProtocol.Serialization;
 using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
-using Serialization;
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;

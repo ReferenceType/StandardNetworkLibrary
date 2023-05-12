@@ -51,9 +51,9 @@ namespace NetworkLibrary.Components
             set
             {
                 if (bufferInternal.Length < value)
-                    ExpandInternalBuffer((int)value);
+                    ExpandInternalBuffer(value);
 
-                position = (int)value;
+                position = value;
 
             }
         }
@@ -287,6 +287,25 @@ namespace NetworkLibrary.Components
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUshortUnchecked(ushort value)
+        {
+            //if (bufferInternal.Length - position < 2)
+            //{
+            //    int demandSize = 2 + (bufferInternal.Length);
+            //    if (demandSize > BufferPool.MaxBufferSize)
+            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+            //    else
+            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            //}
+            unsafe
+            {
+                fixed (byte* b = &bufferInternal[position])
+                    *(short*)b = (short)value;
+            }
+            position += 2;
+
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteUshort(ushort value)
         {
             //if (bufferInternal.Length - position < 2)
             //{

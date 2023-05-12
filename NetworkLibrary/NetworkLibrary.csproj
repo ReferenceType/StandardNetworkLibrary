@@ -27,12 +27,6 @@
     <Optimize>True</Optimize>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Generic\**" />
-    <EmbeddedResource Remove="Generic\**" />
-    <None Remove="Generic\**" />
-  </ItemGroup>
-
   
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">

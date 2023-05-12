@@ -1,4 +1,6 @@
-﻿using MessageProtocol.Serialization;
+﻿using NetworkLibrary;
+using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
@@ -24,7 +26,9 @@ namespace Protobuff.P2P.HolePunch
 
         public async Task<ClientHolepunchState> CreateChannel(RelayClient client, MessageEnvelope message, int timeoutMS = 5000)
         {
-            var chmsg = message.UnpackPayload<ChanneCreationMessage>();
+            //var chmsg = message.UnpackPayload<ChanneCreationMessage>();
+            var chmsg = KnownTypeSerializer.DeserializeChanneCreationMessage(message.Payload, message.PayloadOffset);
+
             var state = new ClientHolepunchState(client, message.MessageId, chmsg.DestinationId, timeoutMS, chmsg.Encrypted);
             clientHolepunchStates.TryAdd(message.MessageId, state);
             state.HandleMessage(message);
@@ -37,9 +41,6 @@ namespace Protobuff.P2P.HolePunch
             {
                 clientHolepunchStates.TryRemove(message.MessageId, out _);
             }
-
-
-
         }
 
         // Initiator calls this and generates the async state.

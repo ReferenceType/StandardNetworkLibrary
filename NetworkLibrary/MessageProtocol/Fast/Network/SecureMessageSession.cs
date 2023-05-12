@@ -1,8 +1,7 @@
 ﻿using MessageProtocol;
-using MessageProtocol.Serialization;
 using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.TCP.SSL.Base;
-using Serialization;
 using System;
 using System.Collections.Generic;
 using System.Net.Security;
@@ -125,6 +124,49 @@ namespace NetworkLibrary.MessageProtocol
 
             // you have to push it to queue because queue also does the processing.
             mq.TryEnqueueMessage(envelope, message);
+            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+            WriteOnSessionStream(amountWritten);
+
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SendAsync(MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
+        {
+            if (IsSessionClosing())
+                return;
+            try
+            {
+                SendAsyncInternal(envelope, serializationCallback);
+            }
+            catch { if (!IsSessionClosing()) throw; }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SendAsyncInternal(MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
+        {
+            enqueueLock.Take();
+            if (IsSessionClosing())
+                ReleaseSendResourcesIdempotent();
+            if (SendSemaphore.IsTaken() && mq.TryEnqueueMessage(envelope, serializationCallback))
+            {
+                enqueueLock.Release();
+                return;
+            }
+            enqueueLock.Release();
+
+            if (DropOnCongestion && SendSemaphore.IsTaken())
+                return;
+
+            SendSemaphore.Take();
+            if (IsSessionClosing())
+            {
+                ReleaseSendResourcesIdempotent();
+                SendSemaphore.Release();
+                return;
+            }
+
+            // you have to push it to queue because queue also does the processing.
+            mq.TryEnqueueMessage(envelope, serializationCallback);
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
 

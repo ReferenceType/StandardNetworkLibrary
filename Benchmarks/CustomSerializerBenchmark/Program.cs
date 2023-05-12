@@ -1,8 +1,8 @@
 ﻿using System.Diagnostics;
 using CustomSerializer;
-using Serialization;
 using NetworkLibrary.Components.Statistics;
-using MessageProtocol.Serialization;
+using NetworkLibrary.MessageProtocol.Serialization;
+using NetworkLibrary;
 
 namespace CustomSerializerBenchmark
 {

@@ -1,5 +1,7 @@
-﻿using MessageProtocol.Serialization;
+﻿using NetworkLibrary;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
@@ -7,15 +9,9 @@ using System.Diagnostics;
 
 namespace HybridProtoNetworkBenchmark
 {
-    [ProtoContract]
-    class AA:IProtoMessage
-    {
-        [ProtoMember(1)]
-        public int B;
-    }
+
     internal class Program
     {
-        static AA aa = new AA() { B = 8 };
         static int port = 20007;
         static bool runAsServer;
         static bool isFixedMessage;
@@ -28,8 +24,8 @@ namespace HybridProtoNetworkBenchmark
         static int messageSize;
         static MessageEnvelope clientMessage;
 
-        private static List<ProtoClient> clients = new List<ProtoClient>();
-        private static ProtoServer server;
+        private static List<ProtoMessageClient> clients = new List<ProtoMessageClient>();
+        private static ProtoMessageServer server;
         private static Stopwatch sw2 = new Stopwatch();
         private static long totMsgClient;
         private static long totMsgServer;
@@ -67,7 +63,7 @@ namespace HybridProtoNetworkBenchmark
 
             } : new MessageEnvelope();
 
-            server = new ProtoServer(port);
+            server = new ProtoMessageServer(port);
             server.OnMessageReceived += isFixedMessage ? EchoStatic : EchoDynamic;
             Console.WriteLine("Server Running");
 
@@ -79,7 +75,7 @@ namespace HybridProtoNetworkBenchmark
         }
         static void EchoStatic(in Guid arg1, MessageEnvelope arg2)
         {
-            server.SendAsyncMessage(in arg1, fixedMessage,aa);
+            server.SendAsyncMessage(in arg1, fixedMessage);
         }
 
         private static void InitializeClients()
@@ -92,13 +88,12 @@ namespace HybridProtoNetworkBenchmark
                 To = Guid.NewGuid(),
 
             };
-            clients = new List<ProtoClient>();
+            clients = new List<ProtoMessageClient>();
 
             for (int i = 0; i < numClients; i++)
             {
-                var client = new ProtoClient();
-                client.OnMessageReceived += (reply)
-                    => client.SendAsyncMessage(reply);
+                var client = new ProtoMessageClient();
+                client.OnMessageReceived += client.SendAsyncMessage;
                 clients.Add(client);
 
             }

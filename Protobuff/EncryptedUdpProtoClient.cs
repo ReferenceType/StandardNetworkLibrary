@@ -1,11 +1,12 @@
 ﻿using MessageProtocol;
-using MessageProtocol.Serialization;
 using NetworkLibrary.Components;
-using NetworkLibrary.MessageProtocol;
+using NetworkLibrary;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.UDP.Secure;
 using NetworkLibrary.Utils;
 using Protobuff.Components.Serialiser;
 using System;
+using NetworkLibrary.MessageProtocol;
 
 namespace Protobuff
 {
@@ -47,6 +48,15 @@ namespace Protobuff
         {
             var serialisationStream = streamPool.RentStream();
             serialiser.EnvelopeMessageWithBytes(serialisationStream, message, payload, offset, count);
+
+            SendAsync(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
+            streamPool.ReturnStream(serialisationStream);
+        }
+
+        public void SendAsyncMessage(MessageEnvelope message, Action<PooledMemoryStream> serializationCallback) 
+        {
+            var serialisationStream = streamPool.RentStream();
+            serialiser.EnvelopeMessageWithInnerMessage(serialisationStream, message, serializationCallback);
 
             SendAsync(serialisationStream.GetBuffer(), 0, (int)serialisationStream.Position);
             streamPool.ReturnStream(serialisationStream);

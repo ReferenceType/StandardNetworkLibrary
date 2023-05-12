@@ -1,7 +1,7 @@
-﻿using MessageProtocol.Serialization;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NetworkLibrary;
 using NetworkLibrary.Components;
-using Serialization;
+using NetworkLibrary.MessageProtocol.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO.MemoryMappedFiles;

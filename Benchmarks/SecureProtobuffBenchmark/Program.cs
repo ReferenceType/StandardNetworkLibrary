@@ -1,5 +1,6 @@
-﻿using MessageProtocol.Serialization;
+﻿using NetworkLibrary;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using Protobuff;
 using System;
@@ -23,8 +24,8 @@ internal class Program
     static int messageSize;
     static MessageEnvelope clientMessage;
 
-    private static List<SecureProtoClient> clients = new List<SecureProtoClient>();
-    private static SecureProtoServer server;
+    private static List<SecureProtoMessageClient> clients = new List<SecureProtoMessageClient>();
+    private static SecureProtoMessageServer server;
     private static Stopwatch sw2 = new Stopwatch();
     private static long totMsgClient;
     private static long totMsgServer;
@@ -62,7 +63,7 @@ internal class Program
         } : new MessageEnvelope();
 
         var scert = new X509Certificate2("server.pfx", "greenpass");
-        server = new SecureProtoServer(port, scert);
+        server = new SecureProtoMessageServer(port, scert);
         server.OnMessageReceived += isFixedMessage ? EchoStatic : EchoDynamic;
         Console.WriteLine("Server Running");
 
@@ -88,12 +89,12 @@ internal class Program
             To = Guid.NewGuid(),
 
         };
-        clients = new List<SecureProtoClient>();
+        clients = new List<SecureProtoMessageClient>();
         var ccert = new X509Certificate2("client.pfx", "greenpass");
 
         for (int i = 0; i < numClients; i++)
         {
-            var client = new SecureProtoClient(ccert);
+            var client = new SecureProtoMessageClient(ccert);
             client.OnMessageReceived += (reply) => client.SendAsyncMessage(reply);
             clients.Add(client);
 

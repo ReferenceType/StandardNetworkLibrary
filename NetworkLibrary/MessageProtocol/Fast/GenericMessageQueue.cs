@@ -4,9 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Serialization;
 using MessageProtocol;
-using MessageProtocol.Serialization;
+using NetworkLibrary.MessageProtocol.Serialization;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -32,6 +31,34 @@ namespace NetworkLibrary.MessageProtocol
                     writeStream.Position32 += 4;
 
                     int msgLen = SerializeMessageWithInnerMessage(writeStream, envelope, message);
+
+                    var lastPos = writeStream.Position32;
+                    writeStream.Position32 = originalPos;
+                    writeStream.WriteIntUnchecked(msgLen);
+
+                    writeStream.Position32 = lastPos;
+                    currentIndexedMemory += msgLen + 4;
+
+                    return true;
+
+                }
+            }
+            return false;
+        }
+
+        public bool TryEnqueueMessage(MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
+        {
+            lock (loki)
+            {
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
+                {
+                    TotalMessageDispatched++;
+
+                    // offset 4 for lenght prefix (reserve)
+                    var originalPos = writeStream.Position32;
+                    writeStream.Position32 += 4;
+
+                    int msgLen = SerializeMessageWithInnerMessage(writeStream, envelope, serializationCallback);
 
                     var lastPos = writeStream.Position32;
                     writeStream.Position32 = originalPos;
@@ -75,7 +102,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int SerializeMessageWithInnerMessage<T>(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, T innerMsg)
+        internal int SerializeMessageWithInnerMessage<T>(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, T innerMsg) 
         {
             // envelope+2
             int originalPos = serialisationStream.Position32;
@@ -109,6 +136,43 @@ namespace NetworkLibrary.MessageProtocol
 
             return serialisationStream.Position32 - originalPos;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal int SerializeMessageWithInnerMessage(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, Action<PooledMemoryStream> externalSerializationCallback)
+        {
+            // envelope+2
+            int originalPos = serialisationStream.Position32;
+            serialisationStream.Position32 += 2;
+
+            EnvelopeSerializer.Serialize(serialisationStream, empyEnvelope);
+            int delta = serialisationStream.Position32 - originalPos;
+
+            if (delta >= ushort.MaxValue)
+            {
+                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+            }
+            ushort oldpos = (ushort)(delta);//msglen +2 
+
+            if (externalSerializationCallback == null)
+            {
+                var pos = serialisationStream.Position32;
+                serialisationStream.Position32 = originalPos;
+                serialisationStream.WriteTwoZerosUnchecked();
+                serialisationStream.Position32 = pos;
+
+                return delta;
+
+            }
+            var pos1 = serialisationStream.Position32;
+            serialisationStream.Position32 = originalPos;
+            serialisationStream.WriteUshortUnchecked(oldpos);
+            serialisationStream.Position32 = pos1;
+
+           externalSerializationCallback.Invoke(serialisationStream);
+
+            return serialisationStream.Position32 - originalPos;
+        }
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal int SerializeMessage(PooledMemoryStream serialisationStream, MessageEnvelope envelope)

@@ -78,6 +78,12 @@ namespace NetworkLibrary.UDP.Secure
 
         }
 
+        //public void SendPreEncypyedBytes(byte[] buffer, int offset, int count)
+        //{
+        //    base.SendAsync(buffer, offset, count);
+
+        //}
+
 
     }
 }

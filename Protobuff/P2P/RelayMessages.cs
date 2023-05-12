@@ -1,25 +1,25 @@
-﻿using MessageProtocol.Serialization;
+﻿using NetworkLibrary;
+using NetworkLibrary.MessageProtocol.Serialization;
 using ProtoBuf;
-using Protobuff.P2P.Generic.Interfaces.Messages;
 using System;
 using System.Collections.Generic;
 
 namespace Protobuff.P2P
 {
     [ProtoContract]
-    public class PeerInfo : IProtoMessage, IPeerInfo
+    public class PeerInfo : IProtoMessage
     {
         [ProtoMember(1)]
-        public string IP { get; set; }
+        public byte[] Address { get; set; }
         [ProtoMember(2)]
-        public int Port { get; set; }
+        public ushort Port { get; set; }
     }
 
     [ProtoContract]
-    public class PeerList<T> : IProtoMessage, IPeerList<T>
+    public class PeerList : IProtoMessage
     {
         [ProtoMember(1)]
-        public Dictionary<Guid, T> PeerIds { get; set; }
+        public Dictionary<Guid, PeerInfo> PeerIds { get; set; }
 
     }
     public class InternalMessageResources

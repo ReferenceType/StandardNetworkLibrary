@@ -84,7 +84,10 @@ namespace NetworkLibrary.UDP
                 var ep = new IPEndPoint(ipAdress.MapToIPv4(), port);
                 RemoteEndPoint = ep;
                 if (receive)
-                    Receive();
+                    for (int i = 0; i < Environment.ProcessorCount; i++)
+                    {
+                        Receive();
+                    }
             }
 
 

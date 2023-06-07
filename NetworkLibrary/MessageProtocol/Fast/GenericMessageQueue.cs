@@ -95,7 +95,6 @@ namespace NetworkLibrary.MessageProtocol
                     writeStream.Position32 = lastPos;
                     currentIndexedMemory += msgLen + 4;
                     return true;
-
                 }
             }
             return false;

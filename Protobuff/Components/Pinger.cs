@@ -67,8 +67,7 @@ namespace Protobuff.Components
     }
     internal class PingHandler
     {
-        public const string Ping = "Ping";
-        public const string Pong = "Pong";
+       
         private readonly ConcurrentDictionary<Guid, PingData> tcpPingDatas = new ConcurrentDictionary<Guid, PingData>();
         private readonly ConcurrentDictionary<Guid, PingData> udpPingDatas = new ConcurrentDictionary<Guid, PingData>();
 

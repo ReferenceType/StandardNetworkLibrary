@@ -3,6 +3,7 @@ using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
+using Protobuff.P2P.StateManagemet;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -14,26 +15,24 @@ using System.Threading.Tasks;
 
 namespace Protobuff.P2P.HolePunch
 {
-    internal class ClientHolepunchState
+    internal class ClientHolepunchState:IState
     {
-        public TaskCompletionSource<EncryptedUdpProtoClient> Completion
-            = new TaskCompletionSource<EncryptedUdpProtoClient>(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int Success = 0;
-
-        internal EncryptedUdpProtoClient holepunchClient;
-        private readonly RelayClient client;
-        internal readonly Guid stateId;
+        public event Action<IState> Completed;
+        public StateStatus Status { get; private set; }
+        public Guid StateId { get; }
         internal readonly Guid DestinationId;
+        internal EncryptedUdpProtoClient holepunchClient;
         internal bool encrypted = true;
         private int channelCreated;
+        private readonly RelayClientBase client;
 
         // initiator client is the one who generated the state id.
         // this id traveled though relay to here.
-        public ClientHolepunchState(RelayClient client, Guid stateId, Guid To, int timeoutMs = 5000, bool encrypted = true)
+        public ClientHolepunchState(RelayClientBase client, Guid stateId, Guid To, int timeoutMs = 5000, bool encrypted = true)
         {
-            StartLifetimeCounter(timeoutMs);
+            //StartLifetimeCounter(timeoutMs);
             this.client = client;
-            this.stateId = stateId;
+            this.StateId = stateId;
             DestinationId = To;
             this.encrypted = encrypted;
 #if DEBUG
@@ -49,16 +48,16 @@ namespace Protobuff.P2P.HolePunch
             //{
                 switch (message.Header)
                 {
-                    case HolepunchHeaders.CreateChannel:
+                    case Constants.CreateChannel:
                         CreateUdpChannel(message);
                         break;
-                    case HolepunchHeaders.HoplePunchUdpResend:
+                    case Constants.HoplePunchUdpResend:
                         SendUdpEndpointMessage();
                         break;
-                    case HolepunchHeaders.HoplePunch:
+                    case Constants.HoplePunch:
                         StartHolepunch(message);
                         break;
-                    case HolepunchHeaders.SuccessFinalize:
+                    case Constants.SuccessFinalize:
                         HandleSuccess(message);
                         break;
                 }
@@ -66,17 +65,17 @@ namespace Protobuff.P2P.HolePunch
           
         }
 
-        private async void StartLifetimeCounter(int lifeSpanMs)
-        {
-            await Task.Delay(lifeSpanMs).ConfigureAwait(false);
-            if (!Completion.Task.IsCompleted)
-            {
-                Interlocked.Exchange(ref cancelSends, 1);
-                Interlocked.Exchange(ref endReceives, 1);
-                holepunchClient.Dispose();
-                Completion.TrySetResult(null);
-            }
-        }
+        //private async void StartLifetimeCounter(int lifeSpanMs)
+        //{
+        //    await Task.Delay(lifeSpanMs).ConfigureAwait(false);
+        //    if (!Completion.Task.IsCompleted)
+        //    {
+        //        Interlocked.Exchange(ref cancelSends, 1);
+        //        Interlocked.Exchange(ref endReceives, 1);
+        //        holepunchClient.Dispose();
+        //        Completion.TrySetResult(null);
+        //    }
+        //}
 
         private void CreateUdpChannel(MessageEnvelope message)
         {
@@ -153,7 +152,7 @@ namespace Protobuff.P2P.HolePunch
             }
 #endif
             message.From = client.sessionId;
-            message.MessageId = stateId;
+            message.MessageId = StateId;
 
             var any = new IPEndPoint(IPAddress.Any, endPoint.PortRemote);
             holepunchClient.ReceiveOnceFrom(any, OnBytesReceived);
@@ -245,8 +244,8 @@ namespace Protobuff.P2P.HolePunch
 #if DEBUG
                 MiniLogger.Log(MiniLogger.LogLevel.Info, "=============+++++++++==============Succes sending " + client.sessionId);
 #endif
-                var envelope = GetEnvelope(HolepunchHeaders.SuccesAck);
-                envelope.MessageId = stateId;
+                var envelope = GetEnvelope(Constants.SuccesAck);
+                envelope.MessageId = StateId;
                 envelope.IsInternal = true;
 
                 client.SendAsyncMessage(DestinationId, envelope,
@@ -281,7 +280,8 @@ namespace Protobuff.P2P.HolePunch
 
                     holepunchClient.SetRemoteEnd(ip, int.Parse(port));
 
-                    Completion.TrySetResult(holepunchClient);
+                    //Completion.TrySetResult(this);
+                    Release(true);
 #if DEBUG
                     MiniLogger.Log(MiniLogger.LogLevel.Info, "HP Complete!:" + ip);
 #endif
@@ -295,14 +295,35 @@ namespace Protobuff.P2P.HolePunch
             {
                 holepunchClient.SwapAlgorith(new ConcurrentAesAlgorithm(message.Payload, message.Payload));
                 // holepunchClient.SwapAlgorith(null);
-                Completion.TrySetResult(holepunchClient);
+                Release(true);
+                //Completion.TrySetResult(this);
             }
 
         }
 
         private MessageEnvelope GetEnvelope(string Header)
         {
-            return new MessageEnvelope() { Header = Header, IsInternal = true, MessageId = stateId };
+            return new MessageEnvelope() { Header = Header, IsInternal = true, MessageId = StateId };
+        }
+
+        public void HandleMessage(IPEndPoint remoteEndpoint, MessageEnvelope message)
+        {
+           
+        }
+
+        private int isReleased = 0;
+        public void Release(bool isCompletedSuccessfully)
+        {
+            if (Interlocked.CompareExchange(ref isReleased, 1, 0) == 0)
+            {
+                if (isCompletedSuccessfully)
+                    Status = StateStatus.Completed;
+                else
+                    Status = StateStatus.Failed;
+
+                Completed?.Invoke(this);
+                Completed = null;
+            }
         }
     }
 }

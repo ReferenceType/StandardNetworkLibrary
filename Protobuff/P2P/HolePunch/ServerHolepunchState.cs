@@ -3,6 +3,7 @@ using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using ProtoBuf;
+using Protobuff.P2P.StateManagemet;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -13,17 +14,6 @@ using System.Threading.Tasks;
 
 namespace Protobuff.P2P.HolePunch
 {
-    internal class HolepunchHeaders
-    {
-        public const string CreateChannel = "%CC";
-        public const string HoplePunch = "%HP";
-        public const string HoplePunchUdpResend = "%RHP";
-
-        public const string HolePunchRequest = "%HPR";
-        public const string SuccesAck = "%SA";
-        public const string SuccessFinalize = "%SF";
-    }
-
     [ProtoContract]
     internal class ChanneCreationMessage : IProtoMessage
     {
@@ -59,15 +49,36 @@ namespace Protobuff.P2P.HolePunch
         public byte[] Ip;
         [ProtoMember(2)]
         public int Port;
+
+        public IPEndPoint ToIpEndpoint()
+        {
+            return new IPEndPoint(new IPAddress(Ip), Port);
+        }
+
+        public EndpointData()
+        {
+
+        }
+
+        public EndpointData(IPEndPoint ep)
+        {
+            Ip = ep.Address.GetAddressBytes();
+            Port = ep.Port;
+        }
     }
 
-    internal class ServerHolepunchState
+    internal class ServerHolepunchState:IState
     {
-        public Action OnComplete;
+        public event Action<IState> Completed;
         static RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
 
         private SecureProtoRelayServer Server;
-        private readonly Guid stateId;
+        public Guid StateId { get; }
+
+        public StateStatus Status { get; private set; }
+
+        // public TaskCompletionSource<IState> Completion { get; } =  new TaskCompletionSource<IState>();
+
         private readonly Guid requesterId;
         private readonly Guid destinationId;
         private int requesterPunchSucess;
@@ -83,10 +94,10 @@ namespace Protobuff.P2P.HolePunch
         public ServerHolepunchState(SecureProtoRelayServer server, Guid stateId, Guid requesterId, Guid destinationId, bool encrypted = true)
         {
             Server = server;
-            this.stateId = stateId;
+            this.StateId = stateId;
             this.requesterId = requesterId;
             this.destinationId = destinationId;
-            StartLifetimeCounter(20000);
+           
 #if DEBUG
 
             MiniLogger.Log(MiniLogger.LogLevel.Info, "------ Server State Encyrption enabled : " + encrypted.ToString());
@@ -94,12 +105,13 @@ namespace Protobuff.P2P.HolePunch
             CreateChannels(encrypted);
         }
 
-        private async void StartLifetimeCounter(int lifeSpanMs)
-        {
-            await Task.Delay(lifeSpanMs).ConfigureAwait(false);
-            OnComplete?.Invoke();
-            OnComplete = null;
-        }
+        //private async void StartLifetimeCounter(int lifeSpanMs)
+        //{
+        //    await Task.Delay(lifeSpanMs).ConfigureAwait(false);
+        //    Completed?.Invoke(this);
+           
+        //    OnComplete = null;
+        //}
 
         public void HandleMessage(MessageEnvelope msg)
         {
@@ -108,11 +120,11 @@ namespace Protobuff.P2P.HolePunch
             MiniLogger.Log(MiniLogger.LogLevel.Info, "server hp msg handled: "+ msg.Header);
 #endif
 
-            if (msg.Header == HolepunchHeaders.SuccesAck)
+            if (msg.Header == Constants.SuccesAck)
                 HanldePunchAck(msg);
         }
-
-        public void HandleUdpMsg(EndPoint ep, MessageEnvelope e)
+      
+        public void HandleMessage(IPEndPoint ep, MessageEnvelope e)
         {
 #if DEBUG
 
@@ -133,43 +145,31 @@ namespace Protobuff.P2P.HolePunch
             var channelCreationMsgRequester = new ChanneCreationMessage()
             {
                 SharedSecret = Server.ServerUdpInitKey,
-                RegistrationId = stateId,
+                RegistrationId = StateId,
                 DestinationId = destinationId,
                 Encrypted = encrypted
             };
             var channelCreationMsgDestination = new ChanneCreationMessage()
             {
                 SharedSecret = Server.ServerUdpInitKey,
-                RegistrationId = stateId,
+                RegistrationId = StateId,
                 DestinationId = requesterId,
                 Encrypted = encrypted
             };
 
-            var envelope = GetEnvelope(HolepunchHeaders.CreateChannel);
-            var envelope2 = GetEnvelope(HolepunchHeaders.CreateChannel);
+            var envelope = GetEnvelope(Constants.CreateChannel);
+            var envelope2 = GetEnvelope(Constants.CreateChannel);
 
             Interlocked.Exchange(ref IsWaitingUdpMessage, 1);
             BeginTimeoutCounter(500);
 
-            //var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            //KnownTypeSerializer.SerializeChannelCreationMessage(stream, channelCreationMsgRequester);
-            //envelope.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-            //Server.SendAsyncMessage(requesterId, envelope);
-
-            //stream.Clear();
-            //KnownTypeSerializer.SerializeChannelCreationMessage(stream, channelCreationMsgDestination);
-            //envelope2.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-            //Server.SendAsyncMessage(destinationId, envelope2);
-
-            //SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+           
 
             Server.SendAsyncMessage(requesterId, envelope,
                 (stream)=> KnownTypeSerializer.SerializeChannelCreationMessage(stream, channelCreationMsgRequester));
             Server.SendAsyncMessage(destinationId, envelope2, 
                 (stream) => KnownTypeSerializer.SerializeChannelCreationMessage(stream, channelCreationMsgDestination));
 
-            //Server.SendAsyncMessage(requesterId, envelope, channelCreationMsgRequester);
-            //Server.SendAsyncMessage(destinationId, envelope2, channelCreationMsgDestination);
         }
 
 
@@ -178,10 +178,8 @@ namespace Protobuff.P2P.HolePunch
         public void HandleEndpointRegisteryMesssage(EndPoint ep, MessageEnvelope envelope)
         {
 #if DEBUG
-
             MiniLogger.Log(MiniLogger.LogLevel.Info, "server hp ep registered");
 #endif
-
             if (Interlocked.CompareExchange(ref IsWaitingUdpMessage,0,0)==0)
                 return;
 
@@ -190,7 +188,6 @@ namespace Protobuff.P2P.HolePunch
                 var re = ep as IPEndPoint;
                 if(Interlocked.CompareExchange(ref RequesterEndpoint,re, null) == null)
                 {
-                    //RequesterLocalEndpoints = envelope.UnpackPayload<EndpointTransferMessage>();
                     var rl = KnownTypeSerializer.DeserializeEndpointTransferMessage(envelope.Payload, envelope.PayloadOffset);
                     Interlocked.CompareExchange(ref RequesterLocalEndpoints, rl, null);
                 }
@@ -201,20 +198,15 @@ namespace Protobuff.P2P.HolePunch
                 var de = ep as IPEndPoint;
                 if(Interlocked.CompareExchange(ref DestinationEndpoint, de, null) == null)
                 {
-                    // DestinationLocalEndpoints = envelope.UnpackPayload<EndpointTransferMessage>();
                     var dl = KnownTypeSerializer.DeserializeEndpointTransferMessage(envelope.Payload, envelope.PayloadOffset);
                     Interlocked.CompareExchange(ref DestinationLocalEndpoints, dl, null);
                 }
-
-              
-
             }
             var requesterEp = Interlocked.CompareExchange(ref RequesterEndpoint, null, null);
             var destinationEp = Interlocked.CompareExchange(ref DestinationEndpoint, null, null);
             if (requesterEp != null && destinationEp != null)
             {
 #if DEBUG
-
                 MiniLogger.Log(MiniLogger.LogLevel.Info, "requester port:" + requesterEp.Port);
                 MiniLogger.Log(MiniLogger.LogLevel.Info, "target port:" + destinationEp.Port);
 #endif
@@ -244,16 +236,16 @@ namespace Protobuff.P2P.HolePunch
 
             MiniLogger.Log(MiniLogger.LogLevel.Info, "$$ server hp udp resend");
 #endif
-            MessageEnvelope envelope = GetEnvelope(HolepunchHeaders.HoplePunchUdpResend);
+            MessageEnvelope envelope = GetEnvelope(Constants.HoplePunchUdpResend);
 
             if (RequesterEndpoint == null)
             {
-                envelope.MessageId = stateId;
+                envelope.MessageId = StateId;
                 Server.SendAsyncMessage(requesterId, envelope);
             }
             if (DestinationEndpoint == null)
             {
-                envelope.MessageId = stateId;
+                envelope.MessageId = StateId;
                 Server.SendAsyncMessage(destinationId, envelope);
             }
 
@@ -268,8 +260,8 @@ namespace Protobuff.P2P.HolePunch
             MiniLogger.Log(MiniLogger.LogLevel.Info, "server hp start message ");
 #endif
 
-            MessageEnvelope envelope = GetEnvelope(HolepunchHeaders.HoplePunch);
-            MessageEnvelope envelope1 = GetEnvelope(HolepunchHeaders.HoplePunch);
+            MessageEnvelope envelope = GetEnvelope(Constants.HoplePunch);
+            MessageEnvelope envelope1 = GetEnvelope(Constants.HoplePunch);
 
             var epTransferMessageRequester = new EndpointTransferMessage()
             {
@@ -284,18 +276,6 @@ namespace Protobuff.P2P.HolePunch
                 LocalEndpoints = RequesterLocalEndpoints.LocalEndpoints
             };
 
-            //var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            //KnownTypeSerializer.SerializeEndpointTransferMessage(stream, epTransferMessageDestination);
-            //envelope.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-
-            //Server.SendAsyncMessage(destinationId, envelope);
-
-            //stream.Clear();
-            //KnownTypeSerializer.SerializeEndpointTransferMessage(stream, epTransferMessageRequester);
-            //envelope.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-
-            //Server.SendAsyncMessage(requesterId, envelope);
-
             Server.SendAsyncMessage(destinationId, envelope,
                 (stream)=> KnownTypeSerializer.SerializeEndpointTransferMessage(stream, epTransferMessageDestination));
             Server.SendAsyncMessage(requesterId,envelope1,
@@ -309,6 +289,8 @@ namespace Protobuff.P2P.HolePunch
         EndpointData msgRequesterSucces = new EndpointData();
         EndpointData msgDestinationSucces = new EndpointData();
         int completed = 0;
+
+
         private void HanldePunchAck(MessageEnvelope m)
         {
             if (Interlocked.CompareExchange(ref completed, 0, 0) == 1)
@@ -317,7 +299,6 @@ namespace Protobuff.P2P.HolePunch
             if (m.From == requesterId)
             {
                 if (Interlocked.CompareExchange(ref requesterPunchSucess, 1, 0) == 1) return;
-                // msgRequesterSucces = m.UnpackPayload<EndpointTransferMessage>();
                 var rs = KnownTypeSerializer.DeserializeEndpointData(m.Payload,m.PayloadOffset);
                 Interlocked.Exchange(ref msgRequesterSucces, rs);
             }
@@ -325,7 +306,6 @@ namespace Protobuff.P2P.HolePunch
             {
                 if (Interlocked.CompareExchange(ref destinationPunchSucess, 1, 0) == 1) return;
 
-                //msgDestinationSucces = m.UnpackPayload<EndpointTransferMessage>();
                 var ds = KnownTypeSerializer.DeserializeEndpointData(m.Payload, m.PayloadOffset);
                 Interlocked.Exchange(ref msgDestinationSucces, ds);
 
@@ -336,13 +316,14 @@ namespace Protobuff.P2P.HolePunch
             {
                 if (Interlocked.CompareExchange(ref completed, 1, 0) == 1)
                     return;
-                OnComplete?.Invoke();
-                var mdst = GetEnvelope(HolepunchHeaders.SuccessFinalize);
+                Release(true);
+                //Completion.TrySetResult(this);
+                var mdst = GetEnvelope(Constants.SuccessFinalize);
                 mdst.KeyValuePairs = new Dictionary<string, string>();
                 mdst.KeyValuePairs["IP"] = new IPAddress( msgRequesterSucces.Ip).ToString();
                 mdst.KeyValuePairs["Port"] = msgRequesterSucces.Port.ToString();
 
-                var mreq = GetEnvelope(HolepunchHeaders.SuccessFinalize);
+                var mreq = GetEnvelope(Constants.SuccessFinalize);
                 mreq.KeyValuePairs = new Dictionary<string, string>();
                 mreq.KeyValuePairs["IP"] = new IPAddress( msgDestinationSucces.Ip).ToString();
                 mreq.KeyValuePairs["Port"] = msgDestinationSucces.Port.ToString();
@@ -354,7 +335,7 @@ namespace Protobuff.P2P.HolePunch
 
                 Server.SendAsyncMessage(destinationId, mdst);
                 Server.SendAsyncMessage(requesterId, mreq);
-                OnComplete = null;
+               
                 MiniLogger.Log( MiniLogger.LogLevel.Info,$"Succecfully punched hole between {mdst.KeyValuePairs["IP"]} and {mreq.KeyValuePairs["IP"]}");
             }
         }
@@ -362,8 +343,22 @@ namespace Protobuff.P2P.HolePunch
         private MessageEnvelope GetEnvelope(string header)
         {
             return new MessageEnvelope()
-            { Header = header, IsInternal = true, MessageId = stateId };
+            { Header = header, IsInternal = true, MessageId = StateId };
 
+        }
+        private int isReleased = 0;
+        public void Release(bool isCompletedSuccessfully)
+        {
+            if (Interlocked.CompareExchange(ref isReleased, 1, 0) == 0)
+            {
+                if (isCompletedSuccessfully)
+                    Status = StateStatus.Completed;
+                else
+                    Status = StateStatus.Failed;
+
+                Completed?.Invoke(this);
+                Completed = null;
+            }
         }
     }
 }

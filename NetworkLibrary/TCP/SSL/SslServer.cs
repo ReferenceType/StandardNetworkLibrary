@@ -108,48 +108,6 @@ namespace NetworkLibrary.TCP.SSL.Base
 
             acceptedArg.Dispose();
         }
-        //private void Accepted_(IAsyncResult ar)
-        //{
-        //    if (Stopping)
-        //        return;
-        //    Socket clientsocket = null;
-        //    try
-        //    {
-        //        clientsocket = serverSocket.EndAccept(ar);
-
-        //    }
-        //    catch (ObjectDisposedException) { return; }
-
-        //    if (ar.CompletedSynchronously)
-        //    {
-        //        ThreadPool.UnsafeQueueUserWorkItem(s => serverSocket.BeginAccept(Accepted, null), null);
-        //    }
-        //    else
-        //    {
-        //        serverSocket.BeginAccept(Accepted, null);
-        //    }
-        //    if (!ValidateConnection(clientsocket))
-        //    {
-        //        return;
-        //    }
-
-        //    var sslStream = new SslStream(new NetworkStream(clientsocket, true), false, ValidateCeriticate);
-        //    try
-        //    {
-        //        sslStream.BeginAuthenticateAsServer(certificate,
-        //                                       true,
-        //                                       System.Security.Authentication.SslProtocols.Tls12,
-        //                                       false,
-        //                                       EndAuthenticate,
-        //                                       new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientsocket.RemoteEndPoint));
-        //    }
-        //    catch (Exception ex)
-        //    when (ex is AuthenticationException || ex is ObjectDisposedException)
-        //    {
-        //        MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + ex.Message);
-        //    }
-
-        //}
         protected virtual bool ValidateConnection(Socket clientsocket)
         {
             return OnClientRequestedConnection.Invoke(clientsocket);
@@ -187,8 +145,8 @@ namespace NetworkLibrary.TCP.SSL.Base
             var ses = CreateSession(sessionId, (ValueTuple<SslStream, IPEndPoint>)ar.AsyncState);
             ses.OnBytesRecieved += HandleBytesReceived;
             ses.OnSessionClosed += HandeDeadSession;
-            ses.StartSession();
             Sessions.TryAdd(sessionId, ses);
+            ses.StartSession();
 
             OnClientAccepted?.Invoke(sessionId);
         }

@@ -36,7 +36,7 @@ namespace Protobuff.P2P
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Server hp state created with id:" + stateId.ToString());
 #endif
             var state = new ServerHolepunchState(server, stateId, message.From, message.To, encrypted);
-            state.OnComplete += () => activeStates.TryRemove(stateId, out _);
+            //state.OnComplete += () => activeStates.TryRemove(stateId, out _);
 
             activeStates.TryAdd(stateId, state);
         }
@@ -51,11 +51,11 @@ namespace Protobuff.P2P
             return false;
         }
 
-        public bool HandleUdpMessage(EndPoint ep, MessageEnvelope message)
+        public bool HandleUdpMessage(IPEndPoint ep, MessageEnvelope message)
         {
             if (activeStates.TryGetValue(message.MessageId, out var state))
             {
-                state?.HandleUdpMsg(ep, message);
+                state?.HandleMessage(ep, message);
                 return true;
             }
             return false;

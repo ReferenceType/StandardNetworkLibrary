@@ -3,7 +3,7 @@ using NetworkLibrary.MessageProtocol;
 using System;
 using System.Collections.Generic;
 using System.Text;
-
+[assembly: CLSCompliant(true)]
 namespace NetworkLibrary.Generic
 {
     public class GenericBuffer<S> : MessageBuffer where S: ISerializer,new()

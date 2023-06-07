@@ -6,6 +6,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
@@ -51,17 +52,39 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         }
 
-        public override async Task<bool> ConnectAsyncAwaitable(string ip, int port)
+        public override Task<bool> ConnectAsyncAwaitable(string ip, int port)
         {
             try
             {
                 IsConnecting = true;
                 var clientSocket = GetSocket();
 
-                await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port)).ConfigureAwait(false);
+                // this shit is terrible..
+                // await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port)).ConfigureAwait(false);
 
-                Connected(ip, clientSocket);
-                return true;
+                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                
+                var earg = new SocketAsyncEventArgs();
+                earg.RemoteEndPoint = new IPEndPoint(IPAddress.Parse(ip), port);
+                earg.Completed += (ignored, arg) => { HandleResult(arg); };
+
+                if (!clientSocket.ConnectAsync(earg))
+                {
+                    HandleResult(earg);
+                }
+
+                void HandleResult(SocketAsyncEventArgs arg)
+                {
+                    if(arg.SocketError == SocketError.Success)
+                    {
+                        Connected(ip, clientSocket);
+                        tcs.SetResult(true);
+                    }
+                    else tcs.SetResult(false);
+                }
+                return tcs.Task;
+                
+               
             }
             catch { throw; }
             finally
@@ -103,11 +126,12 @@ namespace NetworkLibrary.TCP.SSL.Base
             new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
             this.clientSocket = clientSocket;
             var Id = Guid.NewGuid();
+
             clientSession = CreateSession(Id, new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)clientSocket.RemoteEndPoint));
             clientSession.OnSessionClosed += (id) => OnDisconnected?.Invoke();
-
             clientSession.OnBytesRecieved += HandleBytesReceived;
             clientSession.StartSession();
+
             statisticsPublisher = new TcpClientStatisticsPublisher(clientSession, Id);
             IsConnecting = false;
             IsConnected = true;
@@ -120,7 +144,6 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected virtual bool ValidateCeriticate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
-
         }
 
         private bool DefaultValidationCallbackHandler(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)

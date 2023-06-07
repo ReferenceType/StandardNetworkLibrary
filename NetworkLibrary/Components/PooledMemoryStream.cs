@@ -187,7 +187,6 @@ namespace NetworkLibrary.Components
                 length = position;
         }
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ExpandInternalBuffer(int size)
         {

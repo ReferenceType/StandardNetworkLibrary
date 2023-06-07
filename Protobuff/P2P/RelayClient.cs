@@ -13,736 +13,898 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using System.Net;
+using NetworkLibrary.UDP;
+using System.Net.Sockets;
+using NetworkLibrary.MessageProtocol;
+using System.Threading;
+using Protobuff.P2P.StateManagemet;
+using System.Diagnostics;
+using System.Runtime.InteropServices.ComTypes;
+using Protobuff.P2P.Modules;
 
 namespace Protobuff.P2P
 {
-    class UdpP2PChannels
+    public class RelayClient : RelayClientBase
     {
-        public EncryptedUdpProtoClient ch1;
-        public EncryptedUdpProtoClient ch2;
+        //public class PeerInfo_
+        //{
+        //    public string IP;
+        //    public int Port;
+        //    public IPAddress IPAddress;
+        //    public PeerInfo_(PeerInfo info)
+        //    {
+        //        IPAddress = new IPAddress(info.Address);
+        //        IP = IPAddress.ToString();
+        //        Port = info.Port;
+        //    }
+        //    public PeerInfo_()
+        //    {
 
-        public UdpP2PChannels(EncryptedUdpProtoClient ch1, EncryptedUdpProtoClient ch2)
+        //    }
+        //}
+
+        //public Action<Guid> OnPeerRegistered;
+        //public Action<Guid> OnPeerUnregistered;
+        //public Action<MessageEnvelope> OnUdpMessageReceived;
+        //public Action<MessageEnvelope> OnMessageReceived;
+        //public Action OnDisconnected;
+        //public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => protoClient.RemoteCertificateValidationCallback;
+        //public Guid sessionId { get; private set; }
+        //public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
+        //public bool IsConnected { get => isConnected; private set => isConnected = value; }
+
+        //internal ConcurrentDictionary<Guid, PeerInfo_> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInfo_>();
+
+        //internal string connectHost;
+        //internal int connectPort;
+        //private bool connecting;
+
+        //private SecureProtoMessageClient protoClient;
+        //private PingHandler pinger = new PingHandler();
+        //private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
+        //private ConcurrentDictionary<Guid, EncryptedUdpProtoClient> directUdpClients = new ConcurrentDictionary<Guid, EncryptedUdpProtoClient>();
+        //private ConcurrentDictionary<Guid, IPEndPoint> punchedEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
+        //private ConcurrentDictionary<Guid, IPEndPoint> pendingHolePunches = new ConcurrentDictionary<Guid, IPEndPoint>();
+        //private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> punchedEndpointsReverse = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
+        //private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> peerCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
+
+        //private object registeryLocker = new object();
+        //private bool isConnected;
+
+        //private TaskCompletionSource<MessageEnvelope> ServerUdpInitCommand =
+        //          new TaskCompletionSource<MessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+        //private TaskCompletionSource<MessageEnvelope> ServerFinalization =
+        //           new TaskCompletionSource<MessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        //private ConcurrentAesAlgorithm udpEncriptor;
+        //internal ClientUdpModule udpServer;
+        //private IPEndPoint relayServerEndpoint;
+        //internal List<EndpointData> localEndpoints;
+        //class RegisteryCompetion
+        //{
+        //    public Guid SessionId;
+        //    public ConcurrentAesAlgorithm encryptor;
+        //}
+        ////SimpleHolepunchstateManager sm2;
+        //ClientStateManager clientStateManager;
+        //public RelayClient(X509Certificate2 clientCert)
+        //{
+        //    clientStateManager = new ClientStateManager(this);
+        //    protoClient = new SecureProtoMessageClient(clientCert);
+        //    protoClient.OnMessageReceived += HandleMessageReceived;
+        //    protoClient.OnDisconnected += HandleDisconnect;
+
+        //    udpServer = new ClientUdpModule(0);
+        //    udpServer.SocketReceiveBufferSize = 12800000;
+        //    udpServer.SocketSendBufferSize = 12800000;
+        //    udpServer.OnClientAccepted += UdpClientAccepted;
+        //    udpServer.OnBytesRecieved += HandleUdpBytesReceived;
+        //    udpServer.StartServer(); 
+        //  //  sm2 = new SimpleHolepunchstateManager(this);
+        //}
+
+        //private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
+        //{
+        //    count--;
+        //    offset++;
+        //    if (!IsConnected)
+        //        return;
+        //    if (adress.Equals(relayServerEndpoint))
+        //    {
+        //        try
+        //        {
+        //            var buffer = BufferPool.RentBuffer(count + 256);
+        //            int amountDecrypted = udpEncriptor.DecryptInto(bytes, offset, count, buffer, 0);
+        //            HandleUdpMessageReceived(serialiser.DeserialiseEnvelopedMessage(buffer, 0, amountDecrypted));
+        //            BufferPool.ReturnBuffer(buffer);
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            MiniLogger.Log(MiniLogger.LogLevel.Error, "Failed to deserialise envelope message " + e.Message);
+
+        //        }
+        //    }
+        //    else if (punchedEndpointsReverse.TryGetValue(adress,out var cryptoAlg))
+        //    {
+        //        if (cryptoAlg != null)
+        //        {
+        //            var buffer = BufferPool.RentBuffer(count + 256);
+        //            int amount = cryptoAlg.DecryptInto(bytes, offset, count, buffer, 0);
+        //            var msg = serialiser.DeserialiseEnvelopedMessage(buffer, 0, amount);
+        //            HandleUdpMessageReceived(msg);
+        //            BufferPool.ReturnBuffer(buffer);
+
+        //        }
+        //        else
+        //        {
+        //            var msg = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
+        //            HandleUdpMessageReceived(msg);
+        //        }
+        //    }
+        //    // is unknown
+        //    else if (peerCryptos.TryGetValue(adress, out var crypto)/*!punchedEndpointsReverse.ContainsKey(adress)*/)
+        //    {
+        //        try
+        //        {
+        //            if(crypto == null)
+        //            {
+        //                var msg = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
+        //                if (!clientStateManager.HandleMessage(adress, msg))
+        //                {
+        //                    HandleUdpMessageReceived(msg);
+        //                }
+        //            }
+        //            else
+        //            {
+        //                var buffer =  BufferPool.RentBuffer(count + 256);
+        //                int amount = crypto.DecryptInto(bytes, offset, count, buffer, 0);
+        //                var msg = serialiser.DeserialiseEnvelopedMessage(buffer, 0, amount);
+        //                if (!clientStateManager.HandleMessage(adress,msg ))
+        //                {
+        //                    HandleUdpMessageReceived(msg);
+        //                }
+        //                BufferPool.ReturnBuffer(buffer);
+
+        //            }
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            MiniLogger.Log(MiniLogger.LogLevel.Error, "Relay Client Failed to deserialise envelope message " + e.Message);
+
+        //        }
+        //    }
+        //    //else
+        //    //{
+        //    //    try
+        //    //    {
+        //    //        var msg = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
+        //    //        HandleUdpMessageReceived(msg);
+
+        //    //    }
+        //    //    catch (Exception e)
+        //    //    {
+        //    //        MiniLogger.Log(MiniLogger.LogLevel.Error, "Relay Clinet Failed to deserialise envelope message2 " + e.StackTrace);
+
+        //    //    }
+
+        //    //}
+        //}
+
+        //private void UdpClientAccepted(SocketAsyncEventArgs ClientSocket)
+        //{
+
+        //}
+        //public void TestHP(Guid peerId, int timeOut, bool encrypted = true)
+        //{
+        //    var state = clientStateManager.CreateHolePncState2(peerId, Guid.NewGuid());
+        //    state.Completed += (s) => 
+        //    { 
+        //        if (state.Status == StateStatus.Completed)
+        //        {
+        //            HandleCompletedHolepunchState2(state);
+        //        }
+        //    };
+        //}
+        //#region Connect & Disconnect
+
+        //public async Task<bool> ConnectAsync(string host, int port)
+        //{
+        //    if (connecting || IsConnected) return false;
+
+        //    connectHost = host;
+        //    connectPort = port;
+        //    connecting = true;
+        //    try
+        //    {
+        //        relayServerEndpoint = new IPEndPoint(IPAddress.Parse(connectHost), connectPort);
+        //        ServerUdpInitCommand = new TaskCompletionSource<MessageEnvelope>();
+
+
+        //        await protoClient.ConnectAsync(host, port);
+
+        //        //protoClient.Connect(host, port);
+        //        Console.WriteLine("Connected");
+
+        //        var result = await RegisterRoutine2().ConfigureAwait(false);
+        //        if (result == null) throw new Exception("routine failed");
+
+        //        sessionId = result.SessionId;
+        //        udpEncriptor = result.encryptor;
+
+        //        Volatile.Write(ref isConnected, true);
+        //        pinger.PeerRegistered(sessionId);
+        //        return true;
+
+        //    }
+        //    catch { throw; }
+        //    finally
+        //    {
+        //        connecting = false;
+        //    }
+        //}
+
+
+        //private async Task<RegisteryCompetion> RegisterRoutine2()
+        //{
+        //    Stopwatch sw = new Stopwatch();
+        //    sw.Start();
+        //    // 0.Send a Reguster message to server.
+        //    protoClient.SendAsyncMessage(new MessageEnvelope()
+        //    {
+        //        IsInternal = true,
+        //        Header = Constants.Register,
+        //    });
+        //    // 1. Wait for server to give you info for your udp message.
+        //    if (await Task.WhenAny(ServerUdpInitCommand.Task, Task.Delay(8000)) != ServerUdpInitCommand.Task)
+        //    {
+        //        return null;
+        //    }
+
+        //    ServerFinalization = new TaskCompletionSource<MessageEnvelope>();
+        //    //2. obtain server Aes key and send a Udp message and register your endpoint.
+        //    var message = ServerUdpInitCommand.Task.Result;
+
+        //    var udpEncriptor = new ConcurrentAesAlgorithm(message.Payload, message.Payload);
+        //    MessageEnvelope udpRegistrationMsg = new MessageEnvelope()
+        //    {
+        //        Header = Constants.UdpInit,
+        //        MessageId = message.MessageId,
+        //    };
+
+        //    EndpointTransferMessage endpoints = new EndpointTransferMessage();
+        //    localEndpoints = GetLocalEndpoints();
+        //    endpoints.LocalEndpoints = localEndpoints;
+
+        //    byte[] bytes = EncyrptUdipInitMessage(udpRegistrationMsg, endpoints, udpEncriptor);
+
+        //    udpServer.SendBytesToClient(relayServerEndpoint, bytes, 0, bytes.Length);
+
+        //    // 3. Wait for server finalization message, Udp can drop so we do few resends with timeout.
+        //    int retry = 0;
+        //    while (await Task.WhenAny(Task.Delay(3000), ServerFinalization.Task).ConfigureAwait(false) != ServerFinalization.Task)
+        //    {
+        //        if (++retry > 3)
+        //        {
+        //            return null;
+        //        }
+        //        udpServer.SendBytesToClient(relayServerEndpoint, bytes, 0, bytes.Length);
+        //    }
+
+        //    var finalMSg = ServerFinalization.Task.Result;
+        //    // 4.  Client Finalization is send to make server to register us.
+        //    protoClient.SendAsyncMessage(new MessageEnvelope()
+        //    {
+        //        IsInternal = true,
+        //        Header = Constants.ClientFinalizationAck,
+        //        MessageId = message.MessageId
+        //    });
+
+        //    return new RegisteryCompetion()
+        //    {
+        //        SessionId = message.To,
+        //        encryptor = new ConcurrentAesAlgorithm(finalMSg.Payload, finalMSg.Payload),
+        //    };
+        //}
+        //private byte[] EncyrptUdipInitMessage(MessageEnvelope udpRegistrationMsg, EndpointTransferMessage endpoints, ConcurrentAesAlgorithm udpEncriptor)
+        //{
+        //    var streamTemp = SharerdMemoryStreamPool.RentStreamStatic();
+        //    streamTemp.WriteByte(0);
+
+        //    serialiser.EnvelopeMessageWithInnerMessage(streamTemp, udpRegistrationMsg,
+        //        (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream, endpoints));
+        //    var buff = BufferPool.RentBuffer(512);
+
+        //    var amount = udpEncriptor.EncryptInto(streamTemp.GetBuffer(), 1, streamTemp.Position32,buff,1);
+        //    SharerdMemoryStreamPool.ReturnStreamStatic(streamTemp);
+        //    var ret = ByteCopy.ToArray(buff, 0, amount + 1);
+        //    BufferPool.ReturnBuffer(buff);
+        //    return ret;
+        //}
+
+        //private List<EndpointData> GetLocalEndpoints()
+        //{
+        //    List<EndpointData> endpoints = new List<EndpointData>();
+        //    var lep = (IPEndPoint)udpServer.LocalEndpoint;
+
+        //    var host = Dns.GetHostEntry(Dns.GetHostName());
+        //    foreach (var ip in host.AddressList)
+        //    {
+        //        if (ip.AddressFamily == AddressFamily.InterNetwork)
+        //        {
+        //            if (ip.ToString() == "0.0.0.0")
+        //                continue;
+        //            endpoints.Add(new EndpointData()
+        //            {
+        //                Ip = ip.GetAddressBytes(),
+        //                Port = lep.Port
+        //            });
+        //        }
+        //    }
+        //    return endpoints;
+        //}
+
+
+        //[MethodImpl(MethodImplOptions.NoInlining)]
+        //public void Connect(string host, int port)
+        //{
+        //    var res = ConnectAsync(host, port).Result;
+        //}
+
+        //[MethodImpl(MethodImplOptions.NoInlining)]
+        //public void Disconnect()
+        //{
+        //    protoClient?.Disconnect();
+        //    foreach (var item in directUdpClients)
+        //    {
+        //        item.Value.Dispose();
+        //    }
+        //}
+
+        //private void HandleDisconnect()
+        //{
+        //    lock (registeryLocker)
+        //    {
+        //        foreach (var peer in PeerInfos)
+        //        {
+        //            OnPeerUnregistered?.Invoke(peer.Key);
+        //        }
+        //        PeerInfos = new ConcurrentDictionary<Guid, PeerInfo_>();
+        //        Peers.Clear();
+        //        directUdpClients.Clear();
+        //        OnDisconnected?.Invoke();
+        //        IsConnected = false;
+        //    }
+
+        //}
+
+        //#endregion
+
+        //#region Ping
+
+        //public void StartPingService(int intervalMs = 1000)
+        //{
+        //    Task.Run(() => SendPing(intervalMs));
+        //}
+
+        //private async void SendPing(int intervalMs)
+        //{
+        //    while (true)
+        //    {
+        //        await Task.Delay(intervalMs / 2).ConfigureAwait(false);
+
+        //        MessageEnvelope msg = new MessageEnvelope();
+        //        msg.Header = Constants.Ping;
+        //        if (IsConnected)
+        //        {
+        //            msg.TimeStamp = DateTime.Now;
+        //            msg.From = sessionId;
+        //            msg.To = sessionId;
+
+        //            protoClient.SendAsyncMessage(msg);
+        //            SendUdpMesssage(sessionId, msg);
+        //            pinger.NotifyTcpPingSent(sessionId, msg.TimeStamp);
+        //            pinger.NotifyUdpPingSent(sessionId, msg.TimeStamp);
+
+        //            await Task.Delay(intervalMs / 2).ConfigureAwait(false);
+        //            foreach (var peer in Peers.Keys)
+        //            {
+        //                msg.TimeStamp = DateTime.Now;
+        //                SendAsyncMessage(peer, msg);
+        //                pinger.NotifyTcpPingSent(peer, msg.TimeStamp);
+
+
+        //                msg.TimeStamp = DateTime.Now;
+        //                SendUdpMesssage(peer, msg);
+        //                pinger.NotifyUdpPingSent(peer, msg.TimeStamp);
+
+        //            }
+        //        }
+        //    }
+
+        //}
+
+        //private void HandlePing(MessageEnvelope message, bool isTcp = true)
+        //{
+        //    // self ping - server roundtrip.
+        //    if (message.From == sessionId)
+        //    {
+        //        //HandlePong(message,isTcp);
+        //        if (isTcp) pinger.HandleTcpPongMessage(message);
+        //        else pinger.HandleUdpPongMessage(message);
+        //    }
+        //    else
+        //    {
+        //        message.Header = Constants.Pong;
+        //        if (isTcp)
+        //        {
+        //            message.To = message.From;
+        //            message.From = sessionId;
+        //            protoClient.SendAsyncMessage(message);
+        //        }
+        //        else
+        //            SendUdpMesssage(message.From, message);
+        //    }
+
+
+        //}
+
+        //private void HandlePong(MessageEnvelope message, bool isTcp = true)
+        //{
+        //    if (isTcp) pinger.HandleTcpPongMessage(message);
+        //    else pinger.HandleUdpPongMessage(message);
+        //}
+
+        //public Dictionary<Guid, double> GetTcpPingStatus()
+        //{
+        //    return pinger.GetTcpLatencies();
+        //}
+        //public Dictionary<Guid, double> GetUdpPingStatus()
+        //{
+        //    return pinger.GetUdpLatencies();
+        //}
+
+        //#endregion Ping
+
+        //#region Send
+        //public void SendUdpMesssage<T>(Guid toId, T message, string messageHeader = null, int channel = 0) where T : IProtoMessage
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+        //    MessageEnvelope env = new MessageEnvelope();
+        //    env.From = sessionId;
+        //    env.To = toId;
+        //    env.Header = messageHeader == null ? typeof(T).Name : messageHeader;
+
+        //    if (directUdpClients.TryGetValue(toId, out var client))
+        //    {
+        //        client.SendAsyncMessage(env, message);
+        //    }
+        //    else if (punchedEndpoints.TryGetValue(toId,out var endpoint))
+        //    {
+        //        udpServer.SendAsync(endpoint, env, message, punchedEndpointsReverse[endpoint]);
+        //    }
+        //    else
+        //        udpServer.SendAsync(relayServerEndpoint, env, message, udpEncriptor);
+        //}
+
+        //public void SendUdpMesssage(Guid toId, MessageEnvelope message, int channel = 0)
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+        //    message.From = sessionId;
+        //    message.To = toId;
+
+        //    if (directUdpClients.TryGetValue(toId, out var client))
+        //    {
+        //        client.SendAsyncMessage(message);
+        //    }
+        //    else if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+        //    {
+        //        udpServer.SendAsync(endpoint, message, punchedEndpointsReverse[endpoint]);
+
+        //    }
+        //    else
+        //        udpServer.SendAsync(relayServerEndpoint, message, udpEncriptor);
+        //}
+        //public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message, T innerMessage, int channel = 0) where T : IProtoMessage
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    message.From = sessionId;
+        //    message.To = toId;
+
+        //    if (directUdpClients.TryGetValue(toId, out var client))
+        //    {
+        //        client.SendAsyncMessage(message, innerMessage);
+        //    }
+        //    else if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+        //    {
+        //        udpServer.SendAsync(endpoint, message, innerMessage, punchedEndpointsReverse[endpoint]);
+        //    }
+        //    else
+        //        udpServer.SendAsync(relayServerEndpoint, message, innerMessage, udpEncriptor);
+
+        //}
+        //public void SendUdpMesssage(Guid toId, byte[] data, int offset, int count, string dataName, int channel = 0)
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    MessageEnvelope env = new MessageEnvelope();
+        //    env.From = sessionId;
+        //    env.To = toId;
+        //    env.Header = dataName;
+        //    env.SetPayload(data, offset, count);
+
+        //    if (directUdpClients.TryGetValue(toId, out var client))
+        //    {
+        //        client.SendAsyncMessage(env);
+        //    }
+        //    else if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+        //    {
+        //        udpServer.SendAsync(endpoint, env, punchedEndpointsReverse[endpoint]);
+
+        //    }
+        //    else
+        //        udpServer.SendAsync(relayServerEndpoint, env, udpEncriptor);
+
+        //}
+
+        //public void SendAsyncMessage(Guid toId, MessageEnvelope message)
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    message.From = sessionId;
+        //    message.To = toId;
+        //    protoClient.SendAsyncMessage(message);
+        //}
+        //public void SendAsyncMessage<T>(Guid toId, T message, string messageHeader = null) where T : IProtoMessage
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    var envelope = new MessageEnvelope()
+        //    {
+        //        From = sessionId,
+        //        To = toId,
+        //    };
+
+        //    envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
+        //    protoClient.SendAsyncMessage(envelope, message);
+        //}
+
+        //public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message) where T : IProtoMessage
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    envelope.From = sessionId;
+        //    envelope.To = toId;
+        //    protoClient.SendAsyncMessage(envelope, message);
+        //}
+
+        //public void SendAsyncMessage(Guid toId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    envelope.From = sessionId;
+        //    envelope.To = toId;
+        //    protoClient.SendAsyncMessage(envelope, serializationCallback);
+        //}
+
+        //public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    var envelope = new MessageEnvelope()
+        //    {
+        //        From = sessionId,
+        //        To = toId,
+        //        Header = dataName
+        //    };
+        //    protoClient.SendAsyncMessage(envelope, data, 0, data.Length);
+        //}
+
+        //public void SendAsyncMessage(Guid toId, byte[] data, int offset, int count, string dataName)
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+
+        //    var envelope = new MessageEnvelope()
+        //    {
+        //        From = sessionId,
+        //        To = toId,
+        //        Header = dataName
+        //    };
+        //    protoClient.SendAsyncMessage(envelope, data, offset, count);
+        //}
+
+        //public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000) where T : IProtoMessage
+        //{
+        //    var envelope = new MessageEnvelope()
+        //    {
+        //        From = sessionId,
+        //        To = toId,
+        //        MessageId = Guid.NewGuid(),
+        //        Header = messageHeader == null ? typeof(T).Name : messageHeader
+        //    };
+
+        //    var task = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
+        //    return task;
+        //}
+
+        //public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, byte[] data, string dataName, int timeoutMs = 10000)
+        //{
+        //    var envelope = new MessageEnvelope()
+        //    {
+        //        From = sessionId,
+        //        To = toId,
+        //        MessageId = Guid.NewGuid(),
+        //        Header = dataName
+        //    };
+
+        //    var response = protoClient.SendMessageAndWaitResponse(envelope, data, 0, data.Length, timeoutMs);
+        //    return response;
+        //}
+        //public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, int timeoutMs = 10000)
+        //{
+        //    message.From = sessionId;
+        //    message.To = toId;
+
+        //    var response = protoClient.SendMessageAndWaitResponse(message, timeoutMs);
+        //    return response;
+        //}
+        //public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
+        //{
+        //    message.From = sessionId;
+        //    message.To = toId;
+
+        //    var response = protoClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
+        //    return response;
+        //}
+
+        //public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message, int timeoutMs = 10000) where T : IProtoMessage
+        //{
+        //    envelope.From = sessionId;
+        //    envelope.To = toId;
+
+        //    var response = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
+        //    return response;
+        //}
+
+        //#endregion
+        //private void HandleMessageReceived(MessageEnvelope message)
+        //{
+
+        //    if (message.IsInternal)
+        //    {
+        //        if (clientStateManager.HandleMessage(message))
+        //            return;
+
+        //        switch (message.Header)
+        //        {
+        //            case Constants.ServerCmd:
+        //                message.LockBytes();
+        //                ServerUdpInitCommand.TrySetResult(message);
+        //                return;
+
+        //            case Constants.ServerFinalizationCmd:
+        //                message.LockBytes();
+        //                ServerFinalization.TrySetResult(message);
+        //                return;
+
+        //            case (Constants.NotifyPeerListUpdate):
+        //                UpdatePeerList(message);
+        //                break;
+
+        //            default:
+        //                OnMessageReceived?.Invoke(message);
+        //                break;
+        //        }
+
+        //    }
+        //    else
+        //    {
+        //        switch (message.Header)
+        //        {
+        //            case Constants.Ping:
+        //                HandlePing(message);
+        //                break;
+
+        //            case Constants.Pong:
+        //                HandlePong(message);
+        //                break;
+
+        //            default:
+        //                OnMessageReceived?.Invoke(message);
+        //                break;
+
+        //        }
+
+        //    }
+
+        //}
+
+        //#region Hole Punch
+        //public bool RequestHolePunch(Guid peerId, int timeOut = 10000, bool encrypted = true)
+        //{
+        //    return RequestHolePunchAsync(peerId, timeOut, encrypted).Result;
+        //}
+        //// Ask the server about holepunch
+        //public Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
+        //{
+        //    if (clientStateManager.IsHolepunchStatePending(peerId) ||
+        //        punchedEndpoints.ContainsKey(peerId) ||
+        //        directUdpClients.ContainsKey(peerId))
+        //    {
+        //        return Task.FromResult(false);
+        //    }
+
+
+        //    var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        //    var state = clientStateManager.CreateHolePncState2(peerId, Guid.NewGuid());
+        //    state.Completed += (s) =>
+        //    {
+        //        if (state.Status == StateStatus.Completed)
+        //        {
+        //           // HandleCompletedHolepunchState2(state);
+        //            tcs.SetResult(true);
+        //        }
+        //        else
+        //        {
+        //            var state2 = clientStateManager.CreateHolepunchState(peerId, timeOut, encrypted);
+        //            state2.Completed += (st) =>
+        //            {
+        //                if (st.Status == StateStatus.Completed)
+        //                {
+        //                    var client = state2.holepunchClient;
+        //                    client.OnMessageReceived = null;
+        //                    client.OnMessageReceived += HandleUdpMessageReceived;
+        //                    directUdpClients.TryAdd(peerId, client);
+        //                    tcs.SetResult(true);
+        //                }
+        //                else
+        //                    tcs.SetResult(false);
+        //            };
+
+        //        }
+        //    };
+        //    return tcs.Task;
+
+        //    //TestHP(peerId,timeOut,false);
+        //    //var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        //    //var state = clientStateManager.CreateHolepunchState(peerId, timeOut, encrypted);
+        //    //state.Completed += (st) =>
+        //    //{
+        //    //    if(st.Status == StateStatus.Completed)
+        //    //    {
+        //    //        var client = state.holepunchClient;
+        //    //        client.OnMessageReceived = null;
+        //    //        client.OnMessageReceived += HandleUdpMessageReceived;
+        //    //        directUdpClients.TryAdd(peerId, client);
+        //    //        tcs.SetResult(true);
+        //    //        return;
+        //    //    }
+        //    //    tcs.SetResult(false);
+        //    //};
+
+        //    //return tcs.Task;
+
+        //}
+
+        //#endregion
+
+        //internal void HandleUdpMessageReceived(MessageEnvelope message)
+        //{
+        //    if (message.Header == null)
+        //    {
+        //        return;
+        //    }
+        //    else if (message.Header.Equals(Constants.HoplePunch)) { }
+        //    else if (message.Header.Equals(Constants.Ping)) HandlePing(message, isTcp: false);
+        //    else if (message.Header.Equals(Constants.Pong)) HandlePong(message, isTcp: false);
+
+        //    else OnUdpMessageReceived?.Invoke(message);
+        //}
+
+        //public PeerInfo_ GetPeerInfo(Guid peerId)
+        //{
+        //    PeerInfos.TryGetValue(peerId, out var val);
+        //    return val;
+        //}
+
+        //protected virtual void UpdatePeerList(MessageEnvelope message)
+        //{
+        //    lock (registeryLocker)
+        //    {
+        //        PeerList serverPeerInfo = null;
+        //        if (message.Payload == null)
+        //            serverPeerInfo = new PeerList() { PeerIds = new Dictionary<Guid, PeerInfo>() };
+        //        else
+        //        {
+        //            serverPeerInfo = KnownTypeSerializer.DeserializePeerList(message.Payload, message.PayloadOffset);
+        //        }
+        //        List<Guid> registered = new List<Guid>();
+        //        List<Guid> unregistered = new List<Guid>();
+        //        foreach (var peer in Peers.Keys)
+        //        {
+        //            if (!serverPeerInfo.PeerIds.ContainsKey(peer))
+        //            {
+        //                Peers.TryRemove(peer, out _);
+        //                directUdpClients.TryRemove(peer, out _);
+        //                pinger.PeerUnregistered(peer);
+        //                PeerInfos.TryRemove(peer, out _);
+        //                unregistered.Add(peer);
+        //               // ThreadPool.UnsafeQueueUserWorkItem((s) => { OnPeerUnregistered?.Invoke(peer); }, null);
+        //            }
+        //        }
+
+        //        foreach (var peer in serverPeerInfo.PeerIds.Keys)
+        //        {
+        //            if (!Peers.TryGetValue(peer, out _))
+        //            {
+        //                Peers.TryAdd(peer, true);
+        //                pinger.PeerRegistered(peer);
+        //                PeerInfos.TryAdd(peer, new PeerInfo_(serverPeerInfo.PeerIds[peer]));
+        //                registered.Add(peer);
+        //               // ThreadPool.UnsafeQueueUserWorkItem((s) => { OnPeerRegistered?.Invoke(peer); }, null);
+        //            }
+        //        }
+
+        //        ThreadPool.UnsafeQueueUserWorkItem((s) =>
+        //        {
+        //            foreach (var peer in unregistered)
+        //            {
+        //                OnPeerUnregistered?.Invoke(peer);
+        //            }
+        //            foreach (var peer in registered)
+        //            {
+        //                OnPeerRegistered?.Invoke(peer);
+        //            }
+        //        }, null);
+
+        //    }
+        //}
+
+        //public void GetTcpStatistics(out TcpStatistics stats) => protoClient.GetStatistics(out stats);
+
+        //internal void HandleCompletedHolepunchState(ClientHolepunchState state)
+        //{
+        //    var client = state.holepunchClient;
+        //    client.OnMessageReceived = null;
+        //    client.OnMessageReceived += HandleUdpMessageReceived;
+        //    directUdpClients.TryAdd(state.DestinationId, client);
+        //}
+
+        //internal void HandleCompletedHolepunchState2(SimpleClientHPState state)
+        //{
+        //    punchedEndpointsReverse.TryAdd(state.succesfulEp, peerCryptos[state.succesfulEp]);
+        //    punchedEndpoints.TryAdd(state.destinationId, state.succesfulEp);//
+
+        //    MiniLogger.Log(MiniLogger.LogLevel.Info, $"Punched on {state.succesfulEp}");
+        //}
+
+        //internal void RegisterCrypto(byte[] key, List<EndpointData> associatedEndpoints)
+        //{
+        //    ConcurrentAesAlgorithm crypto = null;
+        //    if (key != null)
+        //        crypto = new ConcurrentAesAlgorithm(key, key);
+        //    foreach (var item in associatedEndpoints)
+        //    {
+        //        peerCryptos.TryAdd(item.ToIpEndpoint(), crypto);
+        //    }
+        //}
+
+
+        public RelayClient(X509Certificate2 clientCert) : base(clientCert)
         {
-            this.ch1 = ch1;
-            this.ch2 = ch2;
         }
 
-        public void Set(EncryptedUdpProtoClient cl)
-        {
-            if (ch1 == null)
-                ch1 = cl;
-            else ch2 = cl;
-        }
-    }
-    
-    public class RelayClient
-    {
-        public class PeerInfo_
-        {
-            public string IP;
-            public int Port;
-            public IPAddress IPAddress;
-            public PeerInfo_(PeerInfo info)
-            {
-                IPAddress = new IPAddress(info.Address);
-                IP = IPAddress.ToString();
-                Port= info.Port;
-            }
-           public PeerInfo_()
-            {
-
-            }
-        }
-
-        public Action<Guid> OnPeerRegistered;
-        public Action<Guid> OnPeerUnregistered;
-        public Action<MessageEnvelope> OnUdpMessageReceived;
-        public Action<MessageEnvelope> OnMessageReceived;
-        public Action OnDisconnected;
-        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => protoClient.RemoteCertificateValidationCallback;
-        public Guid sessionId { get; private set; }
-        public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
-        public bool IsConnected { get => isConnected; private set => isConnected = value; }
-
-
-        private SecureProtoMessageClient protoClient;
-        private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
-
-        private ConcurrentDictionary<Guid, EncryptedUdpProtoClient> holePunchCandidates = new ConcurrentDictionary<Guid, EncryptedUdpProtoClient>();
-        private ConcurrentDictionary<Guid, UdpP2PChannels> directUdpClients = new ConcurrentDictionary<Guid, UdpP2PChannels>();
-        private ConcurrentDictionary<Guid, UdpP2PChannels> tempDirectUdpClients = new ConcurrentDictionary<Guid, UdpP2PChannels>();
-        private ConcurrentDictionary<Guid, TaskCompletionSource<bool>> awaitingUdpPunchMessage = new ConcurrentDictionary<Guid, TaskCompletionSource<bool>>();
-
-        private EncryptedUdpProtoClient udpRelayClient;
-        private bool connecting;
-        internal ConcurrentDictionary<Guid, PeerInfo_> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInfo_>();
-
-        internal string connectHost;
-        internal int connectPort;
-        private PingHandler pinger = new PingHandler();
-        private ClientHolepunchStateManager holepunchManager = new ClientHolepunchStateManager();
-        private object registeryLocker = new object();
-        private bool isConnected;
-
-        public RelayClient(X509Certificate2 clientCert)
-        {
-            protoClient = new SecureProtoMessageClient(clientCert);
-            protoClient.OnMessageReceived += HandleMessageReceived;
-            protoClient.OnDisconnected += HandleDisconnect;
-
-        }
-
-        public void StartPingService(int intervalMs = 1000)
-        {
-            Task.Run(() => SendPing(intervalMs));
-        }
-
-
-        #region Connect & Disconnect
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public void Connect(string host, int port)
-        {
-            if (connecting || IsConnected) return;
-
-            connectHost = host;
-            connectPort = port;
-            connecting = true;
-            try
-            {
-                protoClient.Connect(host, port);
-                RegisterRoutine();
-                IsConnected = true;
-                pinger.PeerRegistered(sessionId);
-
-            }
-            catch { throw; }
-            finally
-            {
-                connecting = false;
-            }
-
-
-
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public async Task<bool> ConnectAsync(string host, int port)
-        {
-            if (connecting || IsConnected) return false;
-
-            try
-            {
-                connecting = true;
-
-                connectHost = host;
-                connectPort = port;
-                await protoClient.ConnectAsync(host, port).ConfigureAwait(false);
-
-                var requestRegistery = new MessageEnvelope();
-                requestRegistery.Header = InternalMessageResources.RequestRegistery;
-                requestRegistery.IsInternal = true;
-
-                var response = await protoClient.SendMessageAndWaitResponse(requestRegistery, 20000).ConfigureAwait(false);
-
-                connecting = false;
-
-
-                if (response.Header == MessageEnvelope.RequestTimeout ||
-                    response.Header == InternalMessageResources.RegisteryFail)
-                    throw new TimeoutException(response.Header);
-
-                this.sessionId = response.To;
-                IsConnected = true;
-                pinger.PeerRegistered(sessionId);
-
-                return true;
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                connecting = false;
-            }
-
-
-        }
-        public void Disconnect()
-        {
-            protoClient?.Disconnect();
-            udpRelayClient?.Dispose();
-            foreach (var item in directUdpClients)
-            {
-                item.Value.ch1.Dispose();
-                item.Value.ch2.Dispose();
-            }
-        }
-
-        private void HandleDisconnect()
-        {
-            lock (registeryLocker)
-            {
-                foreach (var peer in PeerInfos)
-                {
-                    OnPeerUnregistered?.Invoke(peer.Key);
-                }
-                PeerInfos = new ConcurrentDictionary<Guid, PeerInfo_>();
-                Peers.Clear();
-                directUdpClients.Clear();
-                OnDisconnected?.Invoke();
-                IsConnected = false;
-            }
-
-        }
-
-        #endregion
-
-        protected virtual void RegisterRoutine()
-        {
-            var requestRegistery = new MessageEnvelope();
-            requestRegistery.Header = InternalMessageResources.RequestRegistery;
-            requestRegistery.IsInternal = true;
-
-            var response = protoClient.SendMessageAndWaitResponse(requestRegistery, 20000).Result;
-
-            if (response.Header == MessageEnvelope.RequestTimeout ||
-                response.Header == InternalMessageResources.RegisteryFail)
-                throw new TimeoutException(response.Header);
-
-            this.sessionId = response.To;
-        }
-
-        #region Ping
-        private async void SendPing(int intervalMs)
-        {
-            while (true)
-            {
-                await Task.Delay(intervalMs / 2).ConfigureAwait(false);
-
-                MessageEnvelope msg = new MessageEnvelope();
-                msg.Header = PingHandler.Ping;
-                if (IsConnected)
-                {
-                    msg.TimeStamp = DateTime.Now;
-                    msg.From = sessionId;
-                    msg.To = sessionId;
-
-                    protoClient.SendAsyncMessage(msg);
-                    SendUdpMesssage(sessionId, msg);
-                    pinger.NotifyTcpPingSent(sessionId, msg.TimeStamp);
-                    pinger.NotifyUdpPingSent(sessionId, msg.TimeStamp);
-
-                    await Task.Delay(intervalMs / 2).ConfigureAwait(false);
-                    foreach (var peer in Peers.Keys)
-                    {
-                        msg.TimeStamp = DateTime.Now;
-                        SendAsyncMessage(peer, msg);
-                        pinger.NotifyTcpPingSent(peer, msg.TimeStamp);
-
-
-                        msg.TimeStamp = DateTime.Now;
-                        SendUdpMesssage(peer, msg);
-                        pinger.NotifyUdpPingSent(peer, msg.TimeStamp);
-
-                    }
-                }
-
-
-
-            }
-
-        }
-
-        private void HandlePing(MessageEnvelope message, bool isTcp = true)
-        {
-            // self ping - server roundtrip.
-            if (message.From == sessionId)
-            {
-                //HandlePong(message,isTcp);
-                if (isTcp) pinger.HandleTcpPongMessage(message);
-                else pinger.HandleUdpPongMessage(message);
-            }
-            else
-            {
-                message.Header = PingHandler.Pong;
-                if (isTcp)
-                {
-                    message.To = message.From;
-                    message.From = sessionId;
-                    protoClient.SendAsyncMessage(message);
-                }
-                else
-                    SendUdpMesssage(message.From, message);
-            }
-
-
-        }
-
-        private void HandlePong(MessageEnvelope message, bool isTcp = true)
-        {
-            if (isTcp) pinger.HandleTcpPongMessage(message);
-            else pinger.HandleUdpPongMessage(message);
-        }
-
-        public Dictionary<Guid, double> GetTcpPingStatus()
-        {
-            return pinger.GetTcpLatencies();
-        }
-        public Dictionary<Guid, double> GetUdpPingStatus()
-        {
-            return pinger.GetUdpLatencies();
-        }
-
-        #endregion Ping
-
-        #region Send
-        public void SendUdpMesssage<T>(Guid toId, T message, string messageHeader = null, int channel = 0) where T : IProtoMessage
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-            MessageEnvelope env = new MessageEnvelope();
-            env.From = sessionId;
-            env.To = toId;
-            env.Header = messageHeader == null ? typeof(T).Name : messageHeader;
-
-            if (directUdpClients.TryGetValue(toId, out var client))
-            {
-                if (channel == 0)
-                    client.ch1.SendAsyncMessage(env, message);
-                else
-                    client.ch2.SendAsyncMessage(env, message);
-
-            }
-            else
-                udpRelayClient.SendAsyncMessage(env, message);
-        }
-
-        public void SendUdpMesssage(Guid toId, MessageEnvelope message, int channel = 0)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-            message.From = sessionId;
-            message.To = toId;
-
-            if (directUdpClients.TryGetValue(toId, out var client))
-            {
-                if (channel == 0)
-                    client.ch1.SendAsyncMessage(message);
-                else
-                    client.ch2.SendAsyncMessage(message);
-            }
-
-            else
-                udpRelayClient.SendAsyncMessage(message);
-        }
-        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message, T innerMessage, int channel = 0) where T : IProtoMessage
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            message.From = sessionId;
-            message.To = toId;
-
-            if (directUdpClients.TryGetValue(toId, out var client))
-            {
-                if (channel == 0)
-                    client.ch1.SendAsyncMessage(message, innerMessage);
-                else
-                    client.ch2.SendAsyncMessage(message, innerMessage);
-            }
-
-            else
-                udpRelayClient.SendAsyncMessage(message, innerMessage);
-        }
-        public void SendUdpMesssage(Guid toId, byte[] data, int offset, int count, string dataName, int channel = 0)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            MessageEnvelope env = new MessageEnvelope();
-            env.From = sessionId;
-            env.To = toId;
-            env.Header = dataName;
-
-            if (directUdpClients.TryGetValue(toId, out var client))
-            {
-                if (channel == 0)
-                    client.ch1.SendAsyncMessage(env, data, offset, count);
-                else
-                    client.ch2.SendAsyncMessage(env, data, offset, count);
-            }
-
-            else
-                udpRelayClient.SendAsyncMessage(env, data, offset, count);
-        }
-
-        public void SendAsyncMessage(Guid toId, MessageEnvelope message)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            message.From = sessionId;
-            message.To = toId;
-            protoClient.SendAsyncMessage(message);
-        }
-        public void SendAsyncMessage<T>(Guid toId, T message, string messageHeader = null) where T : IProtoMessage
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            var envelope = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
-            envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
-            protoClient.SendAsyncMessage(envelope, message);
-        }
-
-        public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message) where T : IProtoMessage
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            envelope.From = sessionId;
-            envelope.To = toId;
-            protoClient.SendAsyncMessage(envelope, message);
-        }
-
-        public void SendAsyncMessage(Guid toId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            envelope.From = sessionId;
-            envelope.To = toId;
-            protoClient.SendAsyncMessage(envelope, serializationCallback);
-        }
-
-        public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            var envelope = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
-            envelope.Header = dataName;
-            protoClient.SendAsyncMessage(envelope, data, 0, data.Length);
-        }
-
-        public void SendAsyncMessage(Guid toId, byte[] data, int offset, int count, string dataName)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            var envelopedMessage = InternalMessageResources.MakeRelayMessage(sessionId, toId, null);
-            envelopedMessage.Header = dataName;
-            protoClient.SendAsyncMessage(envelopedMessage, data, offset, count);
-        }
-
-        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000) where T : IProtoMessage
-        {
-            var envelope = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
-            envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
-
-            var task = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
-            return task;
-        }
-
-        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, byte[] data, string dataName, int timeoutMs = 10000)
-        {
-            var envelopedMessage = InternalMessageResources.MakeRelayRequestMessage(Guid.NewGuid(), sessionId, toId, null);
-            envelopedMessage.Header = dataName;
-
-            var response = protoClient.SendMessageAndWaitResponse(envelopedMessage, data, 0, data.Length, timeoutMs = 10000);
-            return response;
-        }
-        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, int timeoutMs = 10000)
-        {
-            message.From = sessionId;
-            message.To = toId;
-
-            var response = protoClient.SendMessageAndWaitResponse(message, timeoutMs);
-            return response;
-        }
-        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
-        {
-            message.From = sessionId;
-            message.To = toId;
-
-            var response = protoClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
-            return response;
-        }
-
-        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message, int timeoutMs = 10000) where T : IProtoMessage
-        {
-            envelope.From = sessionId;
-            envelope.To = toId;
-
-            var response = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
-            return response;
-        }
-
-        #endregion
-
-        private void HandleMessageReceived(MessageEnvelope message)
-        {
-            if (message.IsInternal)
-            {
-                if (holepunchManager.HandleMessage(message))
-                    return;
-
-                switch (message.Header)
-                {
-                    case HolepunchHeaders.CreateChannel:
-                        HandleHoplePunchChannelCreation(message);
-                        break;
-
-                    case InternalMessageResources.RegisteryAck:
-                        SendRegisteryFinalisationMsg(message);
-                        break;
-
-                    case InternalMessageResources.UdpInit:
-                        message.LockBytes();
-                        CreateUdpChannel(message);
-                        break;
-
-                    case InternalMessageResources.UdpInitResend:
-                        ResendUdpInitMessage(message);
-                        break;
-
-                    case InternalMessageResources.UdpFinaliseInit:
-                        message.LockBytes();
-                        FinalizeUdpInit(message);
-                        break;
-                    case (InternalMessageResources.NotifyPeerListUpdate):
-                        UpdatePeerList(message);
-                        break;
-
-                    case PingHandler.Ping:
-                        HandlePing(message);
-                        break;
-
-                    case PingHandler.Pong:
-                        HandlePong(message);
-                        break;
-                    default:
-                        OnMessageReceived?.Invoke(message);
-                        break;
-                }
-
-            }
-            else
-            {
-                switch (message.Header)
-                {
-                    case PingHandler.Ping:
-                        HandlePing(message);
-                        break;
-
-                    case PingHandler.Pong:
-                        HandlePong(message);
-                        break;
-
-                    default:
-                        OnMessageReceived?.Invoke(message);
-                        break;
-
-                }
-
-            }
-
-        }
-
-        private async void SendRegisteryFinalisationMsg(MessageEnvelope message)
-        {
-            if(!connecting)
-                protoClient.SendAsyncMessage(message);
-
-            await Task.Delay(20).ConfigureAwait(false);
-            int attemps = 500;
-            while (connecting && attemps > 0)
-            {
-                await Task.Delay(20).ConfigureAwait(false);
-                attemps--;
-            }
-            try
-            {
-                protoClient.SendAsyncMessage(message);
-            }
-            catch {}
-        }
-
-        private void HandleHoplePunchChannelCreation(MessageEnvelope message)
-        {
-            holepunchManager.CreateChannel(this, message)
-                   .ContinueWith((result, nill) =>
-                   {
-                       ClientHolepunchState state = result.Result;
-                       if (state != null)
-                       {
-                           var client = state.holepunchClient;
-                           client.OnMessageReceived = null;
-                           client.OnMessageReceived += HandleUdpMessageReceived;
-                           if (tempDirectUdpClients.TryGetValue(state.DestinationId, out var ch))
-                           {
-                               ch.Set(client);
-                               tempDirectUdpClients.TryRemove(state.DestinationId, out ch);
-                               directUdpClients.TryAdd(state.DestinationId, ch);
-                             
-                           }
-                           else
-                               tempDirectUdpClients.TryAdd(state.DestinationId , new UdpP2PChannels(client, null));
-                       }
-                   }, null, TaskContinuationOptions.RunContinuationsAsynchronously);
-        }
-
-
-
-        #region Relay Udp Channel Creation
-        private void CreateUdpChannel(MessageEnvelope message)
-        {
-            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(message.Payload, message.Payload);
-            udpRelayClient = new EncryptedUdpProtoClient(algo);
-            udpRelayClient.SocketSendBufferSize = 1280000;
-            udpRelayClient.ReceiveBufferSize = 12800000;
-            udpRelayClient.OnMessageReceived += HandleUdpMessageReceived;
-            udpRelayClient.Bind();
-            udpRelayClient.SetRemoteEnd(connectHost, connectPort);
-
-            message.From = message.To;
-            message.Payload = null;
-            message.IsInternal = true;
-
-            var bytes = serialiser.SerializeMessageEnvelope(message);
-            udpRelayClient.SendAsync(bytes);
-
-            protoClient.SendAsyncMessage(message);
-            Console.WriteLine("Created channel responding..");
-
-        }
-
-
-        private void ResendUdpInitMessage(MessageEnvelope message)
-        {
-            message.Header = InternalMessageResources.UdpInit;
-            message.From = message.To;
-            message.Payload = null;
-            message.IsInternal = true;
-
-            MiniLogger.Log(MiniLogger.LogLevel.Info, "Resending Udp Init to " + udpRelayClient.RemoteEndPoint.ToString());
-            udpRelayClient.SendAsyncMessage(message);
-            protoClient.SendAsyncMessage(message);
-        }
-
-        private void FinalizeUdpInit(MessageEnvelope message)
-        {
-            message.LockBytes();
-            message.IsInternal = true;
-            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(message.Payload, message.Payload);
-            udpRelayClient.SwapAlgorith(algo);
-            protoClient.SendAsyncMessage(message);
-        }
-
-        #endregion
-
-        #region Hole Punch
-        public bool RequestHolePunch(Guid peerId, int timeOut = 10000, bool encrypted = true)
-        {
-            return RequestHolePunchAsync(peerId, timeOut, encrypted).Result;
-        }
-        // Ask the server about holepunch
-        public async Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
-        {
-            bool ret = false;
-            Task<EncryptedUdpProtoClient>[] pending = new Task<EncryptedUdpProtoClient>[2];
-            pending[0] = holepunchManager.CreateHolepunchRequest(this, peerId, timeOut, encrypted);
-            pending[1] = holepunchManager.CreateHolepunchRequest(this, peerId, timeOut, encrypted);
-            await Task.WhenAll(pending).ConfigureAwait(false);
-            if (pending[0].Result == null || pending[1].Result == null)
-            {
-                MiniLogger.Log(MiniLogger.LogLevel.Info, "Hole Punch Failed");
-                return false;
-            }
-            foreach (var item in pending)
-            {
-                var udpClient = item.Result;
-              
-                udpClient.OnMessageReceived = null;
-                udpClient.OnMessageReceived += HandleUdpMessageReceived;
-                if (directUdpClients.TryGetValue(peerId, out var ch))
-                {
-                    ch.Set(udpClient);
-                }
-                else
-                    directUdpClients.TryAdd(peerId, new UdpP2PChannels(udpClient, null));
-                MiniLogger.Log(MiniLogger.LogLevel.Info, "Sucessfully punched hole");
-                ret = true;
-               
-            }
-            return ret;
-
-
-        }
-
-        #endregion
-
-        internal void HandleUdpMessageReceived(MessageEnvelope message)
-        {
-            if (message.Header.Equals(HolepunchHeaders.HoplePunch)) { }
-            else if (message.Header.Equals(PingHandler.Ping)) HandlePing(message, isTcp: false);
-            else if (message.Header.Equals(PingHandler.Pong)) HandlePong(message, isTcp: false);
-
-            else OnUdpMessageReceived?.Invoke(message);
-        }
-
-        public PeerInfo_ GetPeerInfo(Guid peerId)
-        {
-            PeerInfos.TryGetValue(peerId, out var val);
-            return val;
-        }
-
-        protected virtual void UpdatePeerList(MessageEnvelope message)
-        {
-            lock (registeryLocker)
-            {
-                PeerList serverPeerInfo = null;
-                if (message.Payload == null)
-                    serverPeerInfo = new PeerList() { PeerIds = new Dictionary<Guid, PeerInfo>() };
-                else
-                {
-                    //serverPeerInfo = serialiser.Deserialize<PeerList>
-                    //    (message.Payload, message.PayloadOffset, message.PayloadCount);
-                    serverPeerInfo = KnownTypeSerializer.DeserializePeerList(message.Payload, message.PayloadOffset);
-
-                }
-
-                foreach (var peer in Peers.Keys)
-                {
-                    if (!serverPeerInfo.PeerIds.ContainsKey(peer))
-                    {
-                        Peers.TryRemove(peer, out _);
-                        OnPeerUnregistered?.Invoke(peer);
-                        tempDirectUdpClients.TryRemove(peer, out _);
-                        directUdpClients.TryRemove(peer, out _);
-                        pinger.PeerUnregistered(peer);
-                        PeerInfos.TryRemove(peer, out _);
-                    }
-                }
-
-                foreach (var peer in serverPeerInfo.PeerIds.Keys)
-                {
-                    if (!Peers.TryGetValue(peer, out _))
-                    {
-                        Peers.TryAdd(peer, true);
-                        pinger.PeerRegistered(peer);
-                        PeerInfos.TryAdd(peer, new PeerInfo_( serverPeerInfo.PeerIds[peer]));
-                        OnPeerRegistered?.Invoke(peer);
-
-                    }
-                }
-
-            }
-        }
-
-        public void GetTcpStatistics(out TcpStatistics stats) => protoClient.GetStatistics(out stats);
-
+      
     }
 }

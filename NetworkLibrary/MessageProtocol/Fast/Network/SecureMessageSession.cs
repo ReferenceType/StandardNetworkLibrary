@@ -83,7 +83,6 @@ namespace NetworkLibrary.MessageProtocol
             mq.TryEnqueueMessage(message);
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             WriteOnSessionStream(amountWritten);
-
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

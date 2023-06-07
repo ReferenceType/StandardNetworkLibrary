@@ -38,7 +38,6 @@ namespace Protobuff
         private void BytesReceived(byte[] bytes, int offset, int count)
         {
             MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-
             if (client.Awaiter.IsWaiting(message.MessageId))
             {
                 message.LockBytes();

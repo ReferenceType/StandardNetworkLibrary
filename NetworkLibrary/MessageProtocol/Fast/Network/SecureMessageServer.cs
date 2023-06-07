@@ -81,6 +81,7 @@ namespace NetworkLibrary.MessageProtocol
         {
             if (Sessions.TryGetValue(clientId, out IAsyncSession session))
                 ((SecureMessageSession<S>)session).SendAsync(message);
+           
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -172,7 +172,7 @@ namespace Protobuff.P2P.HolePunch
             if ((index & 1 << 2) != 0)
             {
                 int listCount = PrimitiveEncoder.ReadInt32(buffer, ref offset);
-                data.LocalEndpoints = new List<EndpointData>(listCount);
+                data.LocalEndpoints = new List<EndpointData>(listCount+1);
                 for (int i = 0; i < listCount; i++)
                 {
                     data.LocalEndpoints.Add(DeserializeEndpointData(buffer, ref offset));

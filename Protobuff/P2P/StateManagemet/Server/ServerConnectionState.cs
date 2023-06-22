@@ -12,35 +12,12 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Protobuff.P2P.StateManagemet
+namespace Protobuff.P2P.StateManagemet.Server
 {
-    //class ServerConnectionStateManager:StateManager
-    //{
-    //    private SecureProtoRelayServer server;
-    //    public ServerConnectionStateManager(SecureProtoRelayServer server):base(server) 
-    //    {
-    //        this.server = server;
-    //    }
 
-    //    public void CreateState(Guid stateId, Guid clientId)
-    //    {
-    //        MessageEnvelope envelope = new MessageEnvelope()
-    //        {
-    //            IsInternal = true,
-    //            Header = Constants.ServerCmd,
-    //            To = clientId,
-    //            MessageId = stateId,
-    //            Payload = server.ServerUdpInitKey
-    //        };
-
-    //        server.SendAsyncMessage(clientId, envelope);
-    //        AddState(new ServerConnectionState(clientId, stateId, server));
-          
-    //    }
-    //}
     class ServerConnectionState : IState
     {
-       
+
         public event Action<IState> Completed;
         public Guid StateId { get; }
 
@@ -50,6 +27,7 @@ namespace Protobuff.P2P.StateManagemet
         internal IPEndPoint remoteEndpoint;
         internal EndpointTransferMessage endpointTransferMsg;
         internal byte[] random;
+
         private int currentState = 0;
         private StateStatus currentStatus = StateStatus.Pending;
         private StateManager server;
@@ -58,8 +36,9 @@ namespace Protobuff.P2P.StateManagemet
         {
             this.server = server;
             this.clientId = clientId;
-            this.StateId = stateId;
+            StateId = stateId;
         }
+
         public void HandleMessage(MessageEnvelope message)
         {
             if (message.Header == Constants.ClientFinalizationAck)
@@ -101,10 +80,6 @@ namespace Protobuff.P2P.StateManagemet
         public void HandleClientFinalization(MessageEnvelope message)
         {
             Release(true);
-            //if (Interlocked.CompareExchange(ref currentState, Completed_, WaitingClientFinalizaiton) == WaitingClientFinalizaiton)
-            //{
-            //    server.Register(clientId, remoteEndpoint, endpointTransferMsg.LocalEndpoints, random);
-            //}
         }
 
         private int isReleased = 0;

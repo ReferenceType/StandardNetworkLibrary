@@ -18,26 +18,29 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 using NetworkLibrary.Components.Statistics;
+using Protobuff.P2P.StateManagemet.Client;
+using System.Data;
+using System.Security.Cryptography;
+using NetworkLibrary.MessageProtocol;
+using System.IO;
 
 namespace Protobuff.P2P
 {
-    public class RelayClientBase:INetworkNode
+    public class RelayClientBase<S>:INetworkNode
+        where S: ISerializer, new()
     {
-        public class PeerInfo_
+        public class PeerInformation
         {
             public string IP;
             public int Port;
             public IPAddress IPAddress;
-            public PeerInfo_(PeerInfo info)
+            public PeerInformation(PeerInfo info)
             {
                 IPAddress = new IPAddress(info.Address);
                 IP = IPAddress.ToString();
                 Port = info.Port;
             }
-            public PeerInfo_()
-            {
-
-            }
+            public PeerInformation() {}
         }
 
         public Action<Guid> OnPeerRegistered;
@@ -45,40 +48,40 @@ namespace Protobuff.P2P
         public Action<MessageEnvelope> OnUdpMessageReceived;
         public Action<MessageEnvelope> OnMessageReceived;
         public Action OnDisconnected;
-        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback => protoClient.RemoteCertificateValidationCallback;
-        public Guid sessionId { get; private set; }
-        public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
-        public bool IsConnected { get => isConnected; private set => isConnected = value; }
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
-        internal ConcurrentDictionary<Guid, PeerInfo_> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInfo_>();
+        [Obsolete("Use SessionId instead")]
+        public Guid sessionId { get; private set; }
+        public Guid SessionId => sessionId;
+
+        public bool IsConnected { get => isConnected; private set => isConnected = value; }
+        public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
+        internal ConcurrentDictionary<Guid, ReliableUdpModule> RUdpModules = new ConcurrentDictionary<Guid, ReliableUdpModule>();
+        internal ConcurrentDictionary<Guid, PeerInformation> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInformation>();
+       
 
         internal string connectHost;
         internal int connectPort;
-        private bool connecting;
-
-        private SecureProtoMessageClient protoClient;
-        private PingHandler pinger = new PingHandler();
-        private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
-        private ConcurrentDictionary<Guid, EncryptedUdpProtoClient> directUdpClients = new ConcurrentDictionary<Guid, EncryptedUdpProtoClient>();
-
-        private ConcurrentDictionary<Guid, IPEndPoint> punchedEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
-        private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> peerCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
+        internal ClientUdpModule udpServer;
+        internal IPEndPoint relayServerEndpoint;
+        internal SecureMessageClient<S> tcpMessageClient;
+        private ConcurrentAesAlgorithm udpEncriptor;
 
         private object registeryLocker = new object();
         private bool isConnected;
-
-        private ConcurrentAesAlgorithm udpEncriptor;
-        internal ClientUdpModule udpServer;
-        private IPEndPoint relayServerEndpoint;
-      
-        //SimpleHolepunchstateManager sm2;
-        ClientStateManager clientStateManager;
+        private bool connecting;
+        private PingHandler pinger = new PingHandler();
+        private GenericMessageSerializer<S> serialiser = new GenericMessageSerializer<S>();
+        private ConcurrentDictionary<Guid, IPEndPoint> punchedEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
+        private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> peerCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
+        private ClientStateManager<S> clientStateManager;
         public RelayClientBase(X509Certificate2 clientCert)
         {
-            clientStateManager = new ClientStateManager(this);
-            protoClient = new SecureProtoMessageClient(clientCert);
-            protoClient.OnMessageReceived += HandleMessageReceived;
-            protoClient.OnDisconnected += HandleDisconnect;
+            clientStateManager = new ClientStateManager<S>(this);
+            tcpMessageClient = new SecureMessageClient<S>(clientCert);
+            tcpMessageClient.OnMessageReceived += HandleMessageReceived;
+            tcpMessageClient.OnDisconnected += HandleDisconnect;
+            tcpMessageClient.RemoteCertificateValidationCallback += CertificateValidation;
 
             udpServer = new ClientUdpModule(0);
             udpServer.SocketReceiveBufferSize = 12800000;
@@ -86,68 +89,15 @@ namespace Protobuff.P2P
             udpServer.OnBytesRecieved += HandleUdpBytesReceived;
             udpServer.StartServer();
         }
+        public void GetTcpStatistics(out TcpStatistics stats) => tcpMessageClient.GetStatistics(out stats);
 
-        private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
+        private bool CertificateValidation(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            if (peerCryptos.TryGetValue(adress, out var crypto)/*!punchedEndpointsReverse.ContainsKey(adress)*/)
-            {
-                try
-                {
-                    MessageEnvelope msg;
-                    if (crypto != null)
-                    {
-                        var decryptBuffer = BufferPool.RentBuffer(count + 256);
-                        int amountDecrypted = crypto.DecryptInto(bytes, offset, count, decryptBuffer, 0);
-                        ParseMessage(decryptBuffer, 0, amountDecrypted);
-                        BufferPool.ReturnBuffer(decryptBuffer);
-                    }
-                    else
-                    {
-                        ParseMessage(bytes, offset, count);
-                    }
-
-                    void ParseMessage(byte[] decryptedBytes, int byteOffset, int byteCount)
-                    {
-                        if (decryptedBytes[0] == Constants.DefaultUdpMsg)
-                        {
-                            byteOffset++;
-                            byteCount--;
-
-                            msg = serialiser.DeserialiseEnvelopedMessage(decryptedBytes, byteOffset, byteCount);
-
-                            if (!clientStateManager.HandleMessage(adress, msg))
-                            {
-                                HandleUdpMessageReceived(msg);
-                            }
-                        }
-                        // else Future..
-                      
-                    }
-
-                  
-                }
-                catch (Exception e)
-                {
-                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Relay Client Failed to deserialise envelope message " + e.Message);
-
-                }
-            }
-         
+            if (RemoteCertificateValidationCallback == null)
+                return true;
+            return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
         }
-        internal void HandleUdpMessageReceived(MessageEnvelope message)
-        {
-            if (message.Header == null)
-            {
-                return;
-            }
-            else if (message.Header.Equals(Constants.HoplePunch)) { }
-            else if (message.Header.Equals(Constants.Ping)) HandlePing(message, isTcp: false);
-            else if (message.Header.Equals(Constants.Pong)) HandlePong(message, isTcp: false);
 
-            else OnUdpMessageReceived?.Invoke(message);
-        }
-     
-        
         #region Connect & Disconnect
 
         public async Task<bool> ConnectAsync(string host, int port)
@@ -160,23 +110,38 @@ namespace Protobuff.P2P
             try
             {
                 relayServerEndpoint = new IPEndPoint(IPAddress.Parse(connectHost), connectPort);
-                ServerUdpInitCommand = new TaskCompletionSource<MessageEnvelope>();
 
-
-                await protoClient.ConnectAsync(host, port);
+                await tcpMessageClient.ConnectAsync(host, port).ConfigureAwait(false);
                 Console.WriteLine("Connected");
 
-                var result = await RegisterRoutine2().ConfigureAwait(false);
-                if (result == null) throw new Exception("routine failed");
+                var stateCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                clientStateManager.CreateConnectionState()
+                .Completed += (Istate) =>
+                { 
+                    if(Istate.Status == StateStatus.Completed)
+                    {
+                        var state = Istate as ClientConnectionState;
+                        sessionId = state.SessionId;
+                        udpEncriptor = state.udpEncriptor;
+                        tcpMessageClient.SendAsyncMessage(new MessageEnvelope()
+                        {
+                            IsInternal = true,
+                            Header = Constants.ClientFinalizationAck,
+                            MessageId = state.StateId
+                        });
 
-                sessionId = result.SessionId;
-                udpEncriptor = result.encryptor;
+                        peerCryptos.TryAdd(relayServerEndpoint, udpEncriptor);
 
-                peerCryptos.TryAdd(relayServerEndpoint, udpEncriptor);
+                        Volatile.Write(ref isConnected, true);
+                        pinger.PeerRegistered(sessionId);
 
-                Volatile.Write(ref isConnected, true);
-                pinger.PeerRegistered(sessionId);
-                return true;
+                        stateCompletion.SetResult(true);
+
+                    }
+                    else stateCompletion.TrySetException(new TimeoutException());
+                };
+
+                return await stateCompletion.Task;
 
             }
             catch { throw; }
@@ -185,91 +150,8 @@ namespace Protobuff.P2P
                 connecting = false;
             }
         }
-        //-----------------------------------------------------------------------------
-        private TaskCompletionSource<MessageEnvelope> ServerUdpInitCommand =
-                 new TaskCompletionSource<MessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
-        private TaskCompletionSource<MessageEnvelope> ServerFinalization =
-                   new TaskCompletionSource<MessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal List<EndpointData> localEndpoints;
-        class RegisteryCompetion
-        {
-            public Guid SessionId;
-            public ConcurrentAesAlgorithm encryptor;
-        }
-        private async Task<RegisteryCompetion> RegisterRoutine2()
-        {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-            // 0.Send a Reguster message to server.
-            protoClient.SendAsyncMessage(new MessageEnvelope()
-            {
-                IsInternal = true,
-                Header = Constants.Register,
-            });
-            // 1. Wait for server to give you info for your udp message.
-            if (await Task.WhenAny(ServerUdpInitCommand.Task, Task.Delay(8000)) != ServerUdpInitCommand.Task)
-            {
-                return null;
-            }
-
-            ServerFinalization = new TaskCompletionSource<MessageEnvelope>();
-            //2. obtain server Aes key and send a Udp message and register your endpoint.
-            var message = ServerUdpInitCommand.Task.Result;
-
-            var udpEncriptor = new ConcurrentAesAlgorithm(message.Payload, message.Payload);
-            MessageEnvelope udpRegistrationMsg = new MessageEnvelope()
-            {
-                Header = Constants.UdpInit,
-                MessageId = message.MessageId,
-            };
-
-            EndpointTransferMessage endpoints = new EndpointTransferMessage();
-            localEndpoints = GetLocalEndpoints();
-            endpoints.LocalEndpoints = localEndpoints;
-
-            byte[] bytes = EncyrptUdipInitMessage(udpRegistrationMsg, endpoints, udpEncriptor);
-
-            udpServer.SendBytesToClient(relayServerEndpoint, bytes, 0, bytes.Length);
-
-            // 3. Wait for server finalization message, Udp can drop so we do few resends with timeout.
-            int retry = 0;
-            while (await Task.WhenAny(Task.Delay(3000), ServerFinalization.Task).ConfigureAwait(false) != ServerFinalization.Task)
-            {
-                if (++retry > 3)
-                {
-                    return null;
-                }
-                udpServer.SendBytesToClient(relayServerEndpoint, bytes, 0, bytes.Length);
-            }
-
-            var finalMSg = ServerFinalization.Task.Result;
-            // 4.  Client Finalization is send to make server to register us.
-            protoClient.SendAsyncMessage(new MessageEnvelope()
-            {
-                IsInternal = true,
-                Header = Constants.ClientFinalizationAck,
-                MessageId = message.MessageId
-            });
-
-            return new RegisteryCompetion()
-            {
-                SessionId = message.To,
-                encryptor = new ConcurrentAesAlgorithm(finalMSg.Payload, finalMSg.Payload),
-            };
-        }
-
-        private byte[] EncyrptUdipInitMessage(MessageEnvelope udpRegistrationMsg, EndpointTransferMessage endpoints, ConcurrentAesAlgorithm udpEncriptor)
-        {
-            var streamTemp = SharerdMemoryStreamPool.RentStreamStatic();
-            streamTemp.WriteByte(Constants.DefaultUdpMsg);
-
-            serialiser.EnvelopeMessageWithInnerMessage(streamTemp, udpRegistrationMsg,
-                (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream, endpoints));
-           
-            return udpEncriptor.Encrypt(streamTemp.GetBuffer(), 0, streamTemp.Position32);
-        }
-
-        private List<EndpointData> GetLocalEndpoints()
+      
+        internal List<EndpointData> GetLocalEndpoints()
         {
             List<EndpointData> endpoints = new List<EndpointData>();
             var lep = (IPEndPoint)udpServer.LocalEndpoint;
@@ -290,7 +172,6 @@ namespace Protobuff.P2P
             }
             return endpoints;
         }
-        //------------------------------------------------------------
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Connect(string host, int port)
@@ -301,11 +182,8 @@ namespace Protobuff.P2P
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Disconnect()
         {
-            protoClient?.Disconnect();
-            foreach (var item in directUdpClients)
-            {
-                item.Value.Dispose();
-            }
+            tcpMessageClient?.Disconnect();
+           
         }
 
         private void HandleDisconnect()
@@ -316,9 +194,12 @@ namespace Protobuff.P2P
                 {
                     OnPeerUnregistered?.Invoke(peer.Key);
                 }
-                PeerInfos = new ConcurrentDictionary<Guid, PeerInfo_>();
+                PeerInfos = new ConcurrentDictionary<Guid, PeerInformation>();
                 Peers.Clear();
-                directUdpClients.Clear();
+
+                peerCryptos.Clear();
+                punchedEndpoints.Clear();
+
                 OnDisconnected?.Invoke();
                 IsConnected = false;
             }
@@ -328,43 +209,59 @@ namespace Protobuff.P2P
         #endregion
 
         #region Ping
-
-        public void StartPingService(int intervalMs = 1000)
+        CancellationTokenSource cts;
+        public void StartPingService(int intervalMs = 1000,
+                                     bool sendToServer = true,
+                                     bool sendTcpToPeers = true,
+                                     bool sendUdpToPeers = true)
         {
-            Task.Run(() => SendPing(intervalMs));
+            cts?.Cancel();
+            cts =  new CancellationTokenSource();
+            Task.Run(() => SendPing(intervalMs, sendToServer, sendTcpToPeers, sendUdpToPeers,cts.Token));
         }
-
-        private async void SendPing(int intervalMs)
+        public void StopPingService()
+        {
+            cts?.Cancel();
+            cts = null;
+        }
+        private async void SendPing(int intervalMs, bool sendToServer, bool sendTcpToPeers, bool sendUdpToPeers, CancellationToken token)
         {
             while (true)
             {
-                await Task.Delay(intervalMs / 2).ConfigureAwait(false);
+                if (token.IsCancellationRequested) return;
+                await Task.Delay(intervalMs).ConfigureAwait(false);
+                if(token.IsCancellationRequested) return;
 
                 MessageEnvelope msg = new MessageEnvelope();
                 msg.Header = Constants.Ping;
                 if (IsConnected)
                 {
-                    msg.TimeStamp = DateTime.Now;
-                    msg.From = sessionId;
-                    msg.To = sessionId;
+                    var time = DateTime.Now;
 
-                    protoClient.SendAsyncMessage(msg);
-                    SendUdpMesssage(sessionId, msg);
-                    pinger.NotifyTcpPingSent(sessionId, msg.TimeStamp);
-                    pinger.NotifyUdpPingSent(sessionId, msg.TimeStamp);
+                    if (sendToServer)
+                    {
+                        msg.From = sessionId;
+                        msg.To = sessionId;
 
-                    await Task.Delay(intervalMs / 2).ConfigureAwait(false);
+                        tcpMessageClient.SendAsyncMessage(msg);
+                        pinger.NotifyTcpPingSent(sessionId, time);
+
+                        SendUdpMesssage(sessionId, msg);
+                        pinger.NotifyUdpPingSent(sessionId, time);
+                    }
+
+                    time = DateTime.Now;
+
+                    if (sendTcpToPeers)
+                        BroadcastMessage(msg);
+                    if(sendUdpToPeers)
+                        BroadcastUdpMessage(msg);
                     foreach (var peer in Peers.Keys)
                     {
-                        msg.TimeStamp = DateTime.Now;
-                        SendAsyncMessage(peer, msg);
-                        pinger.NotifyTcpPingSent(peer, msg.TimeStamp);
-
-
-                        msg.TimeStamp = DateTime.Now;
-                        SendUdpMesssage(peer, msg);
-                        pinger.NotifyUdpPingSent(peer, msg.TimeStamp);
-
+                        if (sendTcpToPeers)
+                            pinger.NotifyTcpPingSent(peer, time);
+                        if (sendUdpToPeers)
+                            pinger.NotifyUdpPingSent(peer, time);
                     }
                 }
             }
@@ -387,7 +284,7 @@ namespace Protobuff.P2P
                 {
                     message.To = message.From;
                     message.From = sessionId;
-                    protoClient.SendAsyncMessage(message);
+                    tcpMessageClient.SendAsyncMessage(message);
                 }
                 else
                     SendUdpMesssage(message.From, message);
@@ -417,11 +314,8 @@ namespace Protobuff.P2P
 
         private void SendUdpMesssageInternal(in Guid toId, MessageEnvelope message)
         {
-            if (directUdpClients.TryGetValue(toId, out var client))
-            {
-                client.SendAsyncMessage(message);
-            }
-            else if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+           
+            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
             {
                 udpServer.SendAsync(endpoint, message, peerCryptos[endpoint]);
             }
@@ -429,30 +323,28 @@ namespace Protobuff.P2P
                 udpServer.SendAsync(relayServerEndpoint, message, udpEncriptor);
         }
 
-        private void SendUdpMesssageInternal<T>(in Guid toId, MessageEnvelope message, T innerMessage) where T : IProtoMessage
+        private void SendUdpMesssageInternal<T>(in Guid toId, MessageEnvelope message, T innerMessage) 
         {
-            if (directUdpClients.TryGetValue(toId, out var client))
-            {
-                client.SendAsyncMessage(message, innerMessage);
-            }
-            else if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+            
+            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
             {
                 udpServer.SendAsync(endpoint, message, innerMessage, peerCryptos[endpoint]);
             }
             else
                 udpServer.SendAsync(relayServerEndpoint, message, innerMessage, udpEncriptor);
         }
-        public void SendUdpMesssage<T>(Guid toId, T message, string messageHeader = null, int channel = 0) where T : IProtoMessage
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-            MessageEnvelope env = new MessageEnvelope();
-            env.From = sessionId;
-            env.To = toId;
-            env.Header = messageHeader == null ? typeof(T).Name : messageHeader;
 
-            SendUdpMesssageInternal(toId, env, message);
-        }
+        //public void SendUdpMesssage<T>(Guid toId, T message, string messageHeader = null, int channel = 0) 
+        //{
+        //    if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+        //        return;
+        //    MessageEnvelope env = new MessageEnvelope();
+        //    env.From = sessionId;
+        //    env.To = toId;
+        //    env.Header = messageHeader == null ? typeof(T).Name : messageHeader;
+
+        //    SendUdpMesssageInternal(toId, env, message);
+        //}
 
         public void SendUdpMesssage(Guid toId, MessageEnvelope message, int channel = 0)
         {
@@ -465,7 +357,7 @@ namespace Protobuff.P2P
             SendUdpMesssageInternal(toId, message);
         }
 
-        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message, T innerMessage, int channel = 0) where T : IProtoMessage
+        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message, T innerMessage, int channel = 0) 
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
@@ -493,6 +385,89 @@ namespace Protobuff.P2P
 
         }
 
+        public void BroadcastUdpMessage(MessageEnvelope message)
+        {
+            if (Peers.Count > 0)
+            {
+                message.From = sessionId;
+                message.To = Guid.Empty;
+
+                foreach (var item in punchedEndpoints)
+                {
+                    udpServer.SendAsync(item.Value, message, peerCryptos[item.Value]);
+                }
+                foreach (var item in Peers)
+                {
+                    if (!punchedEndpoints.ContainsKey(item.Key))
+                    {
+                        udpServer.SendAsync(relayServerEndpoint, message, udpEncriptor);
+                        break;
+                    }
+                }
+            }
+        }
+       
+        public void BroadcastUdpMessage<T>(MessageEnvelope message, T innerMessage)
+        {
+            if (Peers.Count > 0)
+            {
+                message.From = sessionId;
+                message.To = Guid.Empty;
+                udpServer.SendAsync(relayServerEndpoint, message, udpEncriptor);
+
+                foreach (var item in punchedEndpoints)
+                {
+                    udpServer.SendAsync(item.Value, message,innerMessage, peerCryptos[item.Value]);
+                }
+            }
+        }
+
+        internal void MulticastUdpMessage(MessageEnvelope message, ICollection<Guid> targets)
+        {
+
+            udpServer.SendAsync(relayServerEndpoint, message, udpEncriptor);
+
+            foreach (var peerId in targets)
+            {
+                if (punchedEndpoints.TryGetValue(peerId, out var ep))
+                    udpServer.SendAsync(ep, message, peerCryptos[ep]);
+
+            }
+
+        }
+        internal void MulticastUdpMessage<T>(MessageEnvelope message, ICollection<Guid> targets, T innerMessage)
+        {
+          
+            udpServer.SendAsync(relayServerEndpoint, message, udpEncriptor);
+
+            foreach (var peerId in targets)
+            {
+                if (punchedEndpoints.TryGetValue(peerId, out var ep))
+                    udpServer.SendAsync(ep, message, innerMessage, peerCryptos[ep]);
+            }
+
+        }
+
+        public void BroadcastMessage(MessageEnvelope message)
+        {
+            if (Peers.Count > 0)
+            {
+                message.From = sessionId;
+                message.To = Guid.Empty;
+                tcpMessageClient.SendAsyncMessage(message);
+            }
+        }
+
+        public void BroadcastMessage<T>(MessageEnvelope message, T innerMessage)
+        {
+            if (Peers.Count > 0)
+            {
+                message.From = sessionId;
+                message.To = Guid.Empty;
+                tcpMessageClient.SendAsyncMessage(message,innerMessage);
+            }
+        }
+
         public void SendAsyncMessage(Guid toId, MessageEnvelope message)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -500,16 +475,16 @@ namespace Protobuff.P2P
 
             message.From = sessionId;
             message.To = toId;
-            protoClient.SendAsyncMessage(message);
+            tcpMessageClient.SendAsyncMessage(message);
         }
-        public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message) where T : IProtoMessage
+        public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message) 
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
 
             envelope.From = sessionId;
             envelope.To = toId;
-            protoClient.SendAsyncMessage(envelope, message);
+            tcpMessageClient.SendAsyncMessage(envelope, message);
         }
 
         public void SendAsyncMessage(Guid toId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
@@ -519,10 +494,10 @@ namespace Protobuff.P2P
 
             envelope.From = sessionId;
             envelope.To = toId;
-            protoClient.SendAsyncMessage(envelope, serializationCallback);
+            tcpMessageClient.SendAsyncMessage(envelope, serializationCallback);
         }
 
-        public void SendAsyncMessage<T>(Guid toId, T message, string messageHeader = null) where T : IProtoMessage
+        public void SendAsyncMessage<T>(Guid toId, T message, string messageHeader = null) 
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
@@ -534,7 +509,7 @@ namespace Protobuff.P2P
             };
 
             envelope.Header = messageHeader == null ? typeof(T).Name : messageHeader;
-            protoClient.SendAsyncMessage(envelope, message);
+            tcpMessageClient.SendAsyncMessage(envelope, message);
         }
 
         public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
@@ -548,7 +523,7 @@ namespace Protobuff.P2P
                 To = toId,
                 Header = dataName
             };
-            protoClient.SendAsyncMessage(envelope, data, 0, data.Length);
+            tcpMessageClient.SendAsyncMessage(envelope, data, 0, data.Length);
         }
 
         public void SendAsyncMessage(Guid toId, byte[] data, int offset, int count, string dataName)
@@ -562,7 +537,7 @@ namespace Protobuff.P2P
                 To = toId,
                 Header = dataName
             };
-            protoClient.SendAsyncMessage(envelope, data, offset, count);
+            tcpMessageClient.SendAsyncMessage(envelope, data, offset, count);
         }
 
         public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000) where T : IProtoMessage
@@ -575,7 +550,7 @@ namespace Protobuff.P2P
                 Header = messageHeader == null ? typeof(T).Name : messageHeader
             };
 
-            var task = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
+            var task = tcpMessageClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
             return task;
         }
 
@@ -589,7 +564,7 @@ namespace Protobuff.P2P
                 Header = dataName
             };
 
-            var response = protoClient.SendMessageAndWaitResponse(envelope, data, 0, data.Length, timeoutMs);
+            var response = tcpMessageClient.SendMessageAndWaitResponse(envelope, data, 0, data.Length, timeoutMs);
             return response;
         }
         public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, int timeoutMs = 10000)
@@ -597,7 +572,7 @@ namespace Protobuff.P2P
             message.From = sessionId;
             message.To = toId;
 
-            var response = protoClient.SendMessageAndWaitResponse(message, timeoutMs);
+            var response = tcpMessageClient.SendMessageAndWaitResponse(message, timeoutMs);
             return response;
         }
         public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
@@ -605,7 +580,7 @@ namespace Protobuff.P2P
             message.From = sessionId;
             message.To = toId;
 
-            var response = protoClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
+            var response = tcpMessageClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
             return response;
         }
 
@@ -614,11 +589,78 @@ namespace Protobuff.P2P
             envelope.From = sessionId;
             envelope.To = toId;
 
-            var response = protoClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
+            var response = tcpMessageClient.SendMessageAndWaitResponse(envelope, message, timeoutMs);
             return response;
         }
 
         #endregion
+
+        #region Receive
+
+        private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
+        {
+            if (peerCryptos.TryGetValue(adress, out var crypto)/*!punchedEndpointsReverse.ContainsKey(adress)*/)
+            {
+                byte[] decryptBuffer = null;
+
+                try
+                {
+                    MessageEnvelope msg;
+                    if (crypto != null)
+                    {
+                         decryptBuffer = BufferPool.RentBuffer(count + 256);
+                        int amountDecrypted = crypto.DecryptInto(bytes, offset, count, decryptBuffer, 0);
+                        ParseMessage(decryptBuffer, 0, amountDecrypted);
+                        BufferPool.ReturnBuffer(decryptBuffer);
+                    }
+                    else
+                    {
+                        ParseMessage(bytes, offset, count);
+                    }
+
+                    void ParseMessage(byte[] decryptedBytes, int byteOffset, int byteCount)
+                    {
+                       
+                        msg = serialiser.DeserialiseEnvelopedMessage(decryptedBytes, byteOffset, byteCount);
+
+                        if (!clientStateManager.HandleMessage(adress, msg))
+                        {
+                            HandleUdpMessageReceived(msg);
+                        }
+                        
+                    }
+
+
+                }
+                catch (Exception e)
+                {
+                    var b = decryptBuffer;
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Relay Client Failed to deserialise envelope message " + e.Message);
+
+                }
+            }
+
+        }
+        private void HandleUdpMessageReceived(MessageEnvelope message)
+        {
+            if (message.Header == null) return;
+            else if (message.Header.Equals(Constants.Ping)) HandlePing(message, isTcp: false);
+            else if (message.Header.Equals(Constants.Pong)) HandlePong(message, isTcp: false);
+            else if(message.Header== Constants.Rudp)
+            {
+                if(RUdpModules.TryGetValue(message.From, out var mod))
+                {
+                    mod.HandleBytes(message.Payload, message.PayloadOffset, message.PayloadCount);
+                }
+            }
+            else HandleUdpMessage(message);
+        }
+
+        protected virtual void HandleUdpMessage(MessageEnvelope message)
+        {
+            OnUdpMessageReceived?.Invoke(message);
+        }
+
         private void HandleMessageReceived(MessageEnvelope message)
         {
 
@@ -626,31 +668,17 @@ namespace Protobuff.P2P
             {
                 if (clientStateManager.HandleMessage(message))
                     return;
-
-                switch (message.Header)
-                {
-                    case Constants.ServerCmd:
-                        message.LockBytes();
-                        ServerUdpInitCommand.TrySetResult(message);
-                        return;
-
-                    case Constants.ServerFinalizationCmd:
-                        message.LockBytes();
-                        ServerFinalization.TrySetResult(message);
-                        return;
-
-                    case (Constants.NotifyPeerListUpdate):
-                        UpdatePeerList(message);
-                        break;
-
-                    default:
-                        OnMessageReceived?.Invoke(message);
-                        break;
-                }
-
+                else if(message.Header == Constants.NotifyPeerListUpdate)
+                    UpdatePeerList(message);
+                else
+                    HandleMessage(message);
             }
             else
             {
+                if (UdpAwaiter.IsWaiting(message.MessageId))
+                {
+                    UdpAwaiter.ResponseArrived(message);
+                }
                 switch (message.Header)
                 {
                     case Constants.Ping:
@@ -662,7 +690,7 @@ namespace Protobuff.P2P
                         break;
 
                     default:
-                        OnMessageReceived?.Invoke(message);
+                        HandleMessage(message);
                         break;
 
                 }
@@ -671,61 +699,90 @@ namespace Protobuff.P2P
 
         }
 
+        protected virtual void HandleMessage(MessageEnvelope message)
+        {
+            OnMessageReceived?.Invoke(message);
+        }
+
+        #endregion
+
         #region Hole Punch
         public bool RequestHolePunch(Guid peerId, int timeOut = 10000, bool encrypted = true)
         {
             return RequestHolePunchAsync(peerId, timeOut, encrypted).Result;
         }
-        // Ask the server about holepunch
+
         public Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
         {
             if (clientStateManager.IsHolepunchStatePending(peerId) ||
-                punchedEndpoints.ContainsKey(peerId) ||
-                directUdpClients.ContainsKey(peerId))
+                punchedEndpoints.ContainsKey(peerId))
             {
                 return Task.FromResult(false);
             }
 
-
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            var state = clientStateManager.CreateHolePncState2(peerId, Guid.NewGuid());
+            var state = clientStateManager.CreateHolePunchState(peerId, Guid.NewGuid());
             state.Completed += (s) =>
             {
                 if (state.Status == StateStatus.Completed)
                 {
-                    // HandleCompletedHolepunchState2(state);
                     tcs.SetResult(true);
                 }
                 else
                 {
-                    var state2 = clientStateManager.CreateHolepunchState(peerId, timeOut, encrypted);
-                    state2.Completed += (st) =>
-                    {
-                        if (st.Status == StateStatus.Completed)
-                        {
-                            var client = state2.holepunchClient;
-                            client.OnMessageReceived = null;
-                            client.OnMessageReceived += HandleUdpMessageReceived;
-                            directUdpClients.TryAdd(peerId, client);
-                            tcs.SetResult(true);
-                        }
-                        else
-                            tcs.SetResult(false);
-                    };
-
+                    tcs.SetResult(false);
                 }
             };
-            return tcs.Task;
+            return tcs.Task; 
+        }
 
-           
+        // Callback from holepunch state.
+        // This associates a crypto algorithm on an enpoint so we can decirpt the messages
+        internal void RegisterCrypto(byte[] key, List<EndpointData> associatedEndpoints)
+        {
+            ConcurrentAesAlgorithm crypto = null;
+            if (key != null)
+                crypto = new ConcurrentAesAlgorithm(key, key);
+            foreach (var item in associatedEndpoints)
+            {
+                peerCryptos.TryAdd(item.ToIpEndpoint(), crypto);
+            }
+        }
+
+        // This is called on succesfull completion of a holepucnh
+        internal void HandleHolepunchSuccess(ClientHolepunchState state)
+        {
+            foreach (var ep in state.targetEndpoints.LocalEndpoints)
+            {
+                var ipEp = ep.ToIpEndpoint();
+                if (!ipEp.Equals(state.succesfulEpToReceive))
+                {
+                    peerCryptos.TryRemove(ipEp, out _);
+                }
+            }
+            punchedEndpoints.TryAdd(state.destinationId, state.succesfulEpToReceive);
+
+            MiniLogger.Log(MiniLogger.LogLevel.Info, $"Punched on {state.succesfulEpToReceive}");
+        }
+
+     
+        internal void HandleHolepunchFailure(ClientHolepunchState state)
+        {
+            if(state.targetEndpoints!=null && state.targetEndpoints.LocalEndpoints != null)
+            {
+                var associatedEndpoints = state.targetEndpoints.LocalEndpoints;
+                foreach (var item in associatedEndpoints)
+                {
+                    peerCryptos.TryRemove(item.ToIpEndpoint(), out _);
+                }
+            }
         }
 
         #endregion
 
-     
-
-        public PeerInfo_ GetPeerInfo(Guid peerId)
+        #region Peer Update
+        public PeerInformation GetPeerInfo(Guid peerId)
         {
             PeerInfos.TryGetValue(peerId, out var val);
             return val;
@@ -742,14 +799,20 @@ namespace Protobuff.P2P
                 {
                     serverPeerInfo = KnownTypeSerializer.DeserializePeerList(message.Payload, message.PayloadOffset);
                 }
+
                 List<Guid> registered = new List<Guid>();
                 List<Guid> unregistered = new List<Guid>();
+
                 foreach (var peer in Peers.Keys)
                 {
                     if (!serverPeerInfo.PeerIds.ContainsKey(peer))
                     {
                         Peers.TryRemove(peer, out _);
-                        directUdpClients.TryRemove(peer, out _);
+
+                        if(punchedEndpoints.TryRemove(peer, out var ep) && ep !=null)
+                            peerCryptos.TryRemove(ep, out _);
+
+                        RemoveRudpModule(peer);
                         pinger.PeerUnregistered(peer);
                         PeerInfos.TryRemove(peer, out _);
                         unregistered.Add(peer);
@@ -761,71 +824,162 @@ namespace Protobuff.P2P
                     if (!Peers.TryGetValue(peer, out _))
                     {
                         Peers.TryAdd(peer, true);
+                        CreateRudpModule(peer);
                         pinger.PeerRegistered(peer);
-                        PeerInfos.TryAdd(peer, new PeerInfo_(serverPeerInfo.PeerIds[peer]));
+                        PeerInfos.TryAdd(peer, new PeerInformation(serverPeerInfo.PeerIds[peer]));
                         registered.Add(peer);
                     }
                 }
 
-                ThreadPool.UnsafeQueueUserWorkItem((s) =>
+               
+                foreach (var peer in unregistered)
                 {
-                    foreach (var peer in unregistered)
-                    {
-                        OnPeerUnregistered?.Invoke(peer);
-                    }
-                    foreach (var peer in registered)
-                    {
-                        OnPeerRegistered?.Invoke(peer);
-                    }
-                }, null);
-
-            }
-        }
-
-        public void GetTcpStatistics(out TcpStatistics stats) => protoClient.GetStatistics(out stats);
-
-        internal void HandleCompletedHolepunchState(ClientHolepunchState state)
-        {
-            var client = state.holepunchClient;
-            client.OnMessageReceived = null;
-            client.OnMessageReceived += HandleUdpMessageReceived;
-            directUdpClients.TryAdd(state.DestinationId, client);
-        }
-
-        internal void HandleCompletedHolepunchState2(SimpleClientHPState state)
-        {
-            //  punchedEndpointsReverse.TryAdd(state.succesfulEp, peerCryptos[state.succesfulEp]);
-            // punchedEndpoints.TryAdd(state.destinationId, state.succesfulEpToReceive);//
-            foreach (var ep in state.targetEndpoints.LocalEndpoints)
-            {
-                var ipEp = ep.ToIpEndpoint();
-                if (!ipEp.Equals(state.succesfulEpToReceive))
+                    OnPeerUnregistered?.Invoke(peer);
+                }
+                foreach (var peer in registered)
                 {
-                    peerCryptos.TryRemove(ipEp, out _);
+                    OnPeerRegistered?.Invoke(peer);
                 }
             }
-            punchedEndpoints.TryAdd(state.destinationId, state.succesfulEpToReceive);//
-
-            MiniLogger.Log(MiniLogger.LogLevel.Info, $"Punched on {state.succesfulEpToReceive}");
         }
 
-        internal void RegisterCrypto(byte[] key, List<EndpointData> associatedEndpoints)
+        private void RemoveRudpModule(Guid peer)
         {
-            ConcurrentAesAlgorithm crypto = null;
-            if (key != null)
-                crypto = new ConcurrentAesAlgorithm(key, key);
-            foreach (var item in associatedEndpoints)
+            if(RUdpModules.TryRemove(peer, out var mod))
             {
-                peerCryptos.TryAdd(item.ToIpEndpoint(), crypto);
+                mod.Close();
             }
         }
 
-       
+        private void CreateRudpModule(Guid peer)
+        {
+            var mod = new ReliableUdpModule();
+            mod.OnSend += (b, o, c) =>
+            {
+                SendRudpMessage(peer, b, o, c);
+            };
+            mod.OnReceived += HandleRUdpBytesReceived;
+            RUdpModules.TryAdd(peer, mod);
 
+        }
+
+        private void HandleRUdpBytesReceived(byte[] arg1, int arg2, int arg3)
+        {           
+            var  msg = serialiser.DeserialiseEnvelopedMessage(arg1, arg2, arg3);
+           
+            if (UdpAwaiter.IsWaiting(msg.MessageId))
+            {
+                UdpAwaiter.ResponseArrived(msg);
+            }
+            else
+                HandleUdpMessageReceived(msg);
+        }
+        private void SendRudpMessage(Guid toId, byte[] b, int o, int c)
+        {
+            MessageEnvelope message = new MessageEnvelope();
+            message.Header = Constants.Rudp;
+            message.SetPayload(b,o,c);
+            SendUdpMesssage(toId, message);
+        }
+
+        public void SendRudpMessage(Guid to, MessageEnvelope msg)
+        {
+            if(RUdpModules.TryGetValue(to, out var mod))
+            {
+                msg.From = sessionId;
+                msg.To = to;
+
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                serialiser.EnvelopeMessageWithBytesDontWritePayload(stream,msg);
+
+                ArraySegment<byte> first = new ArraySegment<byte>(stream.GetBuffer(), 0, stream.Position32);
+                ArraySegment<byte> second;
+                if (msg.Payload == null)
+                    second = new ArraySegment<byte>(new byte[0]);
+                else
+                    second = new ArraySegment<byte>(msg.Payload, msg.PayloadOffset, msg.PayloadCount);
+
+                mod.Send(first,second);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+                
+            }
+        }
+
+        public void SendRudpMessage<T>(Guid to, MessageEnvelope msg, T innerMessage)
+        {
+            if (RUdpModules.TryGetValue(to, out var mod))
+            {
+                msg.From = sessionId;
+                msg.To = to;
+
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                serialiser.EnvelopeMessageWithInnerMessage(stream, msg, innerMessage);
+                mod.Send(stream.GetBuffer(), 0, stream.Position32);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+            }
+        }
+
+        GenericMessageAwaiter<MessageEnvelope> UdpAwaiter = new GenericMessageAwaiter<MessageEnvelope>();
+        public Task<MessageEnvelope> SendRudpMessageAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
+        {
+            message.SetPayload(buffer, offset, count);
+            return SendRudpMessageAndWaitResponse(toId, message,timeoutMs);
+        }
+
+        public Task<MessageEnvelope> SendRudpMessageAndWaitResponse(Guid to, MessageEnvelope msg,int timeoutMs = 10000)
+        {
+            if (RUdpModules.TryGetValue(to, out var mod))
+            {
+                msg.From = sessionId;
+                msg.To = to;
+                msg.MessageId = Guid.NewGuid();
+                var task = UdpAwaiter.RegisterWait(msg.MessageId, timeoutMs);
+
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                serialiser.EnvelopeMessageWithBytesDontWritePayload(stream, msg);
+
+                ArraySegment<byte> first = new ArraySegment<byte>(stream.GetBuffer(), 0, stream.Position32);
+                ArraySegment<byte> second;
+                if (msg.Payload == null)
+                    second = new ArraySegment<byte>(new byte[0]);
+                else
+                second = new ArraySegment<byte>(msg.Payload, msg.PayloadOffset, msg.PayloadCount);
+
+                mod.Send(first, second);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+
+                return task;
+            }
+            return Task.FromResult(new MessageEnvelope() { Header = MessageEnvelope.RequestCancelled });
+        }
+
+        public Task<MessageEnvelope> SendRudpMessageAndWaitResponse<T>(Guid to, MessageEnvelope msg, T innerMessage, int timeoutMs = 10000)
+        {
+            if (RUdpModules.TryGetValue(to, out var mod))
+            {
+                msg.From = sessionId;
+                msg.To = to;
+                msg.MessageId = Guid.NewGuid();
+                var task = UdpAwaiter.RegisterWait(msg.MessageId, timeoutMs);
+
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                serialiser.EnvelopeMessageWithInnerMessage(stream, msg, innerMessage);
+                mod.Send(stream.GetBuffer(), 0, stream.Position32);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+                return task;
+            }
+            return Task.FromResult(new MessageEnvelope() { Header = MessageEnvelope.RequestCancelled });
+
+        }
+
+
+
+        #endregion
+
+        #region Interface implementation
         void INetworkNode.SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm)
         {
             udpServer.SendAsync(ep, message, callback, aesAlgorithm);
-
         }
 
         void INetworkNode.SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback)
@@ -835,8 +989,16 @@ namespace Protobuff.P2P
 
         void INetworkNode.SendAsyncMessage(Guid destinatioinId, MessageEnvelope message)
         {
-           SendAsyncMessage(destinatioinId, message);
+            message.From = sessionId;
+            message.To = destinatioinId;
+            tcpMessageClient.SendAsyncMessage(message);
+            //SendAsyncMessage(destinatioinId, message);
         }
+
+       
+
+     
+        #endregion
     }
 
 }

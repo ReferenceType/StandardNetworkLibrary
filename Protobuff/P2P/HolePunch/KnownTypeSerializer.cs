@@ -12,63 +12,9 @@ using System.Text;
 
 namespace Protobuff.P2P.HolePunch
 {
-    //[ProtoContract]
-    //internal class ChanneCreationMessage : IProtoMessage
-    //{
-    //    [ProtoMember(1)]
-    //    public byte[] SharedSecret { get; set; }
-    //    [ProtoMember(2)]
-    //    public Guid RegistrationId { get; set; }
-    //    [ProtoMember(3)]
-    //    public Guid DestinationId { get; set; }
-
-    //    [ProtoMember(4)]
-    //    [DefaultValue(true)]
-    //    public bool Encrypted { get; set; } = true;
-
-    //}
-
-    //[ProtoContract]
-    //internal class EndpointTransferMessage : IProtoMessage
-    //{
-    //    [ProtoMember(1)]
-    //    public string IpRemote { get; set; }
-    //    [ProtoMember(2)]
-    //    public int PortRemote { get; set; }
-    //    [ProtoMember(3)]
-    //    public List<EndpointData> LocalEndpoints { get; set; } = new List<EndpointData>();
-    //}
-
-
-    //[ProtoContract]
-    //public class EndpointData
-    //{
-    //    [ProtoMember(1)]
-    //    public string Ip;
-    //    [ProtoMember(2)]
-    //    public int Port;
-    //}
-
-
-    //[ProtoContract]
-    //public class PeerInfo : IProtoMessage
-    //{
-    //    [ProtoMember(1)]
-    //    public byte[] Address { get; set; }
-    //    [ProtoMember(2)]
-    //    public ushort Port { get; set; }
-    //}
-
-    //[ProtoContract]
-    //public class PeerList : IProtoMessage
-    //{
-    //    [ProtoMember(1)]
-    //    public Dictionary<Guid, PeerInfo> PeerIds { get; set; }
-
-    //}
-
     internal class KnownTypeSerializer
     {
+        #region Endpoint Data
         public static void SerializeEndpointData(PooledMemoryStream stream, EndpointData data)
         {
             byte index = 0;
@@ -115,9 +61,12 @@ namespace Protobuff.P2P.HolePunch
         }
         public static EndpointData DeserializeEndpointData(byte[] buffer, int offset)
         {
-           
             return DeserializeEndpointData(buffer, ref offset);
         }
+
+        #endregion
+
+        #region Endpoint Transfer Message
 
         public static void SerializeEndpointTransferMessage(PooledMemoryStream stream, EndpointTransferMessage data)
         {
@@ -181,69 +130,9 @@ namespace Protobuff.P2P.HolePunch
 
             return data;
         }
+        #endregion
 
-        public static void SerializeChannelCreationMessage(PooledMemoryStream stream, ChanneCreationMessage data)
-        {
-            byte index = 0;
-            int oldPos = stream.Position32;
-            stream.WriteByte(index);
-
-            if (data.SharedSecret != null)
-            {
-                PrimitiveEncoder.WriteInt32(stream, data.SharedSecret.Length);
-                stream.Write(data.SharedSecret, 0, data.SharedSecret.Length);
-                index = 1;
-            }
-            if (data.RegistrationId != Guid.Empty)
-            {
-                PrimitiveEncoder.WriteGuid(stream, data.RegistrationId);
-                index += 2;
-            }
-            if (data.DestinationId != Guid.Empty)
-            {
-                PrimitiveEncoder.WriteGuid(stream, data.DestinationId);
-                index += 4;
-            }
-            if (data.Encrypted)
-            {
-                index += 8;
-            }
-            var buf = stream.GetBuffer();
-            buf[oldPos] = index;
-        }
-
-        public static ChanneCreationMessage DeserializeChanneCreationMessage(byte[] buffer, int offset)
-        {
-            var index = buffer[offset++];
-
-            var data = new ChanneCreationMessage();
-            if ((index & 1) != 0)
-            {
-                int arrayLenght = PrimitiveEncoder.ReadInt32(buffer, ref offset);
-                data.SharedSecret = ByteCopy.ToArray(buffer, offset, arrayLenght);
-                offset+= arrayLenght;
-            }
-
-
-            if ((index & 1 << 1) != 0)
-            {
-                data.RegistrationId = PrimitiveEncoder.ReadGuid(buffer, ref offset);
-            }
-
-            if ((index & 1 << 2) != 0)
-            {
-                data.DestinationId = PrimitiveEncoder.ReadGuid(buffer, ref offset);
-
-            }
-            if ((index & 1 << 3) != 0)
-            {
-                data.Encrypted = true;
-
-            }
-
-            return data;
-        }
-
+        #region Peer Info
         public static void SerializePeerInfo(PooledMemoryStream stream, PeerInfo data)
         {
             byte index = 0;
@@ -289,7 +178,9 @@ namespace Protobuff.P2P.HolePunch
 
             return data;
         }
+        #endregion
 
+        #region PeerList
         public static void SerializePeerList(PooledMemoryStream stream, PeerList data)
         {
             byte index = 0;
@@ -333,6 +224,43 @@ namespace Protobuff.P2P.HolePunch
             else
                 data.PeerIds =  new Dictionary<Guid, PeerInfo>();
             return data;
+        }
+        #endregion
+        public static void SerializeRoomPeerList(PooledMemoryStream stream, RoomPeerList roomPeerList)
+        {
+            byte index = 0;
+            int oldPos = stream.Position32;
+            stream.WriteByte(index);
+
+            if (roomPeerList.RoomName != null)
+            {
+                PrimitiveEncoder.WriteStringUtf8(stream, roomPeerList.RoomName);
+                index = 1;
+            }
+
+            if (roomPeerList.Peers != null)
+            {
+                SerializePeerList(stream, roomPeerList.Peers);
+                index += 2;
+            }
+
+
+            var buf = stream.GetBuffer();
+            buf[oldPos] = index;
+        }
+        public static RoomPeerList DeserializeRoomPeerList(byte[] buffer, int offset)
+        {
+            var index = buffer[offset++];
+            RoomPeerList peerList = new RoomPeerList();
+            if ((index & 1) != 0)
+            {
+                peerList.RoomName = PrimitiveEncoder.ReadStringUtf8(buffer, ref offset);
+            }
+            if ((index & 1 << 1) != 0)
+            {
+                peerList.Peers = DeserializePeerList(buffer, offset);
+            }
+            return peerList;
         }
     }
 }

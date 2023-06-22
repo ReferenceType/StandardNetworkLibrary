@@ -216,6 +216,31 @@ namespace NetworkLibrary.MessageProtocol
 
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EnvelopeMessageWithBytesDontWritePayload(PooledMemoryStream serialisationStream, MessageEnvelope envelope)
+        {
+            int originalPos = serialisationStream.Position32;
+            serialisationStream.Position32 += 2;
+
+            EnvelopeSerializer.Serialize(serialisationStream, envelope);
+            int delta = serialisationStream.Position32 - originalPos;
+
+            if (delta >= ushort.MaxValue)
+            {
+                throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
+            }
+            ushort oldpos = (ushort)(delta);//msglen +2 
+
+            
+            var pos1 = serialisationStream.Position32;
+            serialisationStream.Position32 = originalPos;
+            serialisationStream.WriteUshortUnchecked(oldpos);
+            serialisationStream.Position32 = pos1;
+
+            //serialisationStream.Write(payloadBuffer, offset, count);
+
+        }
+
 
     }
 }

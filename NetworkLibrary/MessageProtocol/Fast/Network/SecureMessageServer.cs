@@ -139,20 +139,7 @@ namespace NetworkLibrary.MessageProtocol
             return GetSessionEndpoint(cliendId);
         }
 
-        //protected override void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
-        //{
-        //    if (!DeserializeMessages)
-        //    {
-        //       base.HandleBytesReceived(guid, bytes, offset, count);
-        //        return;
-        //    }
-
-        //    E message = serializer.DeserialiseEnvelopedMessage<E>(bytes, offset, count);
-        //    if (!CheckAwaiter(message))
-        //    {
-        //        OnMessageReceived?.Invoke(guid, message);
-        //    }
-        //}
+       
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected bool CheckAwaiter(MessageEnvelope message)

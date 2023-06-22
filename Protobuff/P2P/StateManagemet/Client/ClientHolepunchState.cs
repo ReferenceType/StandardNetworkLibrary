@@ -10,51 +10,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Protobuff.P2P.StateManagemet
+namespace Protobuff.P2P.StateManagemet.Client
 {
-
-    internal class SimpleHolepunchstateManager:StateManager
-    {
-        private RelayClientBase client;
-        public Action<Guid, IPEndPoint, byte[]> HolePunched;
-        public SimpleHolepunchstateManager(RelayClientBase client):base(client)
-        {
-            this.client = client;
-        }
-        // called when initiated by first client
-        public void CreateState(Guid clientId, Guid stateId)
-        {
-            var state = new SimpleClientHPState(clientId, stateId, this);
-            AddState(state);
-            state.Initiate();
-            state.Success += ()=> OnAttemptSuccess(state);
-        }
-        // called when initiated by remote
-        public void CreateStateByRemote(MessageEnvelope message)
-        {
-            var state = new SimpleClientHPState(message.From, message.MessageId, this);
-            AddState(state);
-            state.Success += () => OnAttemptSuccess(state);
-            state.InitiateByRemote(message);
-            
-        }
-
-        public override bool HandleMessage(MessageEnvelope message)
-        {
-            if (message.Header == Constants.EndpointTransfer)
-            {
-                CreateStateByRemote(message);
-                return true;
-            }
-            return base.HandleMessage(message);
-        }
-
-        private void OnAttemptSuccess(SimpleClientHPState state)
-        {
-            HolePunched?.Invoke(state.destinationId, state.succesfulEpToReceive, state.cryptoKey);
-        }
-    }
-    internal class SimpleClientHPState : IState
+    internal class ClientHolepunchState : IState
     {
         public event Action<IState> Completed;
         public StateStatus Status => currentStatus;
@@ -67,18 +25,18 @@ namespace Protobuff.P2P.StateManagemet
         internal EndpointTransferMessage targetEndpoints;
         private ConcurrentAesAlgorithm aesAlgorithm;
         internal byte[] cryptoKey;
-       
+
         private bool encypted = true;
         private int stop;
         private bool isInitiator;
         private StateStatus currentStatus = StateStatus.Pending;
         private StateManager client;
-        private int totalPunchRoutines=0;
-        private CancellationTokenSource cancellationTokenSource =  new CancellationTokenSource();
-        public SimpleClientHPState(Guid destinationId,Guid stateId, StateManager client) 
-        { 
+        private int totalPunchRoutines = 0;
+        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        public ClientHolepunchState(Guid destinationId, Guid stateId, StateManager client)
+        {
             this.destinationId = destinationId;
-            this.StateId = stateId;
+            StateId = stateId;
             this.client = client;
         }
         // A asks B
@@ -97,7 +55,7 @@ namespace Protobuff.P2P.StateManagemet
             var message = new MessageEnvelope
             {
                 IsInternal = true,
-                Header = Constants.GetEndpoints,
+                Header = Constants.InitiateHolepunch,
                 MessageId = StateId
             };
             if (encypted)
@@ -122,12 +80,12 @@ namespace Protobuff.P2P.StateManagemet
                 var ep = targetEndpoints.LocalEndpoints[i].ToIpEndpoint();
 
                 // last one is remote end point, we need to try locals first.
-                if(i == count-1)
-                    PunchRoutine(ep, delay:true);
+                if (i == count - 1)
+                    PunchRoutine(ep, delay: true);
                 else
                     PunchRoutine(ep);
             }
-            
+
         }
 
         private async void PunchRoutine(IPEndPoint ep, bool delay = false)
@@ -177,7 +135,7 @@ namespace Protobuff.P2P.StateManagemet
         // inside of this message i must put the endpoint i shot at
         public void HandleMessage(IPEndPoint remoteEndpoint, MessageEnvelope message)
         {
-           // Console.WriteLine("Received Sucess: " + remoteEndpoint.ToString());
+            // Console.WriteLine("Received Sucess: " + remoteEndpoint.ToString());
 
             if (Interlocked.CompareExchange(ref succesfulEpToReceive, remoteEndpoint, null) == null)
             {
@@ -185,7 +143,7 @@ namespace Protobuff.P2P.StateManagemet
 
                 var msg = new MessageEnvelope()
                 {
-                    IsInternal= true,
+                    IsInternal = true,
                     Header = Constants.HolePunchSucces,
                     MessageId = StateId,
                 };
@@ -198,12 +156,12 @@ namespace Protobuff.P2P.StateManagemet
 
         public void HandleMessage(MessageEnvelope message)
         {
-            if (message.Header == Constants.EndpointTransfer)
+            if (message.Header == Constants.InitiateHolepunch)
             {
                 HandleEndpointMessage(message);
             }
             // can go  now
-            else if(message.Header == Constants.KeyTransfer)
+            else if (message.Header == Constants.KeyTransfer)
             {
                 //Interlocked.Exchange(ref stop, 1);
                 message.LockBytes();
@@ -212,7 +170,7 @@ namespace Protobuff.P2P.StateManagemet
             }
             else if (message.Header == Constants.HolePunchSucces)
             {
-                if(Interlocked.Exchange(ref stop, 1) == 0)
+                if (Interlocked.Exchange(ref stop, 1) == 0)
                 {
                     cancellationTokenSource.Cancel();
                     Consensus();
@@ -220,7 +178,7 @@ namespace Protobuff.P2P.StateManagemet
                     succesfullEpToSend = KnownTypeSerializer.DeserializeEndpointData(message.Payload, message.PayloadOffset).ToIpEndpoint();
                 }
             }
-            else if(message.Header == Constants.HolpunchMessagesSent)
+            else if (message.Header == Constants.HolpunchMessagesSent)
             {
                 Consensus();
             }
@@ -230,13 +188,13 @@ namespace Protobuff.P2P.StateManagemet
 
         private void HolePunchRoutineExit()
         {
-            if(Interlocked.Decrement(ref totalPunchRoutines) == 0)
+            if (Interlocked.Decrement(ref totalPunchRoutines) == 0)
             {
                 // this means i have send all udp messages for holepunch
                 client.SendAsyncMessage(destinationId,
-                    new MessageEnvelope() 
-                    { 
-                        IsInternal= true,
+                    new MessageEnvelope()
+                    {
+                        IsInternal = true,
                         Header = Constants.HolpunchMessagesSent,
                         MessageId = StateId
                     });
@@ -248,24 +206,31 @@ namespace Protobuff.P2P.StateManagemet
 
         private void Consensus()
         {
-            if(Interlocked.Increment(ref consensusState) == totalConsensus)
+            if (Interlocked.Increment(ref consensusState) == totalConsensus)
             {
+                client.SendAsyncMessage(destinationId,
+                   new MessageEnvelope()
+                   {
+                       IsInternal = true,
+                       Header = Constants.NotifyServerHolepunch,
+                       MessageId = StateId
+                   });
                 Release(true);
             }
         }
 
         private int isReleased = 0;
-      
+
         public void Release(bool isCompletedSuccessfully)
         {
             if (Interlocked.CompareExchange(ref isReleased, 1, 0) == 0)
             {
-                if(isCompletedSuccessfully)
+                if (isCompletedSuccessfully)
                     currentStatus = StateStatus.Completed;
                 else
                     currentStatus = StateStatus.Failed;
-                
-                 Completed?.Invoke(this);
+
+                Completed?.Invoke(this);
                 Completed = null;
             }
         }

@@ -24,7 +24,7 @@ namespace Protobuff.Components
             lock (locker)
             {
                 PingState = PingData.State.PongReceived;
-                latency = (DateTime.Now - timeStamp).TotalMilliseconds;
+                latency = (DateTime.Now - dispatchTimeStamp).TotalMilliseconds;
             }
 
         }

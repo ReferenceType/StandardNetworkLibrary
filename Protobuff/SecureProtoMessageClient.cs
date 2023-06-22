@@ -92,7 +92,7 @@ namespace Protobuff
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage<T>(MessageEnvelope message, T payload) where T : IProtoMessage
+        public void SendAsyncMessage<T>(MessageEnvelope message, T payload) 
         {
             client.SendAsyncMessage(message, payload);
         }

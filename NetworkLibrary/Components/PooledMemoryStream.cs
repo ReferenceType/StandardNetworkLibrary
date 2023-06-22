@@ -60,7 +60,6 @@ namespace NetworkLibrary.Components
 
         public override long Length { get => length;  }
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Flush()
         {
 
@@ -144,6 +143,8 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Write(byte[] buffer, int offset, int count)
         {
+            if (count == 0)
+                return;
             if (bufferInternal.Length - position < count)
             {
                 int demandSize = count + (bufferInternal.Length);
@@ -153,25 +154,7 @@ namespace NetworkLibrary.Components
                     ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
             }
             
-            //if (count < 8)
-            //{
-            //    int byteCount = count;
-            //    while (--byteCount >= 0)
-            //        bufferInternal[position + byteCount] = buffer[offset + byteCount];
-            //}
-            //else
-            //{
-            //    unsafe
-            //    {
-            //        fixed (byte* destination = &bufferInternal[position])
-            //        {
-            //            fixed (byte* toCopy = &buffer[offset])
-            //                Buffer.MemoryCopy(toCopy, destination, count, count);
-            //        }
-            //    }
-            //    position += count;
-            //}
-
+          
             unsafe
             {
                 fixed (byte* destination = &bufferInternal[position])
@@ -181,7 +164,6 @@ namespace NetworkLibrary.Components
                 }
             }
             position += count;
-
 
             if (length<position)
                 length = position;
@@ -247,14 +229,6 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteIntUnchecked(int value)
         {
-            //if (bufferInternal.Length - position < 4)
-            //{
-            //    int demandSize = 4 + (bufferInternal.Length);
-            //    if (demandSize > BufferPool.MaxBufferSize)
-            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
-            //    else
-            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
-            //}
             unsafe
             {
                 fixed (byte* b = &bufferInternal[position])
@@ -263,6 +237,7 @@ namespace NetworkLibrary.Components
             position += 4;
           
         }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteInt(int value)
         {
@@ -285,16 +260,8 @@ namespace NetworkLibrary.Components
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteUshortUnchecked(ushort value)
+        internal void WriteUshortUnchecked(ushort value)
         {
-            //if (bufferInternal.Length - position < 2)
-            //{
-            //    int demandSize = 2 + (bufferInternal.Length);
-            //    if (demandSize > BufferPool.MaxBufferSize)
-            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
-            //    else
-            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
-            //}
             unsafe
             {
                 fixed (byte* b = &bufferInternal[position])
@@ -306,14 +273,14 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUshort(ushort value)
         {
-            //if (bufferInternal.Length - position < 2)
-            //{
-            //    int demandSize = 2 + (bufferInternal.Length);
-            //    if (demandSize > BufferPool.MaxBufferSize)
-            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
-            //    else
-            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
-            //}
+            if (bufferInternal.Length - position < 2)
+            {
+                int demandSize = 2 + (bufferInternal.Length);
+                if (demandSize > BufferPool.MaxBufferSize)
+                    throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
+                else
+                    ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
+            }
             unsafe
             {
                 fixed (byte* b = &bufferInternal[position])
@@ -324,21 +291,11 @@ namespace NetworkLibrary.Components
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteTwoZerosUnchecked()
+        internal void WriteTwoZerosUnchecked()
         {
-            //if (bufferInternal.Length - position < 2)
-            //{
-            //    int demandSize = 2 + (bufferInternal.Length);
-            //    if (demandSize > BufferPool.MaxBufferSize)
-            //        throw new InvalidOperationException("Cannot expand internal buffer to more than max amount");
-            //    else
-            //        ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
-            //}
-
             bufferInternal[position] = 0;
             bufferInternal[position+1] = 0;
             position+= 2;
-            
         }
 
 

@@ -80,7 +80,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                         Connected(ip, clientSocket);
                         tcs.SetResult(true);
                     }
-                    else tcs.SetResult(false);
+                    else tcs.TrySetException(new SocketException((int)arg.SocketError));
                 }
                 return tcs.Task;
                 

@@ -129,26 +129,7 @@ namespace NetworkLibrary.MessageProtocol
             return task;
         }
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //protected override void HandleBytesReceived(Guid sesonId, byte[] bytes, int offset, int count)
-        //{
-        //    if (!DeserializeMessages)
-        //    {
-        //        base.HandleBytesReceived(sesonId,bytes, offset, count);
-        //        return;
-        //    }
-
-        //    E message = serializer.DeserialiseEnvelopedMessage<E>(bytes, offset, count);
-
-        //    if (awaiter.IsWaiting(message.MessageId))
-        //    {
-        //        message.LockBytes();
-        //        awaiter.ResponseArrived(message);
-        //    }
-        //    else
-        //        OnMessageReceived?.Invoke(message);
-
-        //}
+      
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public new Task<bool> ConnectAsync(string host, int port)

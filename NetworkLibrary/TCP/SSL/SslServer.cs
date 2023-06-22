@@ -6,10 +6,12 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
@@ -93,12 +95,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             var sslStream = new SslStream(new NetworkStream(acceptedArg.AcceptSocket, true), false, ValidateCeriticate);
             try
             {
-                sslStream.BeginAuthenticateAsServer(certificate,
-                                               true,
-                                               System.Security.Authentication.SslProtocols.Tls12,
-                                               false,
-                                               EndAuthenticate,
-                                               new ValueTuple<SslStream, IPEndPoint>(sslStream, (IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint));
+                Authenticate((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint,sslStream,certificate,true,SslProtocols.None,false);
             }
             catch (Exception ex)
             when (ex is AuthenticationException || ex is ObjectDisposedException)
@@ -108,6 +105,39 @@ namespace NetworkLibrary.TCP.SSL.Base
 
             acceptedArg.Dispose();
         }
+
+        private async void Authenticate(IPEndPoint remoteEndPoint, SslStream sslStream, X509Certificate2 certificate, bool v1, SslProtocols none, bool v2)
+        {
+            var task = sslStream.AuthenticateAsServerAsync(certificate, v1, none, v2);
+            if(await Task.WhenAny(task, Task.Delay(10000)) == task)
+            {
+                try
+                {
+                    await task;
+                    var sessionId = Guid.NewGuid();
+                    var ses = CreateSession(sessionId, (sslStream,remoteEndPoint));
+                    ses.OnBytesRecieved += HandleBytesReceived;
+                    ses.OnSessionClosed += HandeDeadSession;
+                    Sessions.TryAdd(sessionId, ses);
+                    ses.StartSession();
+
+                    OnClientAccepted?.Invoke(sessionId);
+                }
+                catch(Exception ex)
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + ex.Message);
+                    sslStream.Close();
+                    sslStream.Dispose();
+                }
+            }
+            else
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server timed out: ");
+                sslStream.Close();
+                sslStream.Dispose();
+            }
+        }
+
         protected virtual bool ValidateConnection(Socket clientsocket)
         {
             return OnClientRequestedConnection.Invoke(clientsocket);
@@ -124,32 +154,6 @@ namespace NetworkLibrary.TCP.SSL.Base
             return false;
         }
 
-        private void EndAuthenticate(IAsyncResult ar)
-        {
-            try
-            {
-                ((ValueTuple<SslStream, IPEndPoint>)ar.AsyncState).Item1.EndAuthenticateAsServer(ar);
-            }
-            catch (Exception e)
-            {
-                MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + e.Message);
-                try
-                {
-                    ((SslStream)ar.AsyncState).Close();
-
-                }
-                catch { }
-                return;
-            }
-            var sessionId = Guid.NewGuid();
-            var ses = CreateSession(sessionId, (ValueTuple<SslStream, IPEndPoint>)ar.AsyncState);
-            ses.OnBytesRecieved += HandleBytesReceived;
-            ses.OnSessionClosed += HandeDeadSession;
-            Sessions.TryAdd(sessionId, ses);
-            ses.StartSession();
-
-            OnClientAccepted?.Invoke(sessionId);
-        }
 
         private void HandeDeadSession(Guid id)
         {

@@ -5,8 +5,10 @@ using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.UDP;
 using NetworkLibrary.Utils;
+using Protobuff.Components.Serialiser;
 using Protobuff.P2P.HolePunch;
 using Protobuff.P2P.StateManagemet;
+using Protobuff.P2P.StateManagemet.Server;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -20,35 +22,38 @@ using System.Threading.Tasks;
 
 namespace Protobuff.P2P
 {
-    public class SecureProtoRelayServer : SecureProtoMessageServer, INetworkNode
+    public class SecureRelayServerBase<S> : SecureMessageServer<S>, INetworkNode where S : ISerializer,new()
     {
         private AsyncUdpServer udpServer;
-        private ConcurrentProtoSerialiser serialiser = new ConcurrentProtoSerialiser();
+        internal GenericMessageSerializer<S> serialiser = new GenericMessageSerializer<S>();
 
         private ConcurrentDictionary<Guid, string> RegisteredPeers = new ConcurrentDictionary<Guid, string>();
         private ConcurrentDictionary<Guid, IPEndPoint> RegisteredUdpEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<Guid, List<EndpointData>> ClientUdpEndpoints = new ConcurrentDictionary<Guid, List<EndpointData>>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> UdpCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
-
+        internal ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, string>> peerReachabilityMatrix
+           = new ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, string>>();
         private TaskCompletionSource<bool> PushPeerList = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool shutdown = false;
         private ConcurrentAesAlgorithm relayDectriptor;
-       // private ServerHolepunchStateManager sm = new ServerHolepunchStateManager();
         internal byte[] ServerUdpInitKey { get; }
-        //private ServerConnectionStateManager connectionStateManager;
-        private ServerStateManager stateManager;
-        public SecureProtoRelayServer(int port, X509Certificate2 cerificate) : base(port, cerificate)
+        private ServerStateManager<S> stateManager;
+
+        public SecureRelayServerBase(int port, X509Certificate2 cerificate) : base(port, cerificate)
         {
+            base.OnClientAccepted += HandleClientAccepted;
+            base.OnBytesReceived += HandleBytesReceived;
+            base.OnClientDisconnected+= HandleClientDisconnected;
             udpServer = new AsyncUdpServer(port);
 
             ServerUdpInitKey = new Byte[16];
-            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+            var rng = new RNGCryptoServiceProvider();
             rng.GetNonZeroBytes(ServerUdpInitKey);
             relayDectriptor = new ConcurrentAesAlgorithm(ServerUdpInitKey, ServerUdpInitKey);
 
             udpServer.OnClientAccepted += UdpClientAccepted;
             udpServer.OnBytesRecieved += HandleUdpBytesReceived;
-            stateManager = new ServerStateManager(this);
+            stateManager = new ServerStateManager<S>(this);
 
             udpServer.StartServer();
 
@@ -93,7 +98,6 @@ namespace Protobuff.P2P
         // this needs to be overridable
         protected virtual void NotifyCurrentPeerList(Guid clientId)
         {
-
             var peerlistMsg = new MessageEnvelope();
             peerlistMsg.Header = Constants.NotifyPeerListUpdate;
             peerlistMsg.IsInternal = true;
@@ -117,7 +121,6 @@ namespace Protobuff.P2P
             var listProto = new PeerList();
             listProto.PeerIds = peerList;
             SendAsyncMessage(clientId, peerlistMsg, (stream)=>KnownTypeSerializer.SerializePeerList(stream,listProto));
-          //  SendAsyncMessage(in clientId, peerlistMsg, listProto);
         }
 
 
@@ -126,12 +129,10 @@ namespace Protobuff.P2P
         #region Registration
 
        
-        protected override void HandleClientAccepted(Guid clientId)
+        protected void HandleClientAccepted(Guid clientId)
         {
-           // connectionStateManager.CreateState(Guid.NewGuid(), clientId);
+            Task.Delay(20000).ContinueWith((t) => { if (!RegisteredPeers.ContainsKey(clientId)) CloseSession(clientId); });
         }
-
-
 
         internal void Register(Guid clientId, IPEndPoint remoteEndpoint,List<EndpointData> localEndpoints, byte[] random)
         {
@@ -140,19 +141,23 @@ namespace Protobuff.P2P
 
             localEndpoints.Add(new EndpointData(remoteEndpoint));
             ClientUdpEndpoints.TryAdd(clientId, localEndpoints);
+            RegisteredPeers[clientId] = null;
 
-            RegisterPeer(in clientId);
+            PublishPeerRegistered(in clientId);
         }
 
-        private void RegisterPeer(in Guid clientId)
+        protected virtual void PublishPeerRegistered(in Guid clientId)
         {
-            RegisteredPeers[clientId] = null;
+            PushPeerList.TrySetResult(true);
+        }
+        protected virtual void PublishPeerUnregistered(in Guid clientId)
+        {
             PushPeerList.TrySetResult(true);
         }
 
         #endregion Registration
 
-        protected override void HandleClientDisconnected(Guid clientId)
+        protected virtual void HandleClientDisconnected(Guid clientId)
         {
             RegisteredPeers.TryRemove(clientId, out _);
             if (RegisteredUdpEndpoints.TryRemove(clientId, out var key))
@@ -161,12 +166,12 @@ namespace Protobuff.P2P
                 udpServer.RemoveClient(key);
             }
 
-            PushPeerList.TrySetResult(true);
+           PublishPeerUnregistered(clientId);
         }
 
         #region Receive
         // Goal is to only read envelope and route with that, without unpcaking payload.
-        protected override void OnBytesReceived(in Guid guid, byte[] bytes, int offset, int count)
+        protected void HandleBytesReceived(in Guid guid, byte[] bytes, int offset, int count)
         {
             try
             {
@@ -174,9 +179,13 @@ namespace Protobuff.P2P
                 if (message.IsInternal)
                 {
                     var messageEnvelope = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-                    HandleMessageReceived(guid, messageEnvelope);
+                    HandleMessageReceivedInternal(guid, messageEnvelope);
                 }
-                else server.SendBytesToClient(message.To, bytes, offset, count);
+                else if (message.To == Guid.Empty)
+                {
+                    BroadcastMessage(in guid,bytes,offset,count);
+                }
+                else SendBytesToClient(message.To, bytes, offset, count);
 
             }
             catch (Exception e)
@@ -187,39 +196,43 @@ namespace Protobuff.P2P
 
         }
 
-        void HandleMessageReceived(Guid clientId, MessageEnvelope message)
+        protected virtual void BroadcastMessage(in Guid guid, byte[] bytes, int offset, int count)
         {
-            if (//!connectionStateManager.HandleMessage(message)
-                //&&!sm.HandleMessage(message)
-                // && 
-               !stateManager.HandleMessage(clientId,message) &&
+            foreach (var peerId in RegisteredPeers.Keys)
+            {
+                if (peerId != guid)
+                    SendBytesToClient(peerId, bytes, offset, count);
+            }
+        }
+
+        protected virtual void HandleMessageReceivedInternal(in Guid clientId, MessageEnvelope message)
+        {
+            if (!stateManager.HandleMessage(clientId,message) &&
                 !CheckAwaiter(message))
             {
                 switch (message.Header)
                 {
-                    //case Constants.Register:
-                    //    connectionStateManager.CreateState(Guid.NewGuid(), clientId);
-                    //    break;
-                    //case (Constants.HolePunchRequest):
-                    //    sm.CreateState(this, message);
-                    //    break;
-                    case Constants.GetEndpoints:
-                        HandleEndpointTransfer(message);
+                 
+                    case Constants.InitiateHolepunch:
+                        InitiateHolepunchBetweenPeers(message);
+                        break;
+                    case Constants.NotifyServerHolepunch:
+                        HandleHolepunchcompletion(message);
                         break;
                     case "WhatsMyIp":
                         SendEndpoint(clientId, message);
                         break;
 
                     default:
-                         server.SendAsyncMessage(message.To, message);
+                         SendAsyncMessage(message.To, message);
                         break;
-
                 }
             }
         }
 
-        private void HandleEndpointTransfer(MessageEnvelope message)
+        private void InitiateHolepunchBetweenPeers(MessageEnvelope message)
         {
+            Console.WriteLine("weeeee");
             byte[] cryptoKey=null;
             if (message.KeyValuePairs!=null && message.KeyValuePairs.TryGetValue("Encrypted",out _))
             {
@@ -238,7 +251,7 @@ namespace Protobuff.P2P
                     From = message.To,
                     To = message.From,
                     MessageId = message.MessageId,
-                    Header = Constants.EndpointTransfer
+                    Header = Constants.InitiateHolepunch
                 },
                     (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                                 new EndpointTransferMessage() {
@@ -251,12 +264,21 @@ namespace Protobuff.P2P
                     From = message.From,
                     To = message.To,
                     MessageId = message.MessageId,
-                    Header = Constants.EndpointTransfer
+                    Header = Constants.InitiateHolepunch
                 },
                   (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                               new EndpointTransferMessage() { IpRemote = cryptoKey, LocalEndpoints = endpointsR }));
             }
         }
+
+       
+
+        private void HandleHolepunchcompletion(MessageEnvelope message)
+        {
+            peerReachabilityMatrix.TryAdd(message.From, new ConcurrentDictionary<Guid, string>());
+            peerReachabilityMatrix[message.From].TryAdd(message.To,null);
+        }
+
         #endregion
 
         private void SendEndpoint(Guid clientId, MessageEnvelope message)
@@ -273,14 +295,13 @@ namespace Protobuff.P2P
             SendAsyncMessage(clientId, env, info);
         }
 
-        private void UdpClientAccepted(SocketAsyncEventArgs ClientSocket)
-        {
-        }
+        private void UdpClientAccepted(SocketAsyncEventArgs ClientSocket) {}
 
 
         private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
             //filter unknown messages
+            // maybe we can ban ip here
             if (!UdpCryptos.ContainsKey(adress))
             {
                 HandleUnregistreredMessage(adress, bytes, offset, count);
@@ -300,8 +321,13 @@ namespace Protobuff.P2P
                 int decrptedAmount = crypto.DecryptInto(bytes, offset, count, buffer, 0);
 
                 // only read header to route the message.
-                var message = serialiser.DeserialiseOnlyRouterHeader(buffer, 1, decrptedAmount-1);
-                if (RegisteredUdpEndpoints.TryGetValue(message.To, out var destEp))
+                var message = serialiser.DeserialiseOnlyRouterHeader(buffer, 0, decrptedAmount);
+                if(message.To == Guid.Empty)
+                {
+                    BroadcastUdp(buffer, decrptedAmount);
+                  
+                }
+                else if (RegisteredUdpEndpoints.TryGetValue(message.To, out var destEp))
                 {
                     if (UdpCryptos.TryGetValue(destEp, out var encryptor))
                     {
@@ -320,13 +346,53 @@ namespace Protobuff.P2P
                 BufferPool.ReturnBuffer(buffer);
             }
         }
+        protected void RelayUdpMessage(in Guid clientId, byte[] unecrypted, int offset,int count)
+        {
+            if (RegisteredUdpEndpoints.TryGetValue(clientId, out var destEp))
+            {
+                if (UdpCryptos.TryGetValue(destEp, out var encryptor))
+                {
+                    var buffer = BufferPool.RentBuffer(count + 256);
+                    var reEncryptedBytesAmount = encryptor.EncryptInto(unecrypted, offset, count, buffer, 0);
+                    udpServer.SendBytesToClient(destEp, buffer, 0, reEncryptedBytesAmount);
+                    BufferPool.ReturnBuffer(buffer);
+
+                }
+            }
+        }
+
+        protected virtual void BroadcastUdp(byte[] buffer, int decrptedAmount)
+        {
+            var message = serialiser.DeserialiseEnvelopedMessage(buffer, 0, decrptedAmount );
+            peerReachabilityMatrix.TryGetValue(message.From, out var map);
+            
+            // here filter the holepunch stuff.
+            foreach (var item in RegisteredUdpEndpoints)
+            {
+                if(map!=null && map.TryGetValue(item.Key,out _))
+                {
+                    continue;
+                }
+                if (item.Key == message.From)
+                    continue;
+                var destEp = item.Value;
+                var tempBuff = BufferPool.RentBuffer(buffer.Length);
+                if (UdpCryptos.TryGetValue(destEp, out var encryptor))
+                {
+                    var reEncryptedBytesAmount = encryptor.EncryptInto(buffer, 0, decrptedAmount, tempBuff, 0);
+                    udpServer.SendBytesToClient(destEp, tempBuff, 0, reEncryptedBytesAmount);
+                }
+                BufferPool.ReturnBuffer(tempBuff);
+            }
+           
+        }
 
         private void HandleUnregistreredMessage(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
             try
             {
                 byte[] result = relayDectriptor.Decrypt(bytes, offset, count);
-                var message1 = serialiser.DeserialiseEnvelopedMessage(result, 1, result.Length-1);
+                var message1 = serialiser.DeserialiseEnvelopedMessage(result, 0, result.Length);
                 stateManager.HandleMessage(adress, message1);
             }
             catch

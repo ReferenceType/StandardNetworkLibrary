@@ -8,11 +8,13 @@ using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.TCP.SSL.Custom;
 using NetworkLibrary.UDP;
+using NetworkLibrary.UDP.Reliable;
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
 using Protobuff.Components.Serialiser;
 using Protobuff.P2P;
+using Protobuff.P2P.Room;
 using Protobuff.Pure;
 using System;
 using System.Buffers;
@@ -57,6 +59,9 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            //TestLobby();
+            TestReliableModules();
+            Console.ReadLine();
            // PureServerClientTest();
             //SerializerTest();
             //Console.ReadLine();
@@ -94,7 +99,7 @@ namespace ConsoleTest
             //PoolTest();
             //UdpProtoTest();
             //EnvelopeTest();
-            RelayTest();
+           // RelayTest();
             //ByteCopyTest();
             //BitConverterTest();
             //ByteCopyTest2();
@@ -109,10 +114,101 @@ namespace ConsoleTest
             //UdpTest();
             //UdpTest2();
             //UdpTestMc();
+        }
 
+        private static void TestReliableModules()
+        {
+            Stopwatch sw = new Stopwatch();
+            int count = 50000;
+            int completed = count;
+            Mockup m = new Mockup();
+            m.RemoveNoiseFeedback= false;
+            m.RemoveNoiseSend= false;
+            byte[] data = new byte[32];
+            m.OnReceived += (voff, off, cnt) =>
+            {
+                if (cnt == data.Length)
+                {
 
+                    if (Interlocked.Decrement(ref completed) == 0)
+                    {
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine(sw.ElapsedMilliseconds);
+
+                    }
+                }
+            };
+            sw.Start();
+
+            for (int i = 0; i < count; i++)
+            {
+                m.SendTest(data, 0, data.Length);
+
+            }
 
         }
+
+        private static void TestLobby()
+        {
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+            string ip = "127.0.0.1";
+            int port = 2222;
+            int numClients = 10;
+            SecureLobbyServer server = new SecureLobbyServer(port,scert);
+            server.StartServer();
+
+            List<SecureLobbyClient> clients = new List<SecureLobbyClient>();
+            for (int i = 0; i < numClients; i++)
+            {
+                var cl = new SecureLobbyClient(cert);
+                cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - "+m.Header);
+                cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - "+m.Header);
+                cl.OnTcpMessageReceived += ( m) => Console.WriteLine("Driect Tcp - "+m.Header);
+                cl.OnUdpMessageReceived += ( m) => Console.WriteLine("Driect Udp - "+m.Header);
+
+                cl.Connect(ip, port);
+                cl.CreateOrJoinRoom("WA");
+
+                clients.Add(cl);
+            }
+            foreach (var client in clients)
+            {
+                foreach (var client2 in clients)
+                {
+                    if (client.SessionId.CompareTo(client2.SessionId) > 0)
+                    {
+                        var r = client.RequestHolePunchAsync(client2.SessionId).Result;
+
+                    }
+                }
+                break;
+            }
+            Thread.Sleep(3000);
+            clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
+
+            for (int i = 0; i < 1; i++)
+            {
+                clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
+                clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
+                clients[0].SendMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct TCp Yo" });
+                clients[0].SendUdpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct UDp Yo" });
+            }
+           
+            Console.ReadLine();
+        }
+
+
         [ProtoContract]
         class TestMSG
         {

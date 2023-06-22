@@ -110,7 +110,7 @@ namespace NetworkLibrary.UDP
 
         private void HandleMessage(SocketAsyncEventArgs e)
         {
-            var clientRemoteEndpoint = e.RemoteEndPoint as IPEndPoint;
+            var clientRemoteEndpoint = (IPEndPoint)e.RemoteEndPoint;
             HandleBytesReceived(clientRemoteEndpoint, e.Buffer, e.Offset, e.BytesTransferred);
         }
 

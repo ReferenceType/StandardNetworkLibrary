@@ -11,7 +11,7 @@ namespace MessageProtocol
          where E : IMessageEnvelope, new()
          where S : ISerializer, new()
     {
-        protected GenericMessageQueue<S,E> mq;
+        protected GenericMessageQueue<S, E> mq;
         private ByteMessageReader reader;
         public SecureMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {

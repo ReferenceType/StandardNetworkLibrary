@@ -43,7 +43,7 @@ namespace NetworkLibrary.UDP
 
         public AsyncUdpClient()
         {
-            recieveBuffer = new byte[65500];
+            recieveBuffer = ByteCopy.GetNewArray(65000, true);
             clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
             clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
@@ -103,10 +103,18 @@ namespace NetworkLibrary.UDP
             RemoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
             clientSocket.Connect(RemoteEndPoint);
             Connected = true;
-            //clientSocket.Blocking = false;
+            clientSocket.Blocking = false;
+            for (int i = 0; i < 16; i++)
+            {
+                //  TT(new byte[65000]);
+            }
             clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
         }
+        private void TT(byte[] buffer)
+        {
+            clientSocket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, EndRecieve2, buffer);
 
+        }
         #region Receive
         private void Receive()
         {
@@ -158,6 +166,26 @@ namespace NetworkLibrary.UDP
                 ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(), null);
             else
                 Receive();
+        }
+        private void EndRecieve2(IAsyncResult ar)
+        {
+            int amount = 0;
+            try
+            {
+                amount = clientSocket.EndReceive(ar);
+            }
+            catch (Exception e)
+            {
+                OnError?.Invoke(e);
+                return;
+            };
+            var buff = (byte[])ar.AsyncState;
+
+            HandleBytesReceived(buff, 0, amount);
+            if (ar.CompletedSynchronously)
+                ThreadPool.UnsafeQueueUserWorkItem((e) => TT(buff), null);
+            else
+                TT(buff);
         }
         private void EndRecieveFrom(IAsyncResult ar)
         {

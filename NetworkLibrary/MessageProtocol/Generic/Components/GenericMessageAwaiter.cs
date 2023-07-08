@@ -48,12 +48,12 @@ namespace NetworkLibrary.MessageProtocol
             }
         }
 
-        public bool IsWaiting(in Guid messageId)
+        public bool IsWaiting(Guid messageId)
         {
             return awaitingMessages.TryGetValue(messageId, out _);
         }
 
-        public void CancelWait(in Guid messageId)
+        public void CancelWait(Guid messageId)
         {
             //todo
         }

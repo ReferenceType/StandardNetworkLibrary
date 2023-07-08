@@ -1,13 +1,9 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Security;
-using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Generic
 {
@@ -18,7 +14,7 @@ namespace NetworkLibrary.Generic
         private ByteMessageReader reader;
         private readonly bool writeMsgLenghtPrefix;
 
-        public GenericSecureSession(Guid sessionId, SslStream sessionStream, bool writeMsgLenghtPrefix = true) 
+        public GenericSecureSession(Guid sessionId, SslStream sessionStream, bool writeMsgLenghtPrefix = true)
             : base(sessionId, sessionStream)
         {
             this.writeMsgLenghtPrefix = writeMsgLenghtPrefix;

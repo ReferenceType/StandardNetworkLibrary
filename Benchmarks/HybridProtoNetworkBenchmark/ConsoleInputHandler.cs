@@ -1,7 +1,4 @@
-﻿using System;
-
-
-internal class ConsoleInputHandler
+﻿internal class ConsoleInputHandler
 {
     public readonly ref struct ConfigInputs
     {

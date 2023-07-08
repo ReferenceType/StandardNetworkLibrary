@@ -1,9 +1,7 @@
 ﻿using MessageProtocol;
 using NetSerializerNetwork.Components;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
 
 namespace NetSerializerNetwork.Internal
 {

@@ -11,7 +11,7 @@ namespace NetworkLibrary.Components.Statistics
         internal readonly IAsyncSession Session;
         private TcpStatistics generalStats = new TcpStatistics();
         private Stopwatch sw = new Stopwatch();
-        public TcpClientStatisticsPublisher(in IAsyncSession session, in Guid sessionId)
+        public TcpClientStatisticsPublisher(IAsyncSession session, in Guid sessionId)
         {
             Session = session;
             sw.Start();

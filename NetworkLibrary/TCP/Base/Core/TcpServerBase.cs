@@ -33,7 +33,7 @@ namespace NetworkLibrary.TCP.Base
         /// <param name="bytes"></param>
         /// <param name="offset"></param>
         /// <param name="count"></param>
-        public delegate void BytesRecieved(in Guid guid, byte[] bytes, int offset, int count);
+        public delegate void BytesRecieved(Guid guid, byte[] bytes, int offset, int count);
 
         /// <summary>
         /// Connection Request callback delegate
@@ -116,7 +116,7 @@ namespace NetworkLibrary.TCP.Base
         /// </summary>
         /// <param name="id"></param>
         /// <param name="bytes"></param>
-        public abstract void SendBytesToClient(in Guid id, byte[] bytes);
+        public abstract void SendBytesToClient(Guid id, byte[] bytes);
 
         /// <summary>
         /// Multicats message to all clients.

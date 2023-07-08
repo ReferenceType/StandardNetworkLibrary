@@ -17,13 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\NetworkLibrary\NetworkLibrary.csproj" />
     <ProjectReference Include="..\..\Protobuff\Protobuff.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="NetworkLibrary">
-      <HintPath>..\..\NetworkLibrary\bin\Debug\netstandard2.0\NetworkLibrary.dll</HintPath>
-    </Reference>
   </ItemGroup>
 
   <ItemGroup>

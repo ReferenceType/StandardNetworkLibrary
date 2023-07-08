@@ -4,10 +4,6 @@ using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol.Serialization;
 using System;
 using System.Collections.Generic;
-using System.IO.MemoryMappedFiles;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace UnitTests
 {
@@ -17,7 +13,7 @@ namespace UnitTests
         [TestMethod]
         public void PrimitiveTest()
         {
-            PooledMemoryStream stream =  new PooledMemoryStream();
+            PooledMemoryStream stream = new PooledMemoryStream();
             PrimitiveEncoder.WriteBool(stream, true);
             PrimitiveEncoder.WriteBool(stream, false);
             PrimitiveEncoder.WriteChar(stream, '/');
@@ -41,7 +37,7 @@ namespace UnitTests
             var buffer = stream.GetBuffer();
             int offset = 0;
 
-         
+
             Assert.IsTrue(true == PrimitiveEncoder.ReadBool(buffer, ref offset));
             Assert.IsTrue(false == PrimitiveEncoder.ReadBool(buffer, ref offset));
             Assert.IsTrue('/' == PrimitiveEncoder.ReadChar(buffer, ref offset));
@@ -149,8 +145,9 @@ namespace UnitTests
 
                 MessageId = Guid.NewGuid(),
                 TimeStamp = DateTime.Now,
-                KeyValuePairs = new Dictionary<string, string>() {
-                   
+                KeyValuePairs = new Dictionary<string, string>()
+                {
+
                 }
             };
 
@@ -163,7 +160,7 @@ namespace UnitTests
 
                 MessageId = Guid.NewGuid(),
                 TimeStamp = DateTime.Now,
-               
+
             };
 
             MessageEnvelope env6 = new MessageEnvelope()
@@ -184,10 +181,10 @@ namespace UnitTests
 
         private bool AssertSerializer(MessageEnvelope sample)
         {
-           TestSerializer(sample, out var result1, out var result2);
-           return IsEqualMemberwise(sample, result1)&&IsEqualMemberwise(sample, result2);
+            TestSerializer(sample, out var result1, out var result2);
+            return IsEqualMemberwise(sample, result1) && IsEqualMemberwise(sample, result2);
         }
-        
+
 
         private void TestSerializer(in MessageEnvelope sample, out MessageEnvelope result1, out MessageEnvelope result2)
         {

@@ -1,6 +1,5 @@
-﻿using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.Components.Statistics;
-
+﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;

@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 namespace MessageProtocol
 {
     public class MessageSession<E, S> : TcpSession
-        where S :ISerializer, new()
+        where S : ISerializer, new()
         where E : IMessageEnvelope, new()
     {
         protected GenericMessageQueue<S, E> mq;
@@ -22,7 +22,7 @@ namespace MessageProtocol
 
         protected virtual GenericMessageQueue<S, E> GetMesssageQueue()
         {
-            return new GenericMessageQueue<S, E>(MaxIndexedMemory,true);
+            return new GenericMessageQueue<S, E>(MaxIndexedMemory, true);
         }
 
         protected override IMessageQueue CreateMessageQueue()

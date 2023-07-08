@@ -1,10 +1,7 @@
-﻿using MessageProtocol;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
-using System.Text;
 
 namespace DataContractNetwork.Components
 {
@@ -14,17 +11,17 @@ namespace DataContractNetwork.Components
         static DataContractSerializer serializer;
         public DataContractSerialiser()
         {
-            if(serializer == null)
+            if (serializer == null)
             {
                 serializer = new DataContractSerializer(typeof(MessageEnvelope));
                 seralizers.TryAdd(typeof(MessageEnvelope), serializer);
             }
-           
+
         }
 
         private DataContractSerializer GetSerializer<T>()
         {
-           if(seralizers.TryGetValue(typeof(T), out var serializer))
+            if (seralizers.TryGetValue(typeof(T), out var serializer))
             {
                 return serializer;
             }
@@ -39,12 +36,12 @@ namespace DataContractNetwork.Components
             return (T)serializer.ReadObject(source);
         }
 
-      
+
 
         public T Deserialize<T>(byte[] buffer, int offset, int count)
         {
             DataContractSerializer serializer = GetSerializer<T>();
-            return (T)serializer.ReadObject(new MemoryStream(buffer,offset,count));
+            return (T)serializer.ReadObject(new MemoryStream(buffer, offset, count));
         }
 
         public void Serialize<T>(Stream destination, T instance)
@@ -61,7 +58,7 @@ namespace DataContractNetwork.Components
         public byte[] Serialize<T>(T instance)
         {
             DataContractSerializer serializer = GetSerializer<T>();
-            var ms =  new MemoryStream();
+            var ms = new MemoryStream();
             serializer.WriteObject(ms, instance);
             return ms.ToArray();
         }

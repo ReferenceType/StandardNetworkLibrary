@@ -182,7 +182,12 @@ namespace NetworkLibrary.TCP.Base
             {
                 SendOrEnqueue(bytes);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "Unexcpected error while sending async with tcp session" + e.Message + "Trace " + e.StackTrace);
+            }
         }
 
         public void SendAsync(byte[] buffer, int offset, int count)
@@ -193,8 +198,12 @@ namespace NetworkLibrary.TCP.Base
             {
                 SendOrEnqueue(buffer, offset, count);
             }
-            catch { if (!IsSessionClosing()) throw; }
-
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "Unexcpected error while sending async with tcp session" + e.Message + "Trace " + e.StackTrace);
+            }
 
         }
 
@@ -354,7 +363,7 @@ namespace NetworkLibrary.TCP.Base
         protected void HandleError(SocketAsyncEventArgs e, string context)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Error, context + Enum.GetName(typeof(SocketError), e.SocketError));
-            EndSession(); 
+            EndSession();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -392,7 +401,7 @@ namespace NetworkLibrary.TCP.Base
             enqueueLock.Take();
             ClientSendEventArg.Dispose();
             messageBuffer?.Dispose();
-            messageBuffer = null;
+           // messageBuffer = null;
             if (UseQueue)
                 BufferPool.ReturnBuffer(sendBuffer);
             enqueueLock.Release();

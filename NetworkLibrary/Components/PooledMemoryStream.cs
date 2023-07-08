@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Diagnostics.Contracts;
-using System.Drawing;
 using System.IO;
 using System.Runtime.CompilerServices;
 
@@ -19,7 +17,7 @@ namespace NetworkLibrary.Components
         {
             bufferInternal = BufferPool.RentBuffer(minCapacity);
         }
-       
+
         public override bool CanRead => true;
 
         public override bool CanSeek => true;
@@ -41,7 +39,7 @@ namespace NetworkLibrary.Components
                     ExpandInternalBuffer((int)value);
 
                 position = (int)value;
-                
+
             }
         }
 
@@ -58,7 +56,7 @@ namespace NetworkLibrary.Components
             }
         }
 
-        public override long Length { get => length;  }
+        public override long Length { get => length; }
 
         public override void Flush()
         {
@@ -77,7 +75,7 @@ namespace NetworkLibrary.Components
         }
         public override int Read(byte[] buffer, int offset, int count)
         {
-            count = count>_capacity-position? (int)_capacity - (int)position : count;
+            count = count > _capacity - position ? (int)_capacity - (int)position : count;
             unsafe
             {
                 fixed (byte* destination = &buffer[offset])
@@ -90,7 +88,7 @@ namespace NetworkLibrary.Components
             }
 
         }
-     
+
         public override long Seek(long offset, SeekOrigin origin)
         {
             if (offset > BufferPool.MaxBufferSize)
@@ -99,7 +97,7 @@ namespace NetworkLibrary.Components
             {
                 case SeekOrigin.Begin:
                     {
-                        int tempPosition = unchecked( (int)offset);
+                        int tempPosition = unchecked((int)offset);
                         if (offset < 0 || tempPosition < 0)
                             throw new IOException("IO.IO_SeekBeforeBegin");
                         Position = tempPosition;
@@ -125,7 +123,7 @@ namespace NetworkLibrary.Components
                     throw new ArgumentException("Argument_InvalidSeekOrigin");
             }
 
-           
+
             return position;
 
         }
@@ -153,8 +151,8 @@ namespace NetworkLibrary.Components
                 else
                     ExpandInternalBuffer(demandSize);// this at least doubles the buffer 
             }
-            
-          
+
+
             unsafe
             {
                 fixed (byte* destination = &bufferInternal[position])
@@ -165,7 +163,7 @@ namespace NetworkLibrary.Components
             }
             position += count;
 
-            if (length<position)
+            if (length < position)
                 length = position;
         }
 
@@ -235,7 +233,7 @@ namespace NetworkLibrary.Components
                     *(int*)b = value;
             }
             position += 4;
-          
+
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -294,8 +292,8 @@ namespace NetworkLibrary.Components
         internal void WriteTwoZerosUnchecked()
         {
             bufferInternal[position] = 0;
-            bufferInternal[position+1] = 0;
-            position+= 2;
+            bufferInternal[position + 1] = 0;
+            position += 2;
         }
 
 
@@ -329,7 +327,7 @@ namespace NetworkLibrary.Components
 
         internal void Advance(int amount)
         {
-            position +=amount;
+            position += amount;
             if (length < position)
                 length = position;
         }

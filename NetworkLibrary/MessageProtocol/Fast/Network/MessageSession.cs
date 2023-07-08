@@ -1,18 +1,12 @@
-﻿using MessageProtocol;
-using NetworkLibrary.Components;
-using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
+﻿using NetworkLibrary.Components;
 using NetworkLibrary.TCP.Base;
-using NetworkLibrary.TCP.ByteMessage;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.MessageProtocol
 {
-    public class MessageSession<S> : TcpSession where S:ISerializer, new()
+    public class MessageSession<S> : TcpSession where S : ISerializer, new()
     {
         ByteMessageReader reader;
         protected GenericMessageQueue<S> mq;

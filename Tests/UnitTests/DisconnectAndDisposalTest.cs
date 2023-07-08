@@ -112,7 +112,7 @@ namespace UnitTests
                 client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 server.SendBytesToClient(id, response);
@@ -209,7 +209,7 @@ namespace UnitTests
                 client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 server.SendBytesToClient(id, response);
@@ -313,7 +313,7 @@ namespace UnitTests
                 client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 server.SendBytesToClient(id, response);

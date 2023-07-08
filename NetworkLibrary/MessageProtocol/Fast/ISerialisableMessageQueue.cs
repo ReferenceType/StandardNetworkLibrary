@@ -1,10 +1,4 @@
-﻿using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace NetworkLibrary.MessageProtocol
+﻿namespace NetworkLibrary.MessageProtocol
 {
     internal interface ISerialisableMessageQueue
     {

@@ -96,7 +96,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -192,7 +192,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 
@@ -303,7 +303,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -403,7 +403,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 
@@ -524,7 +524,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -636,7 +636,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 

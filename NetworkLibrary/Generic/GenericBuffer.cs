@@ -1,12 +1,10 @@
 ﻿using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.MessageProtocol;
 using System;
-using System.Collections.Generic;
-using System.Text;
 [assembly: CLSCompliant(true)]
 namespace NetworkLibrary.Generic
 {
-    public class GenericBuffer<S> : MessageBuffer where S: ISerializer,new()
+    public class GenericBuffer<S> : MessageBuffer where S : ISerializer, new()
     {
         private readonly S serializer = new S();
         public GenericBuffer(int maxIndexedMemory, bool writeLengthPrefix = true) : base(maxIndexedMemory, writeLengthPrefix)
@@ -36,7 +34,7 @@ namespace NetworkLibrary.Generic
                     {
                         var lastPos = writeStream.Position32;
 
-                        writeStream.Position32 = initalPos-4;
+                        writeStream.Position32 = initalPos - 4;
                         writeStream.WriteIntUnchecked(msgLen);
                         writeStream.Position32 = lastPos;
 
@@ -45,7 +43,7 @@ namespace NetworkLibrary.Generic
                     }
 
 
-                    currentIndexedMemory += msgLen ;
+                    currentIndexedMemory += msgLen;
                     return true;
 
                 }

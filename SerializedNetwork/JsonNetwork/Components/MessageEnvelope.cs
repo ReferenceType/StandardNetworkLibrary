@@ -2,13 +2,12 @@
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Text.Json.Serialization;
 
 namespace JsonMessageNetwork.Components
 {
     [JsonSerializable(typeof(MessageEnvelope))]
-    public class MessageEnvelope:IMessageEnvelope
+    public class MessageEnvelope : IMessageEnvelope
     {
         [JsonIgnore]
         public static GenericMessageSerializer<MessageEnvelope, JsonSerializer> serialiser

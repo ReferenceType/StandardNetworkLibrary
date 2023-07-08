@@ -1,11 +1,6 @@
 ﻿using NetworkLibrary.Components;
-using NetworkLibrary.MessageProtocol;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices.ComTypes;
-using System.Xml.Schema;
 
 namespace NetworkLibrary.MessageProtocol.Serialization
 {
@@ -67,6 +62,122 @@ namespace NetworkLibrary.MessageProtocol.Serialization
             }
             var buf = stream.GetBuffer();
             buf[oldPos] = index;
+
+        }
+        public static void Serialize(byte[] buffer,ref int offset, MessageEnvelope envelope)
+        {
+            byte index = 0;
+            // Reserve for index
+            var oldPos = offset;
+            buffer[offset++] = index;
+
+            if (envelope.IsInternal)
+            {
+                // stream.WriteByte(1);
+                index = 1;
+            }
+            if (envelope.To != Guid.Empty)
+            {
+                PrimitiveEncoder.WriteGuid(buffer,ref offset, envelope.To);
+                index += 2;
+            }
+
+            if (envelope.From != Guid.Empty)
+            {
+                PrimitiveEncoder.WriteGuid(buffer,ref offset, envelope.From);
+                index += 4;
+            }
+
+            if (envelope.MessageId != Guid.Empty)
+            {
+                PrimitiveEncoder.WriteGuid(buffer, ref offset, envelope.MessageId);
+                index += 8;
+            }
+
+            if (envelope.TimeStamp.Ticks > 0)
+            {
+                // PrimitiveEncoder.WriteFixedInt64(stream, envelope.TimeStamp.ToBinary());
+                PrimitiveEncoder.WriteFixedInt64(buffer,ref offset, envelope.TimeStamp.Ticks);
+                //BinaryEncoder.WriteDatetime(stream, envelope.TimeStamp);
+                index += 16;
+            }
+
+            if (envelope.Header != null)
+            {
+                PrimitiveEncoder.WriteStringUtf8(buffer,ref offset, envelope.Header);
+                index += 32;
+            }
+
+            if (envelope.KeyValuePairs != null)
+            {
+                index += 64;
+                PrimitiveEncoder.WriteInt32(buffer, ref offset, envelope.KeyValuePairs.Count);
+                foreach (var item in envelope.KeyValuePairs)
+                {
+                    PrimitiveEncoder.WriteStringUtf8(buffer, ref offset, item.Key);
+                    PrimitiveEncoder.WriteStringUtf8(buffer, ref offset, item.Value);
+                }
+            }
+
+            buffer[oldPos] = index;
+
+        }
+        public static unsafe void Serialize(byte* buffer, ref int offset, MessageEnvelope envelope)
+        {
+            byte index = 0;
+            // Reserve for index
+            var oldPos = offset;
+            buffer[offset++] = index;
+
+            if (envelope.IsInternal)
+            {
+                // stream.WriteByte(1);
+                index = 1;
+            }
+            if (envelope.To != Guid.Empty)
+            {
+                PrimitiveEncoder.WriteGuid(buffer, ref offset, envelope.To);
+                index += 2;
+            }
+
+            if (envelope.From != Guid.Empty)
+            {
+                PrimitiveEncoder.WriteGuid(buffer, ref offset, envelope.From);
+                index += 4;
+            }
+
+            if (envelope.MessageId != Guid.Empty)
+            {
+                PrimitiveEncoder.WriteGuid(buffer, ref offset, envelope.MessageId);
+                index += 8;
+            }
+
+            if (envelope.TimeStamp.Ticks > 0)
+            {
+                // PrimitiveEncoder.WriteFixedInt64(stream, envelope.TimeStamp.ToBinary());
+                PrimitiveEncoder.WriteFixedInt64(buffer, ref offset, envelope.TimeStamp.Ticks);
+                //BinaryEncoder.WriteDatetime(stream, envelope.TimeStamp);
+                index += 16;
+            }
+
+            if (envelope.Header != null)
+            {
+                PrimitiveEncoder.WriteStringUtf8(buffer, ref offset, envelope.Header);
+                index += 32;
+            }
+
+            if (envelope.KeyValuePairs != null)
+            {
+                index += 64;
+                PrimitiveEncoder.WriteInt32(buffer, ref offset, envelope.KeyValuePairs.Count);
+                foreach (var item in envelope.KeyValuePairs)
+                {
+                    PrimitiveEncoder.WriteStringUtf8(buffer, ref offset, item.Key);
+                    PrimitiveEncoder.WriteStringUtf8(buffer, ref offset, item.Value);
+                }
+            }
+
+            buffer[oldPos] = index;
 
         }
 
@@ -190,7 +301,7 @@ namespace NetworkLibrary.MessageProtocol.Serialization
 
             var envelope = new RouterHeader();
             envelope.IsInternal = (index & 1) != 0;
-            
+
 
             if ((index & 1 << 1) != 0)
             {

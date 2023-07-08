@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 
 namespace MessageProtocol
 {
-    public class MessageClient< E, S> : AsyncTpcClient
+    public class MessageClient<E, S> : AsyncTpcClient
         where E : IMessageEnvelope, new()
         where S : ISerializer, new()
     {
         public Action<E> OnMessageReceived;
         public bool DeserializeMessages = true;
-        private GenericMessageSerializer<E,S> serializer;
+        private GenericMessageSerializer<E, S> serializer;
         private new MessageSession<E, S> session;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
-       
+
         protected virtual void MapReceivedBytes()
         {
             serializer = new GenericMessageSerializer<E, S>();
@@ -38,7 +38,7 @@ namespace MessageProtocol
 
         protected virtual MessageSession<E, S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
         {
-            return new MessageSession<E, S>(e,sessionId);
+            return new MessageSession<E, S>(e, sessionId);
         }
         protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
@@ -58,14 +58,14 @@ namespace MessageProtocol
         public void SendAsyncMessage(E message)
         {
             //if (session != null)
-                session?.SendAsync(message);
+            session?.SendAsync(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage<U>(E envelope, U message)
         {
             //if (session != null)
-                session?.SendAsync(envelope, message);
+            session?.SendAsync(envelope, message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

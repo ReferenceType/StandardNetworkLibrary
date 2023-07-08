@@ -1,16 +1,12 @@
-﻿using MessageProtocol;
-using NetworkLibrary.Components;
-using NetworkLibrary.MessageProtocol.Serialization;
+﻿using NetworkLibrary.Components;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.MessageProtocol
 {
-    public class SecureMessageSession <S> : SslSession
+    public class SecureMessageSession<S> : SslSession
         where S : ISerializer, new()
     {
         protected GenericMessageQueue<S> mq;

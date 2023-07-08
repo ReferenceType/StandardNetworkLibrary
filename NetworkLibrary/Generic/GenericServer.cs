@@ -1,15 +1,36 @@
-﻿using NetworkLibrary.MessageProtocol;
+﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
 using System;
+
+/* Unmerged change from project 'NetworkLibrary (net6.0)'
+Before:
 using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Net;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
-using static NetworkLibrary.TCP.Base.TcpServerBase;
+After:
 using System.Collections.Concurrent;
-using NetworkLibrary.Components.Statistics;
+using System.Collections.Generic;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (net7.0)'
+Before:
+using System.Collections.Generic;
+After:
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+Before:
+using System.Collections.Generic;
+After:
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+*/
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+using static NetworkLibrary.TCP.Base.TcpServerBase;
 
 namespace NetworkLibrary.Generic
 {
@@ -41,15 +62,15 @@ namespace NetworkLibrary.Generic
             ClientAccepted?.Invoke(guid);
         }
 
-        private void OnBytesReceived(in Guid guid, byte[] bytes, int offset, int count)
+        private void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {
-            BytesReceived?.Invoke(guid, bytes,offset,count);
+            BytesReceived?.Invoke(guid, bytes, offset, count);
         }
 
-        public void StartServer()=>server.StartServer();
-        public void SendAsync<T>(in Guid clientId, T instance)
+        public void StartServer() => server.StartServer();
+        public void SendAsync<T>(Guid clientId, T instance)
         {
-            server.SendAsync(in clientId, instance);
+            server.SendAsync(clientId, instance);
         }
 
         public void Shutdown()
@@ -64,7 +85,7 @@ namespace NetworkLibrary.Generic
     internal class GenericServerInternal<S> : AsyncTcpServer
      where S : ISerializer, new()
     {
-        public readonly S serializer =  new S();
+        public readonly S serializer = new S();
         private readonly bool writeLenghtPrefix;
         public GenericServerInternal(int port, bool writeLenghtPrefix = true) : base(port)
         {
@@ -92,7 +113,7 @@ namespace NetworkLibrary.Generic
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsync<T>(in Guid clientId, T message)
+        public void SendAsync<T>(Guid clientId, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 ((GenericSession<S>)session).SendAsync(message);

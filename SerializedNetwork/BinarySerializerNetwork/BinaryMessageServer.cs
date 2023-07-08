@@ -1,20 +1,18 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Net;
-using System.Runtime.CompilerServices;
-using System.Text;
-using static BinarySerializerNetwork.Internal.ServerClientSession;
-using System.Threading.Tasks;
-using BinarySerializerNetwork.Components;
+﻿using BinarySerializerNetwork.Components;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
+using System;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using static BinarySerializerNetwork.Internal.ServerClientSession;
 
 namespace BinarySerializerNetwork
 {
     public class BinaryMessageServer
     {
-        public delegate void MessageReceived(in Guid clientId, MessageEnvelope message);
+        public delegate void MessageReceived(Guid clientId, MessageEnvelope message);
         public MessageReceived OnMessageReceived;
 
         public Action<Guid> OnClientAccepted;
@@ -47,12 +45,12 @@ namespace BinarySerializerNetwork
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected virtual void OnBytesReceived(in Guid guid, byte[] bytes, int offset, int count)
+        protected virtual void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {
             MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
             if (!CheckAwaiter(message))
             {
-                OnMessageReceived?.Invoke(in guid, message);
+                OnMessageReceived?.Invoke(guid, message);
             }
         }
 
@@ -75,19 +73,19 @@ namespace BinarySerializerNetwork
 
         #region Send
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope message)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope message)
         {
             server.SendAsyncMessage(clientId, message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
         {
             server.SendAsyncMessage(clientId, message, buffer, offset, count);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage<T>(in Guid clientId, MessageEnvelope message, T payload)
+        public void SendAsyncMessage<T>(Guid clientId, MessageEnvelope message, T payload)
         {
             server.SendAsyncMessage(clientId, message, payload);
         }

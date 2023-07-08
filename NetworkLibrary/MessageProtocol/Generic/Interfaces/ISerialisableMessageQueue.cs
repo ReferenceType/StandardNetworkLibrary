@@ -1,6 +1,6 @@
 ﻿using NetworkLibrary.Components;
 
-namespace NetworkLibrary.MessageProtocol    
+namespace NetworkLibrary.MessageProtocol
 {
     public interface ISerialisableMessageQueue<U> : IMessageQueue where U : IMessageEnvelope
     {

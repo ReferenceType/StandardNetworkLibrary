@@ -31,7 +31,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         {
             lock (loki)
             {
-                if  (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
 
                     TotalMessageDispatched++;

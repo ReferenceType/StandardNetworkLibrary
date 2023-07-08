@@ -136,6 +136,7 @@ namespace NetworkLibrary
 
             stream.WriteByte((byte)value);
         }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteFixedUint16(PooledMemoryStream stream, ushort value)
         {
@@ -198,6 +199,28 @@ namespace NetworkLibrary
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WriteInt32(byte[] buffer, ref int offset, int value)
+        {
+            var encoded = (uint)(value << 1 ^ value >> 31);
+
+            for (; encoded >= 0x80u; encoded >>= 7)
+                buffer[offset++] = ((byte)(encoded | 0x80u));
+
+            buffer[offset++] = ((byte)encoded);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe void WriteInt32(byte* buffer, ref int offset, int value)
+        {
+            var encoded = (uint)(value << 1 ^ value >> 31);
+
+            for (; encoded >= 0x80u; encoded >>= 7)
+                buffer[offset++] = ((byte)(encoded | 0x80u));
+
+            buffer[offset++] = ((byte)encoded);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ReadInt32(PooledMemoryStream stream)
         {
             int result = 0;
@@ -246,6 +269,22 @@ namespace NetworkLibrary
                 stream.WriteByte((byte)(value | 0x80u));
 
             stream.WriteByte((byte)value);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteUInt32(byte[] buffer,ref int offset, uint value)
+        {
+            for (; value >= 0x80u; value >>= 7)
+               buffer[offset++]= ((byte)(value | 0x80u));
+
+            buffer[offset++] = ((byte)value);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteUInt32(byte* buffer, ref int offset, uint value)
+        {
+            for (; value >= 0x80u; value >>= 7)
+                buffer[offset++] = ((byte)(value | 0x80u));
+
+            buffer[offset++] = ((byte)value);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint ReadUInt32(PooledMemoryStream stream)
@@ -300,6 +339,17 @@ namespace NetworkLibrary
                 stream.WriteByte((byte)(encoded | 0x80u));
 
             stream.WriteByte((byte)encoded);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WriteInt64(byte[] buffer, ref int offset, long value)
+        {
+            var encoded = (ulong)(value << 1 ^ value >> 63);
+
+            for (; encoded >= 0x80u; encoded >>= 7)
+                buffer[offset++] = ((byte)(encoded | 0x80u));
+
+            buffer[offset++] = ((byte)encoded);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ReadInt64(PooledMemoryStream stream)
@@ -412,6 +462,23 @@ namespace NetworkLibrary
             fixed (byte* b = &buffer[pos])
                 *(long*)b = value;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteFixedInt64(byte[] buffer,ref int offset, long value)
+        {           
+            fixed (byte* b = &buffer[offset])
+                *(long*)b = value;
+            offset += 8;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteFixedInt64(byte* buffer, ref int offset, long value)
+        {
+            byte* b = buffer + offset;
+                *(long*)b = value;
+            offset += 8;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe long ReadFixedInt64(PooledMemoryStream stream)
         {
@@ -591,6 +658,39 @@ namespace NetworkLibrary
         }
 
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteGuid(byte[] buffer, ref int offset, Guid value)
+        {
+           
+            int pos = offset;
+
+            long* ptr = (long*)&value;
+            {
+                fixed (byte* b = &buffer[pos])
+                    *(long*)b = *ptr++;
+
+                fixed (byte* b = &buffer[pos + 8])
+                    *(long*)b = *ptr;
+            }
+            offset+= 16;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteGuid(byte* buffer, ref int offset, Guid value)
+        {
+            int pos = offset;
+
+            long* ptr = (long*)&value;
+            {
+                byte* b = buffer + pos;
+                    *(long*)b = *ptr++;
+
+                byte* bb = buffer + (pos + 8);
+                    *(long*)bb = *ptr;
+            }
+            offset += 16;
+        }
+
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -732,8 +832,75 @@ namespace NetworkLibrary
                 stream.Advance(encoderUtf8.GetBytes(src, value.Length, dst, len));
             }
 
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteStringUtf8(byte[] buffer,ref int offset, string value)
+        {
+            if (value == null)
+            {
+                buffer[offset++] = 0;
+                return;
+            }
+
+            if (value.Length == 0)
+            {
+                buffer[offset++] = 1;
+                buffer[offset++] = 0;
+                return;
+            }
+
+            if (encoderUtf8 == null) encoderUtf8 = new UTF8Encoding(false, true);
+            //int len = encoderUtf8.GetMaxByteCount(value.Length);
+            int len = encoderUtf8.GetByteCount(value);
+            // int len = value.Length*4;
+           
+
+
+            WriteUInt32(buffer,ref offset, (uint)len);
+
+            var buf = buffer;
+            fixed (char* src = value)
+            fixed (byte* dst = &buffer[offset])
+            {
+                offset += encoderUtf8.GetBytes(src, value.Length, dst, len);
+            }
 
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteStringUtf8(byte* buffer, ref int offset, string value)
+        {
+            if (value == null)
+            {
+                buffer[offset++] = 0;
+                return;
+            }
+
+            if (value.Length == 0)
+            {
+                buffer[offset++] = 1;
+                buffer[offset++] = 0;
+                return;
+            }
+
+            if (encoderUtf8 == null) encoderUtf8 = new UTF8Encoding(false, true);
+            //int len = encoderUtf8.GetMaxByteCount(value.Length);
+            int len = encoderUtf8.GetByteCount(value);
+            // int len = value.Length*4;
+
+
+
+            WriteUInt32(buffer, ref offset, (uint)len);
+
+            var buf = buffer;
+            fixed (char* src = value)
+            {
+                byte* dst = buffer + offset;
+                offset += encoderUtf8.GetBytes(src, value.Length, dst, len);
+
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe string ReadStringUtf8(PooledMemoryStream stream)
         {

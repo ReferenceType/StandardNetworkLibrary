@@ -20,8 +20,15 @@ namespace NetworkLibrary.Components
         {
             if (algorithmName == null)
             {
+#if UNITY_STANDALONE
                 // AES.create is not compatible with Unity... 
-                algorithm = new System.Security.Cryptography.RijndaelManaged();//Aes.Create();
+                algorithm = new System.Security.Cryptography.RijndaelManaged();
+#else
+                // AES.create is not compatible with Unity... 
+                //algorithm = Aes.Create();
+                algorithm = new System.Security.Cryptography.RijndaelManaged();
+
+#endif
             }
             else
             {

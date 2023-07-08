@@ -67,6 +67,7 @@ namespace ConsoleTest
             if (runAsClient)
             {
                 InitializeClients();
+
             }
         }
         private static void Benchmark()
@@ -142,11 +143,11 @@ namespace ConsoleTest
             Console.WriteLine("Server Running");
 
         }
-        static void EchoDynamic(in Guid id, byte[] arg2, int offset, int count)
+        static void EchoDynamic(Guid id, byte[] arg2, int offset, int count)
         {
             server.SendBytesToClient(id, arg2, offset, count);
         }
-        static void EchoStatic(in Guid id, byte[] arg2, int offset, int count)
+        static void EchoStatic(Guid id, byte[] arg2, int offset, int count)
         {
             server.SendBytesToClient(id, fixedMessage);
         }

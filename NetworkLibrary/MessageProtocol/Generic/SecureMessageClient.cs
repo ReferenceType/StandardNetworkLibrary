@@ -16,7 +16,7 @@ namespace MessageProtocol
     {
         public Action<E> OnMessageReceived;
         public bool DeserializeMessages = true;
-        private GenericMessageSerializer<E,S> serializer;
+        private GenericMessageSerializer<E, S> serializer;
         private SecureMessageSession<E, S> messageSession;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
 

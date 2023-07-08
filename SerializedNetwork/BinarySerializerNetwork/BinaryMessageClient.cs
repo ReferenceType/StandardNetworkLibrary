@@ -1,12 +1,10 @@
-﻿using NetworkLibrary.MessageProtocol;
-using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text;
-using static BinarySerializerNetwork.Internal.ServerClientSession;
-using System.Threading.Tasks;
-using BinarySerializerNetwork.Components;
+﻿using BinarySerializerNetwork.Components;
 using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
+using System;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using static BinarySerializerNetwork.Internal.ServerClientSession;
 
 namespace BinarySerializerNetwork
 {

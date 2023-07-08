@@ -2,10 +2,8 @@
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading.Tasks;
 using static NetworkLibrary.TCP.Base.TcpClientBase;
 
@@ -20,7 +18,7 @@ namespace NetworkLibrary.Generic
         public GenericClient(bool writeLenghtPrefix = true)
         {
             client = new GenericClientInternal<S>(writeLenghtPrefix);
-            client.OnBytesReceived+=OnBytesReceived;
+            client.OnBytesReceived += OnBytesReceived;
             client.OnDisconnected += Disconnected;
             client.MaxIndexedMemory = 128000000;
             client.GatherConfig = ScatterGatherConfig.UseBuffer;
@@ -60,7 +58,7 @@ namespace NetworkLibrary.Generic
     internal class GenericClientInternal<S> : AsyncTpcClient
   where S : ISerializer, new()
     {
-        public readonly GenericMessageSerializer<S> Serializer =  new GenericMessageSerializer<S>();
+        public readonly GenericMessageSerializer<S> Serializer = new GenericMessageSerializer<S>();
         private new GenericSession<S> session;
         private readonly bool writeLenghtPrefix;
         public GenericClientInternal(bool writeLenghtPrefix = true)

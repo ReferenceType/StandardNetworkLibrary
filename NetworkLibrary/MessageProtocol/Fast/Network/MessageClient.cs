@@ -1,11 +1,7 @@
-﻿using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.TCP.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.MessageProtocol
@@ -21,7 +17,7 @@ namespace NetworkLibrary.MessageProtocol
 
         public MessageClient()
         {
-             if(MessageEnvelope.Serializer == null)
+            if (MessageEnvelope.Serializer == null)
             {
                 MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
             }
@@ -67,14 +63,12 @@ namespace NetworkLibrary.MessageProtocol
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage(MessageEnvelope message)
         {
-            //if (session != null)
             session?.SendAsync(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsyncMessage<U>(MessageEnvelope envelope, U message)
         {
-            //if (session != null)
             session?.SendAsync(envelope, message);
         }
 
@@ -113,25 +107,6 @@ namespace NetworkLibrary.MessageProtocol
         }
 
 
-        //protected override void HandleBytesRecieved(byte[] bytes, int offset, int count)
-        //{
-        //    if (!DeserializeMessages)
-        //    {
-        //        base.HandleBytesRecieved(bytes, offset, count);
-        //        return;
-        //    }
-
-        //    E message = serializer.DeserialiseEnvelopedMessage<E>(bytes, offset, count);
-
-        //    if (Awaiter.IsWaiting(message.MessageId))
-        //    {
-        //        message.LockBytes();
-        //        Awaiter.ResponseArrived(message);
-        //    }
-        //    else
-        //        OnMessageReceived?.Invoke(message);
-
-        //}
 
         public new Task<bool> ConnectAsync(string host, int port)
         {

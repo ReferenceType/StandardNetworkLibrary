@@ -1,9 +1,6 @@
 ﻿using NetworkLibrary;
 using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
-using ProtoBuf;
 using Protobuff;
 using System.Diagnostics;
 
@@ -69,13 +66,13 @@ namespace HybridProtoNetworkBenchmark
 
         }
 
-        static void EchoDynamic(in Guid arg1, MessageEnvelope arg2)
+        static void EchoDynamic(Guid arg1, MessageEnvelope arg2)
         {
-            server.SendAsyncMessage(in arg1, arg2);
+            server.SendAsyncMessage(arg1, arg2);
         }
-        static void EchoStatic(in Guid arg1, MessageEnvelope arg2)
+        static void EchoStatic(Guid arg1, MessageEnvelope arg2)
         {
-            server.SendAsyncMessage(in arg1, fixedMessage);
+            server.SendAsyncMessage(arg1, fixedMessage);
         }
 
         private static void InitializeClients()

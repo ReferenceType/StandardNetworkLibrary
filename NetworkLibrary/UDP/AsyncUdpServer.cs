@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
@@ -87,7 +88,7 @@ namespace NetworkLibrary.UDP
         {
             var e = new SocketAsyncEventArgs();
             e.Completed += Received;
-            e.SetBuffer(new byte[ClientReceiveBufferSize], 0, ClientReceiveBufferSize);
+            e.SetBuffer(ByteCopy.GetNewArray(ClientReceiveBufferSize, true), 0, ClientReceiveBufferSize);
             e.RemoteEndPoint = serverEndpoint;
 
             Receive(e);
@@ -168,11 +169,11 @@ namespace NetworkLibrary.UDP
                     value.TotalBytesSent += count;
                     value.TotalDatagramSent += 1;
                 }
-               
+
             }
             catch
             {
-                if(Statistics.TryGetValue(clientEndpoint, out var value))
+                if (Statistics.TryGetValue(clientEndpoint, out var value))
                 {
                     value.TotalMessageDropped += 1;
                 }

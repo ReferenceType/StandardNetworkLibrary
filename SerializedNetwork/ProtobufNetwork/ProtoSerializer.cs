@@ -2,10 +2,8 @@
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.Utils;
 using ProtoBuf;
-using ProtoBuf.Meta;
 using System;
 using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace ProtobufNetwork
@@ -30,7 +28,7 @@ namespace ProtobufNetwork
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public  T Deserialize<T>(byte[] buffer, int offset, int count)
+        public T Deserialize<T>(byte[] buffer, int offset, int count)
         {
             //fixed (byte* startPointer = &buffer[offset])
             //{

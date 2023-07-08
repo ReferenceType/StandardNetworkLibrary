@@ -1,17 +1,98 @@
-﻿using NetworkLibrary.MessageProtocol;
+﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
+
+/* Unmerged change from project 'NetworkLibrary (net6.0)'
+Before:
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
+After:
+using NetworkLibrary.TCP.SSL.Base;
+using System;
+using System.Collections.Concurrent;
+using System.Net.Generic;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (net7.0)'
+Before:
+using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+After:
+using NetworkLibrary.TCP.SSL.Base;
+using System;
+using System.Collections.Concurrent;
+using System.Net.Generic;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+Before:
+using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+After:
+using NetworkLibrary.TCP.SSL.Base;
+using System;
+using System.Collections.Concurrent;
+using System.Net.Generic;
+*/
+using NetworkLibrary.TCP.SSL.Base;
+using System;
+using System.Collections.Concurrent;
 using System.Net;
-using System.Runtime.CompilerServices;
+using System.Net.Security;
+
+/* Unmerged change from project 'NetworkLibrary (net6.0)'
+Before:
 using System.Text;
 using NetworkLibrary.TCP.SSL.Base;
+After:
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (net7.0)'
+Before:
+using System.Text;
+using NetworkLibrary.TCP.SSL.Base;
+After:
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+Before:
+using System.Text;
+using NetworkLibrary.TCP.SSL.Base;
+After:
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+*/
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
+
+/* Unmerged change from project 'NetworkLibrary (net6.0)'
+Before:
 using System.Net.Security;
+After:
+using System.Text;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (net7.0)'
+Before:
+using System.Net.Security;
+After:
+using System.Text;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+Before:
+using System.Net.Security;
+After:
+using System.Text;
+*/
 using static NetworkLibrary.TCP.Base.TcpServerBase;
-using System.Collections.Concurrent;
-using NetworkLibrary.Components.Statistics;
 
 namespace NetworkLibrary.Generic
 {
@@ -51,15 +132,15 @@ namespace NetworkLibrary.Generic
             ClientAccepted?.Invoke(guid);
         }
 
-        private void OnBytesReceived(in Guid guid, byte[] bytes, int offset, int count)
+        private void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {
             BytesReceived?.Invoke(guid, bytes, offset, count);
         }
 
         public void StartServer() => server.StartServer();
-        public void SendAsync<T>(in Guid clientId, T instance)
+        public void SendAsync<T>(Guid clientId, T instance)
         {
-            server.SendAsync(in clientId, instance);
+            server.SendAsync(clientId, instance);
         }
 
         public void Shutdown()
@@ -90,7 +171,7 @@ namespace NetworkLibrary.Generic
 
         private GenericSecureSession<S> MakeSession(Guid sessionId, SslStream sslStream)
         {
-            return new GenericSecureSession<S>( sessionId, sslStream, writeLenghtPrefix);
+            return new GenericSecureSession<S>(sessionId, sslStream, writeLenghtPrefix);
         }
         protected sealed override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
@@ -99,10 +180,10 @@ namespace NetworkLibrary.Generic
             session.RemoteEndpoint = tuple.Item2;
             return session;
         }
-       
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsync<T>(in Guid clientId, T message)
+        public void SendAsync<T>(Guid clientId, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 ((GenericSession<S>)session).SendAsync(message);

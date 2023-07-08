@@ -1,11 +1,10 @@
-﻿using NetworkLibrary.MessageProtocol;
+﻿using MessagePackNetwork;
+using MessagePackNetwork.Components;
 using NetworkLibrary.Components.Statistics;
-
+using NetworkLibrary.MessageProtocol;
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using MessagePackNetwork.Components;
-using MessagePackNetwork;
 
 namespace MessagePack
 {
@@ -79,7 +78,7 @@ namespace MessagePack
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage<T>(MessageEnvelope message, T payload) 
+        public void SendAsyncMessage<T>(MessageEnvelope message, T payload)
         {
             client.SendAsyncMessage(message, payload);
         }
@@ -92,7 +91,7 @@ namespace MessagePack
             return client.SendMessageAndWaitResponse(message, timeoutMs);
         }
 
-        public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message, T payload, int timeoutMs = 10000) 
+        public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message, T payload, int timeoutMs = 10000)
         {
             return client.SendMessageAndWaitResponse<T>(message, payload, timeoutMs);
         }

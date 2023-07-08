@@ -1,15 +1,12 @@
-﻿using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Collections.Generic;
-using System.Net.Security;
 using System.Net;
+using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading.Tasks;
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.Components;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -55,7 +52,7 @@ namespace NetworkLibrary.MessageProtocol
             OnBytesReceived += HandleBytes;
         }
 
-        private void HandleBytes(in Guid guid, byte[] bytes, int offset, int count)
+        private void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
         {
             MessageEnvelope message = serializer.DeserialiseEnvelopedMessage(bytes, offset, count);
             if (!CheckAwaiter(message))
@@ -77,29 +74,29 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope message)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope message)
         {
             if (Sessions.TryGetValue(clientId, out IAsyncSession session))
                 ((SecureMessageSession<S>)session).SendAsync(message);
-           
+
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage<T>(in Guid clientId, MessageEnvelope envelope, T message)
+        public void SendAsyncMessage<T>(Guid clientId, MessageEnvelope envelope, T message)
         {
             if (Sessions.TryGetValue(clientId, out IAsyncSession session))
                 ((SecureMessageSession<S>)session).SendAsync(envelope, message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
         {
             if (Sessions.TryGetValue(clientId, out IAsyncSession session))
                 ((SecureMessageSession<S>)session).SendAsync(envelope, serializationCallback);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
         {
             message.SetPayload(buffer, offset, count);
             SendAsyncMessage(clientId, message);
@@ -139,7 +136,7 @@ namespace NetworkLibrary.MessageProtocol
             return GetSessionEndpoint(cliendId);
         }
 
-       
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected bool CheckAwaiter(MessageEnvelope message)

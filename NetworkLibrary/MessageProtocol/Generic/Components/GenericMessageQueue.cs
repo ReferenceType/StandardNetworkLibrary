@@ -1,10 +1,7 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.MessageProtocol;
 using System;
-using System.IO;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace NetworkLibrary.MessageProtocol
 
@@ -134,7 +131,7 @@ namespace NetworkLibrary.MessageProtocol
                 serialisationStream.Position32 = originalPos;
                 serialisationStream.WriteTwoZerosUnchecked();
                 serialisationStream.Position32 = pos;
-                return  delta;
+                return delta;
             }
 
             var pos1 = serialisationStream.Position32;

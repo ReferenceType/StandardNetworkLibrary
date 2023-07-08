@@ -6,8 +6,6 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
-using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -45,7 +43,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
         }
 
-       
+
         public override void StartServer()
         {
             serverSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -65,7 +63,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 }
             }
 
-           
+
         }
         private void Accepted(object sender, SocketAsyncEventArgs acceptedArg)
         {
@@ -83,7 +81,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             if (acceptedArg.SocketError != SocketError.Success)
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "While Accepting Client an Error Occured:"
-                    + Enum.GetName(typeof(SocketError),acceptedArg.SocketError));
+                    + Enum.GetName(typeof(SocketError), acceptedArg.SocketError));
                 return;
             }
 
@@ -95,7 +93,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             var sslStream = new SslStream(new NetworkStream(acceptedArg.AcceptSocket, true), false, ValidateCeriticate);
             try
             {
-                Authenticate((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint,sslStream,certificate,true,SslProtocols.None,false);
+                Authenticate((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint, sslStream, certificate, true, SslProtocols.None, false);
             }
             catch (Exception ex)
             when (ex is AuthenticationException || ex is ObjectDisposedException)
@@ -109,13 +107,13 @@ namespace NetworkLibrary.TCP.SSL.Base
         private async void Authenticate(IPEndPoint remoteEndPoint, SslStream sslStream, X509Certificate2 certificate, bool v1, SslProtocols none, bool v2)
         {
             var task = sslStream.AuthenticateAsServerAsync(certificate, v1, none, v2);
-            if(await Task.WhenAny(task, Task.Delay(10000)) == task)
+            if (await Task.WhenAny(task, Task.Delay(10000)) == task)
             {
                 try
                 {
                     await task;
                     var sessionId = Guid.NewGuid();
-                    var ses = CreateSession(sessionId, (sslStream,remoteEndPoint));
+                    var ses = CreateSession(sessionId, (sslStream, remoteEndPoint));
                     ses.OnBytesRecieved += HandleBytesReceived;
                     ses.OnSessionClosed += HandeDeadSession;
                     Sessions.TryAdd(sessionId, ses);
@@ -123,7 +121,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
                     OnClientAccepted?.Invoke(sessionId);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     MiniLogger.Log(MiniLogger.LogLevel.Error, "Athentication as server failed: " + ex.Message);
                     sslStream.Close();
@@ -182,13 +180,13 @@ namespace NetworkLibrary.TCP.SSL.Base
             OnBytesReceived?.Invoke(arg1, arg2, arg3, arg4);
         }
 
-        public override void SendBytesToClient(in Guid clientId, byte[] bytes)
+        public override void SendBytesToClient(Guid clientId, byte[] bytes)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 session.SendAsync(bytes);
         }
 
-        public void SendBytesToClient(in Guid clientId, byte[] bytes, int offset, int count)
+        public void SendBytesToClient(Guid clientId, byte[] bytes, int offset, int count)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 session.SendAsync(bytes, offset, count);

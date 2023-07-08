@@ -1,5 +1,4 @@
-﻿using MessageProtocol;
-using NetworkLibrary;
+﻿using NetworkLibrary;
 using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.MessageProtocol.Serialization;
@@ -8,20 +7,19 @@ using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.TCP.SSL.Custom;
 using NetworkLibrary.UDP;
-using NetworkLibrary.UDP.Reliable;
+using NetworkLibrary.UDP.Reliable.Test;
 using NetworkLibrary.Utils;
 using ProtoBuf;
 using Protobuff;
 using Protobuff.Components.Serialiser;
 using Protobuff.P2P;
-using Protobuff.P2P.Room;
 using Protobuff.Pure;
+using Protobuff.UDP;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -59,15 +57,15 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
-            //TestLobby();
-            TestReliableModules();
+            TestLobby();
+            //TestReliableModules();
             Console.ReadLine();
-           // PureServerClientTest();
+            // PureServerClientTest();
             //SerializerTest();
             //Console.ReadLine();
             //return;
             //SerializerTestProto();
-          
+
 
             //PerfSerializer();
             ////Parallel.For(0, 2, j =>
@@ -99,7 +97,7 @@ namespace ConsoleTest
             //PoolTest();
             //UdpProtoTest();
             //EnvelopeTest();
-           // RelayTest();
+            // RelayTest();
             //ByteCopyTest();
             //BitConverterTest();
             //ByteCopyTest2();
@@ -122,8 +120,8 @@ namespace ConsoleTest
             int count = 50000;
             int completed = count;
             Mockup m = new Mockup();
-            m.RemoveNoiseFeedback= false;
-            m.RemoveNoiseSend= false;
+            m.RemoveNoiseFeedback = false;
+            m.RemoveNoiseSend = false;
             byte[] data = new byte[32];
             m.OnReceived += (voff, off, cnt) =>
             {
@@ -165,17 +163,17 @@ namespace ConsoleTest
             string ip = "127.0.0.1";
             int port = 2222;
             int numClients = 10;
-            SecureLobbyServer server = new SecureLobbyServer(port,scert);
+            SecureLobbyServer server = new SecureLobbyServer(port, scert);
             server.StartServer();
 
             List<SecureLobbyClient> clients = new List<SecureLobbyClient>();
             for (int i = 0; i < numClients; i++)
             {
                 var cl = new SecureLobbyClient(cert);
-                cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - "+m.Header);
-                cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - "+m.Header);
-                cl.OnTcpMessageReceived += ( m) => Console.WriteLine("Driect Tcp - "+m.Header);
-                cl.OnUdpMessageReceived += ( m) => Console.WriteLine("Driect Udp - "+m.Header);
+                cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - " + m.Header);
+                cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - " + m.Header);
+                cl.OnTcpMessageReceived += (m) => Console.WriteLine("Driect Tcp - " + m.Header);
+                cl.OnUdpMessageReceived += (m) => Console.WriteLine("Driect Udp - " + m.Header);
 
                 cl.Connect(ip, port);
                 cl.CreateOrJoinRoom("WA");
@@ -199,12 +197,13 @@ namespace ConsoleTest
 
             for (int i = 0; i < 1; i++)
             {
-                clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
-                clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
-                clients[0].SendMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct TCp Yo" });
-                clients[0].SendUdpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct UDp Yo" });
+                clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo", Payload = new byte[128000] });
+                clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" , Payload = new byte[128000] });
+                clients[0].SendMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct TCp Yo" , Payload = new byte[128000] });
+                clients[0].SendUdpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct UDp Yo", Payload = new byte[128000] });
+                clients[0].SendRudpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct RUDp Yo" , Payload = new byte[128000] });
             }
-           
+
             Console.ReadLine();
         }
 
@@ -219,30 +218,30 @@ namespace ConsoleTest
         }
         private static void PureServerClientTest()
         {
-            var msg = new TestMSG() { p1 = "AA", p2 = "BBB"};
+            var msg = new TestMSG() { p1 = "AA", p2 = "BBB" };
 
             var server = new PureProtoServer(2009);
             server.BytesReceived += OnbytesReceived;
             server.StartServer();
 
             var client = new PureProtoClient();
-            client.BytesReceived+= OnBytesReceivedCL;
-            client.Connect("127.0.0.1",2009);
+            client.BytesReceived += OnBytesReceivedCL;
+            client.Connect("127.0.0.1", 2009);
             client.SendAsync(msg);
 
-            void OnbytesReceived(in Guid guid, byte[] bytes, int offset, int count)
+            void OnbytesReceived(Guid guid, byte[] bytes, int offset, int count)
             {
                 Console.WriteLine("ServerRec");
                 server.SendAsync(guid, msg);
 
             }
-            void OnBytesReceivedCL( byte[] bytes, int offset, int count)
+            void OnBytesReceivedCL(byte[] bytes, int offset, int count)
             {
                 Console.WriteLine("ClientRecRec");
             }
         }
 
-       
+
 
         private static void SerializerTestProto()
         {
@@ -262,7 +261,7 @@ namespace ConsoleTest
                     { "K4", "%%" } ,
                 }
             };
-            var stream =  new PooledMemoryStream();
+            var stream = new PooledMemoryStream();
             Serializer.Serialize(stream, env);
             stream.Position = 0;
             //var res = Serializer.Deserialize<MessageEnvelope>(stream);
@@ -272,7 +271,7 @@ namespace ConsoleTest
             for (int i = 0; i < 1000000; i++)
             {
                 Serializer.Serialize(stream, env);
-                var r = Serializer.Deserialize<MessageEnvelope>(new ReadOnlySpan<byte>( stream.GetBuffer(),0,(int)stream.Position));
+                var r = Serializer.Deserialize<MessageEnvelope>(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Position));
                 stream.Position = 0;
 
             }
@@ -282,7 +281,7 @@ namespace ConsoleTest
 
         private static void SerializerTest()
         {
-            PooledMemoryStream stream= new PooledMemoryStream();
+            PooledMemoryStream stream = new PooledMemoryStream();
             MessageEnvelope env = new MessageEnvelope()
             {
                 IsInternal = true,
@@ -300,15 +299,15 @@ namespace ConsoleTest
                 }
             };
             EnvelopeSerializer.Serialize(stream, env);
-            var result = EnvelopeSerializer.Deserialize(stream.GetBuffer(),0);
+            var result = EnvelopeSerializer.Deserialize(stream.GetBuffer(), 0);
             stream.Position = 0;
 
-            Stopwatch sw =  new Stopwatch();
+            Stopwatch sw = new Stopwatch();
             sw.Start();
             for (int i = 0; i < 5000000; i++)
             {
                 EnvelopeSerializer.Serialize(stream, env);
-                var r = EnvelopeSerializer.Deserialize(stream.GetBuffer(),0);
+                var r = EnvelopeSerializer.Deserialize(stream.GetBuffer(), 0);
                 stream.Position = 0;
 
             }
@@ -319,7 +318,7 @@ namespace ConsoleTest
         private static void PerfSerializer()
         {
             var ser1 = new ConcurrentProtoSerialiser();
-            var ser2 = new GenericMessageSerializer<MessageEnvelope,ProtoSerializer>();
+            var ser2 = new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
 
             var message = new MessageEnvelope()
             {
@@ -336,17 +335,17 @@ namespace ConsoleTest
                 //    { "K4", "%%" } ,
                 //}
             };
-            PooledMemoryStream stream= new PooledMemoryStream();
-            Stopwatch sw =  new Stopwatch();
+            PooledMemoryStream stream = new PooledMemoryStream();
+            Stopwatch sw = new Stopwatch();
             var bytes = ser1.SerializeMessageEnvelope(message);
             sw.Start();
             for (int i = 0; i < 1000000; i++)
             {
                 //ser1.SerializeMessageEnvelope(message);
                 ser2.SerializeMessageEnvelope(message);
-                
+
                 //var res = ser1.DeserialiseEnvelopedMessage(bytes,0, bytes.Length);
-                var res = ser2.DeserialiseEnvelopedMessage(bytes,0, bytes.Length);
+                var res = ser2.DeserialiseEnvelopedMessage(bytes, 0, bytes.Length);
             }
             sw.Stop();
             Console.WriteLine(sw.ElapsedMilliseconds);
@@ -361,7 +360,7 @@ namespace ConsoleTest
             server.StartServer();
 
 
-            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
             {
                 var request = UTF8Encoding.ASCII.GetString(bytes, offset, count);
                 Console.WriteLine(request);
@@ -492,7 +491,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
 
-            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
             {
                 Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
                 server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
@@ -534,9 +533,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             MessageEnvelope result = await client.SendMessageAndWaitResponse(messageEnvelope, Payload);
             var payload = result.UnpackPayload<SamplePayload>();
 
-            void ServerMessageReceived(in Guid clientId, MessageEnvelope message)
+            void ServerMessageReceived(Guid clientId, MessageEnvelope message)
             {
-                server.SendAsyncMessage(in clientId, message);
+                server.SendAsyncMessage(clientId, message);
             }
 
             void ClientMessageReceived(MessageEnvelope message)
@@ -736,7 +735,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-           // var server = new SecureProtoRelayServer(20011, scert);
+            // var server = new SecureProtoRelayServer(20011, scert);
             // Thread.Sleep(1000000000);
             //Task.Run(async () =>
             //{
@@ -1142,7 +1141,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
             }
 
-            void ServerReceived(in Guid arg1, byte[] arg2, int arg3, int arg4)
+            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgServer);
                 if (arg4 == 502)
@@ -1202,7 +1201,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
             }
 
-            void ServerReceived(in Guid arg1, byte[] arg2, int arg3, int arg4)
+            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgServer);
                 server.SendBytesToClient(arg1, resp);
@@ -1522,7 +1521,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         }
 
-        private static void SWOnMsgRecieved(in Guid arg1, byte[] arg2, int offset, int count)
+        private static void SWOnMsgRecieved(Guid arg1, byte[] arg2, int offset, int count)
         {
 
             //server.SendBytesToClient(arg1, resp);

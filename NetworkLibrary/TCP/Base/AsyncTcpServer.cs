@@ -4,7 +4,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,7 +28,7 @@ namespace NetworkLibrary.TCP.Base
             ServerPort = port;
         }
 
-       
+
         #region Start
         public override void StartServer()
         {
@@ -141,13 +140,13 @@ namespace NetworkLibrary.TCP.Base
             });
         }
 
-        public override void SendBytesToClient(in Guid id, byte[] bytes)
+        public override void SendBytesToClient(Guid id, byte[] bytes)
         {
             if (Sessions.TryGetValue(id, out var session))
                 session.SendAsync(bytes);
         }
 
-        public void SendBytesToClient(in Guid id, byte[] bytes, int offset, int count)
+        public void SendBytesToClient(Guid id, byte[] bytes, int offset, int count)
         {
             if (Sessions.TryGetValue(id, out var session))
                 session.SendAsync(bytes, offset, count);
@@ -155,7 +154,7 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {
-            OnBytesReceived?.Invoke(in guid, bytes, offset, count);
+            OnBytesReceived?.Invoke(guid, bytes, offset, count);
         }
 
         #endregion

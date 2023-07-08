@@ -6,7 +6,6 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
-using System.Xml.Serialization;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
@@ -62,8 +61,41 @@ namespace NetworkLibrary.TCP.SSL.Base
                 // this shit is terrible..
                 // await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port)).ConfigureAwait(false);
 
-                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                
+
+                /* Unmerged change from project 'NetworkLibrary (net6.0)'
+                Before:
+                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                                var earg = new SocketAsyncEventArgs();
+                After:
+                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                                var earg = new SocketAsyncEventArgs();
+                */
+
+                /* Unmerged change from project 'NetworkLibrary (net7.0)'
+                Before:
+                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                                var earg = new SocketAsyncEventArgs();
+                After:
+                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                                var earg = new SocketAsyncEventArgs();
+                */
+
+                /* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+                Before:
+                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                                var earg = new SocketAsyncEventArgs();
+                After:
+                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                                var earg = new SocketAsyncEventArgs();
+                */
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
                 var earg = new SocketAsyncEventArgs();
                 earg.RemoteEndPoint = new IPEndPoint(IPAddress.Parse(ip), port);
                 earg.Completed += (ignored, arg) => { HandleResult(arg); };
@@ -75,7 +107,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
                 void HandleResult(SocketAsyncEventArgs arg)
                 {
-                    if(arg.SocketError == SocketError.Success)
+                    if (arg.SocketError == SocketError.Success)
                     {
                         Connected(ip, clientSocket);
                         tcs.SetResult(true);
@@ -83,8 +115,8 @@ namespace NetworkLibrary.TCP.SSL.Base
                     else tcs.TrySetException(new SocketException((int)arg.SocketError));
                 }
                 return tcs.Task;
-                
-               
+
+
             }
             catch { throw; }
             finally

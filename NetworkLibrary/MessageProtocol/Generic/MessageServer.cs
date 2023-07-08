@@ -15,7 +15,7 @@ namespace MessageProtocol
         public Action<Guid, E> OnMessageReceived;
         public bool DeserializeMessages = true;
 
-        private GenericMessageSerializer<E,S> serializer;
+        private GenericMessageSerializer<E, S> serializer;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
         public MessageServer(int port) : base(port)
         {
@@ -39,7 +39,7 @@ namespace MessageProtocol
             OnBytesReceived += HandleBytes;
         }
 
-        private void HandleBytes(in Guid guid, byte[] bytes, int offset, int count)
+        private void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
         {
             E message = serializer.DeserialiseEnvelopedMessage(bytes, offset, count);
             if (!CheckAwaiter(message))
@@ -63,7 +63,7 @@ namespace MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, E message)
+        public void SendAsyncMessage(Guid clientId, E message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 ((MessageSession<E, S>)session).SendAsync(message);
@@ -71,7 +71,7 @@ namespace MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage<T>(in Guid clientId, E envelope, T message)
+        public void SendAsyncMessage<T>(Guid clientId, E envelope, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 ((MessageSession<E, S>)session).SendAsync(envelope, message);
@@ -79,7 +79,7 @@ namespace MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, E message, byte[] buffer, int offset, int count)
+        public void SendAsyncMessage(Guid clientId, E message, byte[] buffer, int offset, int count)
         {
             message.SetPayload(buffer, offset, count);
             SendAsyncMessage(clientId, message);

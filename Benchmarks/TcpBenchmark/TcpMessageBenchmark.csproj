@@ -8,9 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="NetworkLibrary">
-      <HintPath>..\..\NetworkLibrary\bin\Release\netstandard2.0\NetworkLibrary.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\..\NetworkLibrary\NetworkLibrary.csproj" />
   </ItemGroup>
 
 </Project>

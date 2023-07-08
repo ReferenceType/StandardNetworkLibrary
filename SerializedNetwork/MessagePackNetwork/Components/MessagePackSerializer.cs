@@ -2,9 +2,7 @@
 using NetworkLibrary.Components;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace MessagePackNetwork.Components
 {
@@ -44,4 +42,6 @@ namespace MessagePackNetwork.Components
             return MessagePackSerializer.Serialize(instance);
         }
     }
+
 }
+    

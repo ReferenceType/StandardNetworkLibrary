@@ -2,8 +2,6 @@
 
 namespace NetworkLibrary.MessageProtocol
 {
-
-
     public interface ISerializer
     {
         void Serialize<T>(Stream destination, T instance);

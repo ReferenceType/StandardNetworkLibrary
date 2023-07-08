@@ -13,18 +13,18 @@ namespace ProtobufNetwork
     internal struct RouterHeader : IRouterHeader
     {
         [ProtoMember(5)]
-        public Guid To { get;  set; }
+        public Guid To { get; set; }
 
         [ProtoMember(7)]
-        public bool IsInternal { get;  set; }
+        public bool IsInternal { get; set; }
     }
 
     // size cant be more than 64kb
     [ProtoContract]
     public class MessageEnvelope : IMessageEnvelope
     {
-        public static GenericMessageSerializer<MessageEnvelope,ProtoSerializer> serialiser
-            =  new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
+        public static GenericMessageSerializer<MessageEnvelope, ProtoSerializer> serialiser
+            = new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
         public const string RequestTimeout = "RequestTimedOut";
         public const string RequestCancelled = "RequestCancelled";
 
@@ -38,16 +38,16 @@ namespace ProtobufNetwork
         public string Header { get; set; }
 
         [ProtoMember(4)]
-        public Guid From { get;  set; }
+        public Guid From { get; set; }
 
         [ProtoMember(5)]
-        public Guid To { get;  set; }
+        public Guid To { get; set; }
 
         [ProtoMember(6)]
         public Dictionary<string, string> KeyValuePairs { get; set; }
 
         [ProtoMember(7)]
-        public bool IsInternal { get;  set; }
+        public bool IsInternal { get; set; }
         public bool IsLocked { get; private set; } = true;
 
         private byte[] payload;

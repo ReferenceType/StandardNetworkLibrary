@@ -1,13 +1,9 @@
 ﻿using NetworkLibrary.TCP.Base;
 using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading.Tasks;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -44,7 +40,7 @@ namespace NetworkLibrary.MessageProtocol
             OnBytesReceived += HandleBytes;
         }
 
-        private void HandleBytes(in Guid guid, byte[] bytes, int offset, int count)
+        private void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
         {
             MessageEnvelope message = serializer.DeserialiseEnvelopedMessage(bytes, offset, count);
             if (!CheckAwaiter(message))
@@ -68,7 +64,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope message)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 ((MessageSession<S>)session).SendAsync(message);
@@ -76,7 +72,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage<T>(in Guid clientId, MessageEnvelope envelope, T message)
+        public void SendAsyncMessage<T>(Guid clientId, MessageEnvelope envelope, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 ((MessageSession<S>)session).SendAsync(envelope, message);
@@ -84,7 +80,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendAsyncMessage(in Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
+        public void SendAsyncMessage(Guid clientId, MessageEnvelope message, byte[] buffer, int offset, int count)
         {
             message.SetPayload(buffer, offset, count);
             SendAsyncMessage(clientId, message);
@@ -124,20 +120,6 @@ namespace NetworkLibrary.MessageProtocol
         {
             return GetSessionEndpoint(cliendId);
         }
-        //protected override void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
-        //{
-        //    if (!DeserializeMessages)
-        //    {
-        //        base.HandleBytesReceived(guid, bytes, offset, count);
-        //        return;
-        //    }
-
-        //    E message = serializer.DeserialiseEnvelopedMessage<E>(bytes, offset, count);
-        //    if (!CheckAwaiter(message))
-        //    {
-        //        OnMessageReceived?.Invoke(guid, message);
-        //    }
-        //}
 
         protected bool CheckAwaiter(MessageEnvelope message)
         {

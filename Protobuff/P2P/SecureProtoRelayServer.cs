@@ -1,8 +1,6 @@
-﻿using Protobuff.Components.Serialiser;
-using System;
-using System.Collections.Generic;
+﻿using NetworkLibrary.P2P.Generic;
+using Protobuff.Components.Serialiser;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 
 namespace Protobuff.P2P
 {

@@ -1,10 +1,15 @@
-﻿using System;
+﻿using NetworkLibrary.Utils;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
-
+using System.Runtime.InteropServices;
+#if NET5_0_OR_GREATER
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
+#endif
 namespace NetworkLibrary
 {
     /*
@@ -70,7 +75,7 @@ namespace NetworkLibrary
         public static void StartCollectGcOnIdle()
         {
             autoGcHandle.Set();
-            if(!memoryMaintainer.IsAlive)
+            if (!memoryMaintainer.IsAlive)
                 memoryMaintainer.Start();
         }
 
@@ -136,7 +141,8 @@ namespace NetworkLibrary
                     return buffer;
                 }
             }
-            buffer = new byte[GetBucketSize(idx)];
+
+            buffer = ByteCopy.GetNewArray(GetBucketSize(idx));
             return buffer;
 
         }
@@ -177,6 +183,37 @@ namespace NetworkLibrary
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int LeadingZeros(int x)
         {
+#if NET5_0_OR_GREATER
+ 
+            if (Lzcnt.IsSupported)
+            {
+                // LZCNT contract is 0->32
+                return (int)Lzcnt.LeadingZeroCount((uint)x);
+            }
+
+            if (ArmBase.IsSupported)
+            {
+                return ArmBase.LeadingZeroCount(x);
+            }
+            else
+            {
+             const int numIntBits = sizeof(int) * 8;
+            x |= x >> 1;
+            x |= x >> 2;
+            x |= x >> 4;
+            x |= x >> 8;
+            x |= x >> 16;
+            //count the ones
+            x -= x >> 1 & 0x55555555;
+            x = (x >> 2 & 0x33333333) + (x & 0x33333333);
+            x = (x >> 4) + x & 0x0f0f0f0f;
+            x += x >> 8;
+            x += x >> 16;
+            return numIntBits - (x & 0x0000003f); //subtract # of 1s from 32
+            }
+
+            
+#else
             const int numIntBits = sizeof(int) * 8;
             x |= x >> 1;
             x |= x >> 2;
@@ -190,6 +227,7 @@ namespace NetworkLibrary
             x += x >> 8;
             x += x >> 16;
             return numIntBits - (x & 0x0000003f); //subtract # of 1s from 32
+#endif
         }
     }
 }

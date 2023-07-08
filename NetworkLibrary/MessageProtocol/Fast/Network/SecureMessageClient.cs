@@ -1,15 +1,12 @@
-﻿using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Collections.Generic;
-using System.Net.Security;
 using System.Net;
+using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading.Tasks;
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.Components;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -27,7 +24,7 @@ namespace NetworkLibrary.MessageProtocol
         {
             RemoteCertificateValidationCallback += ValidateCert;
             GatherConfig = ScatterGatherConfig.UseBuffer;
-            if(MessageEnvelope.Serializer == null)
+            if (MessageEnvelope.Serializer == null)
             {
                 MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
             }
@@ -56,7 +53,7 @@ namespace NetworkLibrary.MessageProtocol
                 OnMessageReceived?.Invoke(message);
         }
 
-        protected virtual SecureMessageSession <S> GetSession(Guid guid, SslStream sslStream)
+        protected virtual SecureMessageSession<S> GetSession(Guid guid, SslStream sslStream)
         {
             return new SecureMessageSession<S>(guid, sslStream);
         }
@@ -96,7 +93,7 @@ namespace NetworkLibrary.MessageProtocol
         public void SendAsyncMessage(MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
         {
             if (clientSession != null)
-                messageSession.SendAsync( message, serializationCallback);
+                messageSession.SendAsync(message, serializationCallback);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -129,7 +126,7 @@ namespace NetworkLibrary.MessageProtocol
             return task;
         }
 
-      
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public new Task<bool> ConnectAsync(string host, int port)

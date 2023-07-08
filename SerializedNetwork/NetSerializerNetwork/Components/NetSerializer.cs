@@ -1,10 +1,7 @@
 ﻿using NetSerializer;
-using NetworkLibrary.MessageProtocol;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
-using System.Text;
 using System.Threading;
 
 namespace NetSerializerNetwork.Components
@@ -51,14 +48,14 @@ namespace NetSerializerNetwork.Components
         static Serializer serializer;
         public NetSerialiser()
         {
-            if(serializer == null)
+            if (serializer == null)
             {
                 serializer = new Serializer(new List<Type> { typeof(MessageEnvelope) });
                 map = serializer.GetTypeMap();
             }
-           
+
         }
-        private static readonly object locker =  new object();
+        private static readonly object locker = new object();
         private void UpdateModels(Type t)
         {
             if (!map.ContainsKey(t))
@@ -71,9 +68,9 @@ namespace NetSerializerNetwork.Components
                         var mapLocal = serializer.GetTypeMap();
                         Interlocked.Exchange(ref map, mapLocal);
                     }
-                        
+
                 }
-               
+
             }
         }
     }

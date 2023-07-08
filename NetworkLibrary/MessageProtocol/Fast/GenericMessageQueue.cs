@@ -1,11 +1,65 @@
-﻿using NetworkLibrary.Components.MessageBuffer;
+﻿
+/* Unmerged change from project 'NetworkLibrary (net6.0)'
+Before:
+using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.Components;
+After:
+using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.MessageProtocol.Serialization;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (net7.0)'
+Before:
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components;
+After:
+using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.MessageProtocol.Serialization;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+Before:
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.Components;
+After:
+using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.MessageProtocol.Serialization;
+*/
+using NetworkLibrary.Components;
+using NetworkLibrary.Components.MessageBuffer;
+using NetworkLibrary.MessageProtocol.Serialization;
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+/* Unmerged change from project 'NetworkLibrary (net6.0)'
+Before:
 using System.Text;
 using MessageProtocol;
 using NetworkLibrary.MessageProtocol.Serialization;
+After:
+using System.Text;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (net7.0)'
+Before:
+using System.Text;
+using MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
+After:
+using System.Text;
+*/
+
+/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
+Before:
+using System.Text;
+using MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
+After:
+using System.Text;
+*/
+
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -101,7 +155,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int SerializeMessageWithInnerMessage<T>(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, T innerMsg) 
+        internal int SerializeMessageWithInnerMessage<T>(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, T innerMsg)
         {
             // envelope+2
             int originalPos = serialisationStream.Position32;
@@ -110,7 +164,7 @@ namespace NetworkLibrary.MessageProtocol
             EnvelopeSerializer.Serialize(serialisationStream, empyEnvelope);
             int delta = serialisationStream.Position32 - originalPos;
 
-            if (delta  >= ushort.MaxValue)
+            if (delta >= ushort.MaxValue)
             {
                 throw new InvalidOperationException("Message envelope cannot be bigger than: " + ushort.MaxValue.ToString());
             }
@@ -121,7 +175,7 @@ namespace NetworkLibrary.MessageProtocol
                 var pos = serialisationStream.Position32;
                 serialisationStream.Position32 = originalPos;
                 serialisationStream.WriteTwoZerosUnchecked();
-                serialisationStream.Position32 =pos;
+                serialisationStream.Position32 = pos;
 
                 return delta;
 
@@ -167,7 +221,7 @@ namespace NetworkLibrary.MessageProtocol
             serialisationStream.WriteUshortUnchecked(oldpos);
             serialisationStream.Position32 = pos1;
 
-           externalSerializationCallback.Invoke(serialisationStream);
+            externalSerializationCallback.Invoke(serialisationStream);
 
             return serialisationStream.Position32 - originalPos;
         }
@@ -196,7 +250,7 @@ namespace NetworkLibrary.MessageProtocol
                 serialisationStream.WriteTwoZerosUnchecked();
                 serialisationStream.Position32 = pos;
 
-                return delta; 
+                return delta;
             }
             var pos1 = serialisationStream.Position32;
             serialisationStream.Position32 = originalPos;
@@ -205,7 +259,7 @@ namespace NetworkLibrary.MessageProtocol
 
             serialisationStream.Write(envelope.Payload, envelope.PayloadOffset, envelope.PayloadCount);
 
-            return serialisationStream.Position32 - originalPos; 
+            return serialisationStream.Position32 - originalPos;
         }
     }
 }

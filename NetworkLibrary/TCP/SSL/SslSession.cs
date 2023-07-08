@@ -78,7 +78,12 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 SendAsync_(buffer, offset, count);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch(Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, 
+                        "Unexcpected error while sending async with ssl session" + e.Message+"Trace " +e.StackTrace);
+            }
         }
         private void SendAsync_(byte[] buffer, int offset, int count)
         {
@@ -123,7 +128,12 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 SendAsync_(buffer);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "Unexcpected error while sending async with ssl session" + e.Message + "Trace " + e.StackTrace);
+            }
         }
         private void SendAsync_(byte[] buffer)
         {
@@ -348,7 +358,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 BufferPool.ReturnBuffer(sendBuffer);
 
             messageQueue?.Dispose();
-            messageQueue = null;
+            //messageQueue = null;
             enqueueLock.Release();
         }
 

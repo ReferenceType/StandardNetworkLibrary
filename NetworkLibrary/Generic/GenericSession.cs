@@ -2,10 +2,8 @@
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Generic
 {
@@ -41,7 +39,7 @@ namespace NetworkLibrary.Generic
 
         protected override void HandleReceived(byte[] buffer, int offset, int count)
         {
-            if(writeMsgLenghtPrefix)
+            if (writeMsgLenghtPrefix)
                 reader.ParseBytes(buffer, offset, count);
             else
                 base.HandleReceived(buffer, offset, count);

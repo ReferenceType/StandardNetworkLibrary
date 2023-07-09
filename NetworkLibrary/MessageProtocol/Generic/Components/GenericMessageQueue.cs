@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace NetworkLibrary.MessageProtocol
 
 {
-    public class GenericMessageQueue<S, E> : MessageBuffer, ISerialisableMessageQueue<E>
+    internal class GenericMessageQueue<S, E> : MessageBuffer, ISerialisableMessageQueue<E>
         where S : ISerializer, new()
         where E : IMessageEnvelope, new()
     {

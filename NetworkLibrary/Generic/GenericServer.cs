@@ -2,30 +2,6 @@
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
 using System;
-
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using System.Collections.Generic;
-After:
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using System.Collections.Generic;
-After:
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using System.Collections.Generic;
-After:
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-*/
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -37,11 +13,11 @@ namespace NetworkLibrary.Generic
     public class GenericServer<S> where S : ISerializer, new()
 
     {
-        GenericServerInternal<S> server;
+        private GenericServerInternal<S> server;
         public BytesRecieved BytesReceived;
         public ClientAccepted ClientAccepted;
         public ClientDisconnected ClientDisconnected;
-
+        public S Serializer =  new S();
 
         public GenericServer(int port, bool writeLenghtPrefix = true)
         {
@@ -102,7 +78,7 @@ namespace NetworkLibrary.Generic
             return new GenericSession<S>(e, sessionId, writeLenghtPrefix);
         }
 
-        protected sealed override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected sealed override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = MakeSession(e, sessionId);//new GenericMessageSession(e, sessionId);
             session.SocketRecieveBufferSize = ClientReceiveBufsize;

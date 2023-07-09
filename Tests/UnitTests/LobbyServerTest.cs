@@ -24,8 +24,8 @@ namespace UnitTests
         [TestMethod]
         public void TestRoomBroadcast()
         {
-            var expectedClientsTcp = new ConcurrentDictionary<SecureLobbyClient, string>();
-            var expectedClientsUdp = new ConcurrentDictionary<SecureLobbyClient, string>();
+            var expectedClientsTcp = new ConcurrentDictionary<SecureProtoRoomClient, string>();
+            var expectedClientsUdp = new ConcurrentDictionary<SecureProtoRoomClient, string>();
 
             int totalUdp = 0;
             int totalTcp = 0;
@@ -35,14 +35,14 @@ namespace UnitTests
             string ip = "127.0.0.1";
             int port = 2222;
             int numClients = 10;
-            SecureLobbyServer server = new SecureLobbyServer(port, scert);
+            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
             server.StartServer();
 
-            List<SecureLobbyClient> clients = new List<SecureLobbyClient>();
+            List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
 
             for (int i = 0; i < numClients; i++)
             {
-                var cl = new SecureLobbyClient(cert);
+                var cl = new SecureProtoRoomClient(cert);
                 cl.OnTcpRoomMesssageReceived += (r, m) => TcpReceived(cl, r, m);
                 cl.OnUdpRoomMesssageReceived += (r, m) => UdpReceived(cl, r, m);
                 cl.Connect(ip, port);
@@ -68,13 +68,13 @@ namespace UnitTests
             clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
 
 
-            void UdpReceived(SecureLobbyClient cl, string r, MessageEnvelope m)
+            void UdpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
             {
                 expectedClientsUdp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalUdp);
             }
 
-            void TcpReceived(SecureLobbyClient cl, string r, MessageEnvelope m)
+            void TcpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
             {
                 expectedClientsTcp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalTcp);
@@ -91,8 +91,8 @@ namespace UnitTests
         [TestMethod]
         public void TestRoomBroadcastWithLeave()
         {
-            var expectedClientsTcp = new ConcurrentDictionary<SecureLobbyClient, string>();
-            var expectedClientsUdp = new ConcurrentDictionary<SecureLobbyClient, string>();
+            var expectedClientsTcp = new ConcurrentDictionary<SecureProtoRoomClient, string>();
+            var expectedClientsUdp = new ConcurrentDictionary<SecureProtoRoomClient, string>();
 
             int totalUdp = 0;
             int totalTcp = 0;
@@ -102,14 +102,14 @@ namespace UnitTests
             string ip = "127.0.0.1";
             int port = 2223;
             int numClients = 10;
-            SecureLobbyServer server = new SecureLobbyServer(port, scert);
+            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
             server.StartServer();
 
-            List<SecureLobbyClient> clients = new List<SecureLobbyClient>();
+            List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
 
             for (int i = 0; i < numClients; i++)
             {
-                var cl = new SecureLobbyClient(cert);
+                var cl = new SecureProtoRoomClient(cert);
                 cl.OnTcpRoomMesssageReceived += (r, m) => TcpReceived(cl, r, m);
                 cl.OnUdpRoomMesssageReceived += (r, m) => UdpReceived(cl, r, m);
                 cl.Connect(ip, port);
@@ -144,13 +144,13 @@ namespace UnitTests
             clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
 
 
-            void UdpReceived(SecureLobbyClient cl, string r, MessageEnvelope m)
+            void UdpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
             {
                 expectedClientsUdp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalUdp);
             }
 
-            void TcpReceived(SecureLobbyClient cl, string r, MessageEnvelope m)
+            void TcpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
             {
                 expectedClientsTcp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalTcp);
@@ -169,8 +169,8 @@ namespace UnitTests
         [TestMethod]
         public void TestRoomBroadcastMultiRoom()
         {
-            var expectedClientsTcp = new ConcurrentDictionary<SecureLobbyClient, string>();
-            var expectedClientsUdp = new ConcurrentDictionary<SecureLobbyClient, string>();
+            var expectedClientsTcp = new ConcurrentDictionary<SecureProtoRoomClient, string>();
+            var expectedClientsUdp = new ConcurrentDictionary<SecureProtoRoomClient, string>();
 
             int totalUdp = 0;
             int totalTcp = 0;
@@ -180,14 +180,14 @@ namespace UnitTests
             string ip = "127.0.0.1";
             int port = 2224;
             int numClients = 10;
-            SecureLobbyServer server = new SecureLobbyServer(port, scert);
+            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
             server.StartServer();
 
-            List<SecureLobbyClient> clients = new List<SecureLobbyClient>();
+            List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
 
             for (int i = 0; i < numClients; i++)
             {
-                var cl = new SecureLobbyClient(cert);
+                var cl = new SecureProtoRoomClient(cert);
                 cl.OnTcpRoomMesssageReceived += (r, m) => TcpReceived(cl, r, m);
                 cl.OnUdpRoomMesssageReceived += (r, m) => UdpReceived(cl, r, m);
                 cl.Connect(ip, port);
@@ -240,13 +240,13 @@ namespace UnitTests
             clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
 
 
-            void UdpReceived(SecureLobbyClient cl, string r, MessageEnvelope m)
+            void UdpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
             {
                 expectedClientsUdp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalUdp);
             }
 
-            void TcpReceived(SecureLobbyClient cl, string r, MessageEnvelope m)
+            void TcpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
             {
                 expectedClientsTcp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalTcp);

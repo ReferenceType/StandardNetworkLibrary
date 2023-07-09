@@ -11,10 +11,9 @@ namespace NetworkLibrary.MessageProtocol
     {
         public Action<MessageEnvelope> OnMessageReceived;
         public bool DeserializeMessages = true;
+        internal GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
         private GenericMessageSerializer<S> serializer;
         private new MessageSession<S> session;
-        public GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
-
         public MessageClient()
         {
             if (MessageEnvelope.Serializer == null)
@@ -42,11 +41,11 @@ namespace NetworkLibrary.MessageProtocol
                 OnMessageReceived?.Invoke(message);
         }
 
-        protected virtual MessageSession<S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected virtual MessageSession<S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             return new MessageSession<S>(e, sessionId);
         }
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = MakeSession(e, sessionId);
             ses.SocketRecieveBufferSize = SocketRecieveBufferSize;

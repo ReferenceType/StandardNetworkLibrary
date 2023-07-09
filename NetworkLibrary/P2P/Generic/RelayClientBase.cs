@@ -354,7 +354,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 var buffer = stackalloc byte[65000];
                 int offset = 0;
-                serialiser.EnvelopeMessageWithBytesDontWritePayload(buffer, ref offset, message);
+                serialiser.EnvelopeMessageWithBytesDontWritePayload(buffer, ref offset, message, message.PayloadCount);
                 var s1 = new SegmentUnsafe(buffer, 0, offset);
                 var s2 = new Segment(message.Payload, message.PayloadOffset, message.PayloadCount);
 
@@ -365,7 +365,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 var buffer = stackalloc byte[256+message.Header.Length*4];
                 int offset = 0;
-                serialiser.EnvelopeMessageWithBytesDontWritePayload(buffer, ref offset, message);
+                serialiser.EnvelopeMessageWithBytesDontWritePayload(buffer, ref offset, message, message.PayloadCount);
                 var s1 = new SegmentUnsafe(buffer, 0, offset);
                 var s2 = new Segment(message.Payload, message.PayloadOffset, message.PayloadCount);
 
@@ -952,7 +952,7 @@ namespace NetworkLibrary.P2P.Generic
             }
             punchedEndpoints.TryAdd(state.destinationId, state.succesfulEpToReceive);
 
-            MiniLogger.Log(MiniLogger.LogLevel.Info, $"Punched on {state.succesfulEpToReceive}");
+            MiniLogger.Log(MiniLogger.LogLevel.Info, $"HolePunched on {state.succesfulEpToReceive}");
         }
 
 
@@ -1078,7 +1078,7 @@ namespace NetworkLibrary.P2P.Generic
             message.To = toId;
 
             o = 0;
-            serialiser.EnvelopeMessageWithBytesDontWritePayload(b, ref o, message);
+            serialiser.EnvelopeMessageWithBytesDontWritePayload(b, ref o, message, message.PayloadCount);
             o = 0;
 
             ConcurrentAesAlgorithm algo;
@@ -1228,7 +1228,7 @@ namespace NetworkLibrary.P2P.Generic
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();//ClientUdpModule.GetTLSStream();
 
-                serialiser.EnvelopeMessageWithBytesDontWritePayload(stream, msg);
+                serialiser.EnvelopeMessageWithBytesDontWritePayload(stream, msg, msg.PayloadCount);
 
                 var first = new Segment(stream.GetBuffer(), 0, stream.Position32);
                 Segment second;
@@ -1267,7 +1267,7 @@ namespace NetworkLibrary.P2P.Generic
                 var task = UdpAwaiter.RegisterWait(msg.MessageId, timeoutMs);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
-                serialiser.EnvelopeMessageWithBytesDontWritePayload(stream, msg);
+                serialiser.EnvelopeMessageWithBytesDontWritePayload(stream, msg, msg.PayloadCount);
 
                 var first = new Segment(stream.GetBuffer(), 0, stream.Position32);
                 Segment second;

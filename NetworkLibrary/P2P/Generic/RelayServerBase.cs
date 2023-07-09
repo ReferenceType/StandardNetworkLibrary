@@ -230,7 +230,6 @@ namespace NetworkLibrary.P2P.Generic
 
         private void InitiateHolepunchBetweenPeers(MessageEnvelope message)
         {
-            Console.WriteLine("weeeee");
             byte[] cryptoKey = null;
             if (message.KeyValuePairs != null && message.KeyValuePairs.TryGetValue("Encrypted", out _))
             {

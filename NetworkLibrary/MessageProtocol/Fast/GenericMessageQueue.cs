@@ -1,69 +1,12 @@
-﻿
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.Components;
-After:
-using NetworkLibrary.Components;
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.MessageProtocol.Serialization;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.Components;
-After:
-using NetworkLibrary.Components;
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.MessageProtocol.Serialization;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.Components;
-After:
-using NetworkLibrary.Components;
-using NetworkLibrary.Components.MessageBuffer;
-using NetworkLibrary.MessageProtocol.Serialization;
-*/
-using NetworkLibrary.Components;
+﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.MessageProtocol.Serialization;
 using System;
 using System.Runtime.CompilerServices;
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using System.Text;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-After:
-using System.Text;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using System.Text;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-After:
-using System.Text;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using System.Text;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-After:
-using System.Text;
-*/
-
 
 namespace NetworkLibrary.MessageProtocol
 {
-    public class GenericMessageQueue<S> : MessageBuffer, ISerialisableMessageQueue
+    internal class GenericMessageQueue<S> : MessageBuffer, ISerialisableMessageQueue
          where S : ISerializer, new()
     {
         private readonly S Serializer = new S();

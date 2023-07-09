@@ -3,7 +3,7 @@ using Protobuff.Components.Serialiser;
 
 namespace Protobuff.Pure
 {
-    internal class PureProtoClient : GenericClient<ProtoSerializer>
+    public class PureProtoClient : GenericClient<ProtoSerializer>
     {
     }
 }

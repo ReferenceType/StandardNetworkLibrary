@@ -15,7 +15,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
             this.certificate = certificate;
         }
 
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new CustomSslSession(e, sessionId, (byte[])e.UserToken);
             session.socketSendBufferSize = SocketSendBufferSize;

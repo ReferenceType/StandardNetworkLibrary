@@ -13,6 +13,7 @@ namespace NetworkLibrary.Generic
     {
         public Action OnDisconnected;
         public BytesRecieved BytesReceived;
+        public S Serializer = new S();
         private GenericClientInternal<S> client;
 
         public GenericClient(bool writeLenghtPrefix = true)
@@ -71,7 +72,7 @@ namespace NetworkLibrary.Generic
             return new GenericSession<S>(e, sessionId, writeLenghtPrefix);
         }
 
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = MakeSession(e, sessionId);
             ses.SocketRecieveBufferSize = SocketRecieveBufferSize;

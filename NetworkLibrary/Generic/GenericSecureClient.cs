@@ -18,7 +18,8 @@ namespace NetworkLibrary.Generic
         public Action OnDisconnected;
         public BytesRecieved BytesReceived;
         private GenericSecureClientInternal<S> client;
-        public RemoteCertificateValidationCallback CertificateValidationCallback;
+        public S Serializer =  new S();
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         public GenericSecureClient(X509Certificate2 certificate, bool writeLenghtPrefix = true)
         {
             client = new GenericSecureClientInternal<S>(certificate, writeLenghtPrefix);
@@ -31,9 +32,9 @@ namespace NetworkLibrary.Generic
 
         private bool OnValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            if (CertificateValidationCallback == null)
+            if (RemoteCertificateValidationCallback == null)
                 return true;
-            return CertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
+            return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
         }
 
         private void OnBytesReceived(byte[] bytes, int offset, int count)
@@ -74,7 +75,7 @@ namespace NetworkLibrary.Generic
    where S : ISerializer, new()
     {
         public readonly GenericMessageSerializer<S> Serializer = new GenericMessageSerializer<S>();
-        private new GenericSession<S> session;
+        private new GenericSecureSession<S> session;
         private readonly bool writeLenghtPrefix;
 
         public GenericSecureClientInternal(X509Certificate2 certificate, bool writeLenghtPrefix = true) : base(certificate)
@@ -87,11 +88,12 @@ namespace NetworkLibrary.Generic
         {
             return new GenericSecureSession<S>(guid, sslStream, writeLenghtPrefix);
         }
-        protected sealed override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected sealed override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var session = MakeSession(guid, tuple.Item1);//new SecureProtoSessionInternal(guid, tuple.Item1);
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.RemoteEndpoint = tuple.Item2;
+            this.session = session;
             return session;
         }
 

@@ -97,7 +97,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                 {
                     await Task.Delay(1500, cancellationTokenSource.Token).ConfigureAwait(false);
                 }
-                Console.WriteLine("Punching towards: " + ep.ToString());
+               // Console.WriteLine("Punching towards: " + ep.ToString());
 
                 if (aesAlgorithm != null)
                     client.SendAsync(ep, message, Callback, aesAlgorithm);
@@ -131,11 +131,10 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         // inside of this message i must put the endpoint i shot at
         public void HandleMessage(IPEndPoint remoteEndpoint, MessageEnvelope message)
         {
-            // Console.WriteLine("Received Sucess: " + remoteEndpoint.ToString());
 
             if (Interlocked.CompareExchange(ref succesfulEpToReceive, remoteEndpoint, null) == null)
             {
-                Console.WriteLine("Received Sucess: " + remoteEndpoint.ToString());
+                //Console.WriteLine("Received Sucess: " + remoteEndpoint.ToString());
 
                 var msg = new MessageEnvelope()
                 {

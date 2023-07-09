@@ -1,10 +1,9 @@
 ﻿using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.MessageProtocol;
 using System;
-[assembly: CLSCompliant(true)]
 namespace NetworkLibrary.Generic
 {
-    public class GenericBuffer<S> : MessageBuffer where S : ISerializer, new()
+    internal class GenericBuffer<S> : MessageBuffer where S : ISerializer, new()
     {
         private readonly S serializer = new S();
         public GenericBuffer(int maxIndexedMemory, bool writeLengthPrefix = true) : base(maxIndexedMemory, writeLengthPrefix)

@@ -46,7 +46,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet
             if (activeStates.TryAdd(state.StateId, state))
             {
                 StartLifetimeCounter(state.StateId);
-                Console.WriteLine("State added");
+                
             }
             else
             {

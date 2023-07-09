@@ -9,7 +9,7 @@ namespace NetworkLibrary.TCP.ByteMessage
         public ByteMessageTcpServer(int port) : base(port)
         { }
 
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new ByteMessageSession(e, sessionId);
             session.socketSendBufferSize = ClientSendBufsize;

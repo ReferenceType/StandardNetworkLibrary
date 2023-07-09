@@ -14,7 +14,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         protected Socket clientSocket;
         protected SslStream sslStream;
-        protected IAsyncSession clientSession;
+        private protected IAsyncSession clientSession;
         private X509Certificate2 certificate;
         private TcpClientStatisticsPublisher statisticsPublisher;
 
@@ -188,7 +188,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         #endregion Validate
 
-        protected virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses = new SslSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemory;

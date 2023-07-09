@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace MessageProtocol
 {
-    public class MessageSession<E, S> : TcpSession
+    internal class MessageSession<E, S> : TcpSession
         where S : ISerializer, new()
         where E : IMessageEnvelope, new()
     {

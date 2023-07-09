@@ -19,7 +19,7 @@ namespace NetworkLibrary.TCP.Base
         public bool Stopping { get; private set; }
 
         protected Socket ServerSocket;
-        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+        private protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
 
         private TcpServerStatisticsPublisher statisticsPublisher;
 
@@ -113,7 +113,7 @@ namespace NetworkLibrary.TCP.Base
         #endregion Accept
 
         #region Create Session
-        protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new TcpSession(e, sessionId);
             session.socketSendBufferSize = ClientSendBufsize;

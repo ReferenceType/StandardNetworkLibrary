@@ -36,11 +36,11 @@ namespace MessageProtocol
                 OnMessageReceived?.Invoke(message);
         }
 
-        protected virtual MessageSession<E, S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected virtual MessageSession<E, S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             return new MessageSession<E, S>(e, sessionId);
         }
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = MakeSession(e, sessionId);
             ses.SocketRecieveBufferSize = SocketRecieveBufferSize;

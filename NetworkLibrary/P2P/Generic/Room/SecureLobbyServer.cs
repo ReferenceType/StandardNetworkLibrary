@@ -125,11 +125,12 @@ namespace NetworkLibrary.P2P.Generic.Room
                     {
                         room = new Room<S>(roomName, this);
                         rooms.TryAdd(roomName, room);
-                        Console.WriteLine(roomName + " Added");
-
+                        //Console.WriteLine(roomName + " Added");
+                        MiniLogger.Log(MiniLogger.LogLevel.Info, $"Room Created [{roomName}]");
                     }
                     room.Add(clientID);
-                    Console.WriteLine(roomName + " Joined");
+                    // Console.WriteLine(roomName + " Joined");
+                    MiniLogger.Log(MiniLogger.LogLevel.Info, $"{clientID} Joined the room [{roomName}]");
 
                     if (!peerToRoomMap.ContainsKey(clientID))
                         peerToRoomMap.TryAdd(clientID, new ConcurrentDictionary<string, string>());

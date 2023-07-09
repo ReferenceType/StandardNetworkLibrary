@@ -4,7 +4,7 @@ using System.Net;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public interface IAsyncSession : IDisposable
+    internal interface IAsyncSession : IDisposable
     {
         /// <summary>
         /// Bytes received event

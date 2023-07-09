@@ -15,10 +15,5 @@ namespace ProtobufNetwork
         {
         }
     }
-    internal class ProtoSessionInternal : MessageSession<MessageEnvelope, ProtoSerializer>
-    {
-        public ProtoSessionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
-        {
-        }
-    }
+    
 }

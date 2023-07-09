@@ -89,7 +89,7 @@ namespace NetworkLibrary.TCP.Base
 
         #region Create Session Dependency
 
-        protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var ses = new TcpSession(e, sessionId);
             ses.socketSendBufferSize = SocketSendBufferSize;

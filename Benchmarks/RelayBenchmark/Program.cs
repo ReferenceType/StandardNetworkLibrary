@@ -248,7 +248,7 @@ namespace RelayBenchmark
                 var testMessage = new MessageEnvelope()
                 {
                     Header = "Test",
-                    Payload = new byte[126000]
+                    Payload = new byte[12600]
                 };
                 for (int i = 0; i < testMessage.PayloadCount; i++)
                 {
@@ -261,9 +261,9 @@ namespace RelayBenchmark
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
                         //client.SendAsyncMessage(peer, testMessage);
-                       //client.SendUdpMesssage(peer, testMessage);
+                       client.SendUdpMesssage(peer, testMessage);
                         //  client.BroadcastMessage(testMessage);
-                        client.BroadcastUdpMessage(testMessage);
+                        //client.BroadcastUdpMessage(testMessage);
                         // client.SendRudpMessage(peer,testMessage);
                     }
                 }
@@ -289,15 +289,15 @@ namespace RelayBenchmark
             {
 
                 // Interlocked.Increment(ref totMsgCl);
-                //for (int i = 0; i < reply.PayloadCount; i++)
-                //{
-                //    //Console.WriteLine(reply.Payload[reply.PayloadOffset + i]);
-                //    if (reply.Payload[reply.PayloadOffset + i] != (byte)i)
-                //    {
-                //        var a = reply.Payload[reply.PayloadOffset + i];
-                //        var b = (byte)i;
-                //    }
-                //}
+                for (int i = 0; i < reply.PayloadCount; i++)
+                {
+                    //Console.WriteLine(reply.Payload[reply.PayloadOffset + i]);
+                    if (reply.Payload[reply.PayloadOffset + i] != (byte)i)
+                    {
+                        var a = reply.Payload[reply.PayloadOffset + i];
+                        var b = (byte)i;
+                    }
+                }
                 client.SendUdpMesssage(reply.From, reply);
                 //client.SendRudpMessage(reply.From, reply);
                 return;

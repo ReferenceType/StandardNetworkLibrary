@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Generic
 {
-    public class GenericSession<S> : TcpSession
+    internal class GenericSession<S> : TcpSession
        where S : ISerializer, new()
     {
         protected GenericBuffer<S> mq;

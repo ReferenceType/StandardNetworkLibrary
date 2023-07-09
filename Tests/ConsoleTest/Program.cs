@@ -163,13 +163,13 @@ namespace ConsoleTest
             string ip = "127.0.0.1";
             int port = 2222;
             int numClients = 10;
-            SecureLobbyServer server = new SecureLobbyServer(port, scert);
+            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
             server.StartServer();
 
-            List<SecureLobbyClient> clients = new List<SecureLobbyClient>();
+            List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
             for (int i = 0; i < numClients; i++)
             {
-                var cl = new SecureLobbyClient(cert);
+                var cl = new SecureProtoRoomClient(cert);
                 cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - " + m.Header);
                 cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - " + m.Header);
                 cl.OnTcpMessageReceived += (m) => Console.WriteLine("Driect Tcp - " + m.Header);

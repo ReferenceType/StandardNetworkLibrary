@@ -16,7 +16,7 @@ namespace MessageProtocol
     {
         public Action<Guid, E> OnMessageReceived;
         public bool DeserializeMessages = true;
-        public GenericMessageAwaiter<E> awaiter = new GenericMessageAwaiter<E>();
+        internal GenericMessageAwaiter<E> awaiter = new GenericMessageAwaiter<E>();
 
         private GenericMessageSerializer<E, S> serializer;
         public SecureMessageServer(int port, X509Certificate2 certificate) : base(port, certificate)
@@ -58,11 +58,11 @@ namespace MessageProtocol
             }
         }
 
-        protected virtual SecureMessageSession<E, S> GetSession(Guid guid, SslStream sslStream)
+        private protected virtual SecureMessageSession<E, S> GetSession(Guid guid, SslStream sslStream)
         {
             return new SecureMessageSession<E, S>(guid, sslStream);
         }
-        protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var session = GetSession(guid, tuple.Item1);//new SecureProtoSessionInternal(guid, tuple.Item1);
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;

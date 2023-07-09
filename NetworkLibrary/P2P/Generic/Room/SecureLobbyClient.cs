@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.P2P.Generic.Room
@@ -81,7 +82,9 @@ namespace NetworkLibrary.P2P.Generic.Room
             {
                 {roomName ,null}
             };
+
             rooms.TryAdd(roomName, new Room(roomName));
+
             client.tcpMessageClient.SendMessageAndWaitResponse(message)
                 .ContinueWith((response) =>
                 {
@@ -157,6 +160,8 @@ namespace NetworkLibrary.P2P.Generic.Room
             messageEnvelope.From = client.SessionId;
         }
 
+        #region Room Messages
+
         public void SendMessageToRoom(string roomName, MessageEnvelope message)
         {
             if (CanSend(roomName))
@@ -194,34 +199,6 @@ namespace NetworkLibrary.P2P.Generic.Room
                     client.MulticastUdpMessage(message, dict.PeerIds, innerMessage);
             }
         }
-
-        public void SendMessageToPeer(Guid peerId, MessageEnvelope message)
-        {
-            client.SendAsyncMessage(peerId, message);
-        }
-        public void SendMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage)
-        {
-            client.SendAsyncMessage(peerId, message, innerMessage);
-        }
-
-        public void SendUdpMessageToPeer(Guid peerId, MessageEnvelope message)
-        {
-            client.SendUdpMesssage(peerId, message);
-        }
-        public void SendRudpMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage)
-        {
-            client.SendRudpMessage(peerId, message, innerMessage);
-        }
-
-        public void SendRudpMessageToPeer(Guid peerId, MessageEnvelope message, RudpChannel channel = RudpChannel.Ch1)
-        {
-            client.SendRudpMessage(peerId, message, channel);
-        }
-        public void SendUdpMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage, RudpChannel channel = RudpChannel.Ch1)
-        {
-            client.SendRudpMessage(peerId, message, innerMessage,channel);
-        }
-
         public void SendRudpMessageToRoom(string roomName, MessageEnvelope message, RudpChannel channel = RudpChannel.Ch1)
         {
             if (CanSend(roomName))
@@ -231,12 +208,11 @@ namespace NetworkLibrary.P2P.Generic.Room
                 {
                     foreach (var peerId in roomDict.PeerIds)
                     {
-                        if(peerId!=SessionId)
+                        if (peerId != SessionId)
                             client.SendRudpMessage(peerId, message);
                     }
                 }
             }
-          
         }
 
         public void SendRudpMessageToRoom<T>(string roomName, MessageEnvelope message, T innerMessage, RudpChannel channel = RudpChannel.Ch1)
@@ -254,6 +230,59 @@ namespace NetworkLibrary.P2P.Generic.Room
                 }
             }
         }
+        #endregion
+
+        #region Direct Messages
+        //Tcp
+        public void SendMessageToPeer(Guid peerId, MessageEnvelope message)
+        {
+            client.SendAsyncMessage(peerId, message);
+        }
+        public void SendMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage)
+        {
+            client.SendAsyncMessage(peerId, message, innerMessage);
+        }
+
+        public void SendRequestAndWaitResponse(Guid peerId, MessageEnvelope message, int timeoutMs = 10000)
+        {
+            client.SendRequestAndWaitResponse(peerId, message, timeoutMs);
+        }
+
+        public void SendRequestAndWaitResponse<T>(Guid peerId, MessageEnvelope message,T innerMessage, int timeoutMs = 10000)
+        {
+            client.SendRequestAndWaitResponse(peerId, message, innerMessage, timeoutMs);
+        }
+        //---
+        // Udp
+        public void SendUdpMessageToPeer(Guid peerId, MessageEnvelope message)
+        {
+            client.SendUdpMesssage(peerId, message);
+        }
+
+        public void SendUdpMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage)
+        {
+            client.SendUdpMesssage(peerId, message, innerMessage);
+        }
+        //--
+        // Rudp
+        public void SendRudpMessageToPeer(Guid peerId, MessageEnvelope message, RudpChannel channel = RudpChannel.Ch1)
+        {
+            client.SendRudpMessage(peerId, message, channel);
+        }
+        public void SendUdpMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage, RudpChannel channel = RudpChannel.Ch1)
+        {
+            client.SendRudpMessage(peerId, message, innerMessage,channel);
+        }
+        public void SendRudpMessageAndWaitResponse(Guid peerId, MessageEnvelope message, int timeoutMs = 10000,RudpChannel channel =  RudpChannel.Ch1)
+        {
+            client.SendRudpMessageAndWaitResponse(peerId, message, timeoutMs, channel);
+        }
+        public void SendRudpMessageAndWaitResponse<T>(Guid peerId, MessageEnvelope message, T innerMessage, int timeoutMs = 10000, RudpChannel channel = RudpChannel.Ch1)
+        {
+            client.SendRudpMessageAndWaitResponse(peerId, message, innerMessage, timeoutMs,channel);
+        }
+        //--
+        #endregion
 
         #endregion
 
@@ -282,8 +311,6 @@ namespace NetworkLibrary.P2P.Generic.Room
                 HandleTcpReceived(message);
         }
 
-
-
         private void HandleTcpReceived(MessageEnvelope message)
         {
             if (message.KeyValuePairs != null && message.KeyValuePairs.TryGetValue(Constants.RoomName, out string roomName))
@@ -298,7 +325,6 @@ namespace NetworkLibrary.P2P.Generic.Room
 
         private void UpdateRooms(MessageEnvelope message)
         {
-            Console.WriteLine("UpdateRooms");
             var roomUpdateMessage = KnownTypeSerializer.DeserializeRoomPeerList(message.Payload, message.PayloadOffset);
 
             Dictionary<Guid, PeerInfo> JoinedList = new Dictionary<Guid, PeerInfo>();

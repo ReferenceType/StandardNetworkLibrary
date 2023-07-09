@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Generic
 {
-    public class GenericSecureSession<S> : SslSession
+    internal class GenericSecureSession<S> : SslSession
         where S : ISerializer, new()
     {
         protected GenericBuffer<S> mq;

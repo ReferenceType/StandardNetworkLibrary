@@ -18,11 +18,6 @@ namespace DataContractNetwork.Internal
             }
         }
 
-        internal class DataContractSesssionInternal : MessageSession<MessageEnvelope, DataContractSerialiser>
-        {
-            public DataContractSesssionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
-            {
-            }
-        }
+       
     }
 }

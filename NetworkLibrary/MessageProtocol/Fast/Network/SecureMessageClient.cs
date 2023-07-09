@@ -17,7 +17,7 @@ namespace NetworkLibrary.MessageProtocol
         public bool DeserializeMessages = true;
         private GenericMessageSerializer<S> serializer;
         private SecureMessageSession<S> messageSession;
-        public GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
+        internal GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
 
 
         public SecureMessageClient(X509Certificate2 certificate) : base(certificate)
@@ -53,13 +53,13 @@ namespace NetworkLibrary.MessageProtocol
                 OnMessageReceived?.Invoke(message);
         }
 
-        protected virtual SecureMessageSession<S> GetSession(Guid guid, SslStream sslStream)
+        private protected virtual SecureMessageSession<S> GetSession(Guid guid, SslStream sslStream)
         {
             return new SecureMessageSession<S>(guid, sslStream);
         }
-        protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var session = GetSession(guid, tuple.Item1);//new SecureProtoSessionInternal(guid, tuple.Item1);
+            var session = GetSession(guid, tuple.Item1);
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.RemoteEndpoint = tuple.Item2;
             messageSession = session;

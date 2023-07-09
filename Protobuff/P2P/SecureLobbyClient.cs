@@ -4,9 +4,9 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Protobuff.P2P
 {
-    public class SecureLobbyClient : SecureLobbyClient<ProtoSerializer>
+    public class SecureProtoRoomClient : SecureLobbyClient<ProtoSerializer>
     {
-        public SecureLobbyClient(X509Certificate2 clientCert) : base(clientCert)
+        public SecureProtoRoomClient(X509Certificate2 clientCert) : base(clientCert)
         {
         }
     }

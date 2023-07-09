@@ -16,10 +16,5 @@ namespace CustomSerializer
         }
     }
 
-    public class CustomMessageSession : MessageSession<Serializer_>
-    {
-        public CustomMessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
-        {
-        }
-    }
+   
 }

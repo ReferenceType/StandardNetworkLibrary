@@ -6,9 +6,9 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.MessageProtocol
 {
-    public class MessageSession<S> : TcpSession where S : ISerializer, new()
+    internal class MessageSession<S> : TcpSession where S : ISerializer, new()
     {
-        ByteMessageReader reader;
+        private ByteMessageReader reader;
         protected GenericMessageQueue<S> mq;
 
         public MessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)

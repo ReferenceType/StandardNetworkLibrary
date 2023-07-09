@@ -1,97 +1,13 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
-
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
-After:
-using NetworkLibrary.TCP.SSL.Base;
-using System;
-using System.Collections.Concurrent;
-using System.Net.Generic;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
-After:
-using NetworkLibrary.TCP.SSL.Base;
-using System;
-using System.Collections.Concurrent;
-using System.Net.Generic;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
-After:
-using NetworkLibrary.TCP.SSL.Base;
-using System;
-using System.Collections.Concurrent;
-using System.Net.Generic;
-*/
 using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
-
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using System.Text;
-using NetworkLibrary.TCP.SSL.Base;
-After:
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using System.Text;
-using NetworkLibrary.TCP.SSL.Base;
-After:
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using System.Text;
-using NetworkLibrary.TCP.SSL.Base;
-After:
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-*/
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
-
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using System.Net.Security;
-After:
-using System.Text;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using System.Net.Security;
-After:
-using System.Text;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using System.Net.Security;
-After:
-using System.Text;
-*/
 using static NetworkLibrary.TCP.Base.TcpServerBase;
 
 namespace NetworkLibrary.Generic
@@ -99,12 +15,12 @@ namespace NetworkLibrary.Generic
     public class GenericSecureServer<S> where S : ISerializer, new()
 
     {
-        GenericSecureServerInternal<S> server;
+        private GenericSecureServerInternal<S> server;
         public BytesRecieved BytesReceived;
         public ClientAccepted ClientAccepted;
         public ClientDisconnected ClientDisconnected;
-        public RemoteCertificateValidationCallback CertificateValidationCallback;
-
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
+        public S Serializer =  new S();
         public GenericSecureServer(int port, X509Certificate2 certificate, bool writeLenghtPrefix = true)
         {
             server = new GenericSecureServerInternal<S>(port, certificate, writeLenghtPrefix);
@@ -117,9 +33,9 @@ namespace NetworkLibrary.Generic
 
         private bool OnValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            if (CertificateValidationCallback == null)
+            if (RemoteCertificateValidationCallback == null)
                 return true;
-            return CertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
+            return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
         }
 
         private void OnClientDisconnected(Guid guid)
@@ -173,9 +89,9 @@ namespace NetworkLibrary.Generic
         {
             return new GenericSecureSession<S>(sessionId, sslStream, writeLenghtPrefix);
         }
-        protected sealed override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected sealed override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var session = MakeSession(guid, tuple.Item1);//new SecureProtoSessionInternal(guid, tuple.Item1);
+            var session = MakeSession(guid, tuple.Item1);
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.RemoteEndpoint = tuple.Item2;
             return session;
@@ -186,7 +102,7 @@ namespace NetworkLibrary.Generic
         public void SendAsync<T>(Guid clientId, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
-                ((GenericSession<S>)session).SendAsync(message);
+                ((GenericSecureSession<S>)session).SendAsync(message);
 
         }
 

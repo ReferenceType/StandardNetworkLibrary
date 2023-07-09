@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace MessageProtocol
 {
-    public class SecureMessageSession<E, S> : SslSession
+    internal class SecureMessageSession<E, S> : SslSession
          where E : IMessageEnvelope, new()
          where S : ISerializer, new()
     {

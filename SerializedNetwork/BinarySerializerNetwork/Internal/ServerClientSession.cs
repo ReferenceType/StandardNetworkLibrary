@@ -18,11 +18,6 @@ namespace BinarySerializerNetwork.Internal
             }
         }
 
-        internal class NetSerializerSesssionInternal : MessageSession<MessageEnvelope, BinarySerializer>
-        {
-            public NetSerializerSesssionInternal(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
-            {
-            }
-        }
+     
     }
 }

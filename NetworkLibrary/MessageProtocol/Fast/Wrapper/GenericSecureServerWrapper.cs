@@ -37,6 +37,10 @@ namespace NetworkLibrary.MessageProtocol.Fast
             server.RemoteCertificateValidationCallback += DefaultValidationCallback;
 
             server.MaxIndexedMemoryPerClient = 228000000;
+           
+        }
+        public void StartServer()
+        {
             server.StartServer();
         }
 

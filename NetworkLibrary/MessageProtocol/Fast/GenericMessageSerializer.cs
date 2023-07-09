@@ -1,58 +1,8 @@
 ﻿using NetworkLibrary.Components;
-
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using NetworkLibrary.Utils;
-After:
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.Utils;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using NetworkLibrary.Utils;
-After:
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.Utils;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using NetworkLibrary.Utils;
-After:
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.Utils;
-*/
 using NetworkLibrary.MessageProtocol.Serialization;
 using NetworkLibrary.Utils;
 using System;
 using System.Runtime.CompilerServices;
-/* Unmerged change from project 'NetworkLibrary (net6.0)'
-Before:
-using System.Text;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-After:
-using System.Text;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (net7.0)'
-Before:
-using System.Text;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-After:
-using System.Text;
-*/
-
-/* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-Before:
-using System.Text;
-using MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-After:
-using System.Text;
-*/
 
 
 namespace NetworkLibrary.MessageProtocol
@@ -265,7 +215,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EnvelopeMessageWithBytesDontWritePayload(PooledMemoryStream serialisationStream, MessageEnvelope envelope)
+        public void EnvelopeMessageWithBytesDontWritePayload(PooledMemoryStream serialisationStream, MessageEnvelope envelope, int payloadCount)
         {
             int originalPos = serialisationStream.Position32;
             serialisationStream.Position32 += 2;
@@ -282,7 +232,11 @@ namespace NetworkLibrary.MessageProtocol
 
             var pos1 = serialisationStream.Position32;
             serialisationStream.Position32 = originalPos;
-            serialisationStream.WriteUshortUnchecked(oldpos);
+            if(payloadCount>0)
+                serialisationStream.WriteUshortUnchecked(oldpos);
+            else
+                serialisationStream.WriteTwoZerosUnchecked();
+
             serialisationStream.Position32 = pos1;
 
             //serialisationStream.Write(payloadBuffer, offset, count);
@@ -290,7 +244,7 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal unsafe void EnvelopeMessageWithBytesDontWritePayload(byte[] buffer,ref int offset, MessageEnvelope envelope)
+        internal unsafe void EnvelopeMessageWithBytesDontWritePayload(byte[] buffer,ref int offset, MessageEnvelope envelope, int payloadCount)
         {
             int originalPos = 0;
             offset += 2;
@@ -307,17 +261,24 @@ namespace NetworkLibrary.MessageProtocol
             fixed (byte* b = &buffer[originalPos])
                 *(short*)b = (short)oldpos;
 
-            //var pos1 = serialisationStream.Position32;
-            //serialisationStream.Position32 = originalPos;
-            //serialisationStream.WriteUshortUnchecked(oldpos);
-            //serialisationStream.Position32 = pos1;
+            if (payloadCount > 0)
+            {
+                fixed (byte* b = &buffer[originalPos])
+                    *(short*)b = (short)oldpos;
+            }
 
-            //serialisationStream.Write(payloadBuffer, offset, count);
+            else
+            {
+                fixed (byte* b = &buffer[originalPos])
+                    *(short*)b = 0;
+            }
+               
+         
 
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal unsafe void EnvelopeMessageWithBytesDontWritePayload(byte* buffer, ref int offset, MessageEnvelope envelope)
+        internal unsafe void EnvelopeMessageWithBytesDontWritePayload(byte* buffer, ref int offset, MessageEnvelope envelope, int payloadCount)
         {
             int originalPos = 0;
             offset += 2;
@@ -331,8 +292,18 @@ namespace NetworkLibrary.MessageProtocol
             }
             ushort oldpos = (ushort)(delta);//msglen +2 
 
-            byte* b = buffer + originalPos;
+           
+            if (payloadCount > 0)
+            {
+                byte* b = buffer + originalPos;
                 *(short*)b = (short)oldpos;
+            }
+
+            else
+            {
+                byte* b = buffer + originalPos;
+                *(short*)b = 0;
+            }
         }
 
 

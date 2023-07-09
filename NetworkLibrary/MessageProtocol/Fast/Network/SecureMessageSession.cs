@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.MessageProtocol
 {
-    public class SecureMessageSession<S> : SslSession
+    internal class SecureMessageSession<S> : SslSession
         where S : ISerializer, new()
     {
         protected GenericMessageQueue<S> mq;

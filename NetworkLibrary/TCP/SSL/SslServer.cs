@@ -25,7 +25,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         public int SessionCount => Sessions.Count;
 
-        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+        private protected ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
         internal ConcurrentDictionary<Guid, TcpStatistics> Stats { get; } = new ConcurrentDictionary<Guid, TcpStatistics>();
 
 
@@ -160,7 +160,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 Console.WriteLine("Removed " + id);
         }
 
-        protected virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected virtual IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses = new SslSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;

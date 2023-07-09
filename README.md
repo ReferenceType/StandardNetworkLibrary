@@ -83,7 +83,7 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 
 #### Note
 This benchmarks is only sending message envelope with raw byte payload. For serialization spesific performance please refer to:
-Benchmarks.md
+[a relative link](SerializationBenchmarks.md)
 
 
 # Code Samples & Documentation

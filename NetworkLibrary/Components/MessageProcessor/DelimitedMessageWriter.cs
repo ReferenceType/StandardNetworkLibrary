@@ -1,8 +1,5 @@
-﻿using NetworkLibrary.Utils;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Components
 {
@@ -45,12 +42,12 @@ namespace NetworkLibrary.Components
                 }
                 else
                 {
-                    bufferInternal[offset+3] = (byte)message.Length;
+                    bufferInternal[offset + 3] = (byte)message.Length;
                     bufferInternal[offset + 2] = (byte)(message.Length >> 8);
                     bufferInternal[offset + 1] = (byte)(message.Length >> 16);
                     bufferInternal[offset] = (byte)(message.Length >> 24);
                 }
-               
+
                 offset += 4;
                 count += 4;
             }
@@ -116,7 +113,7 @@ namespace NetworkLibrary.Components
 
                 pendingMessage = null;
                 pendingRemaining = 0;
-                pendingMessageOffset=0;
+                pendingMessageOffset = 0;
                 IsHoldingMessage = false;
                 return true;
             }
@@ -140,7 +137,7 @@ namespace NetworkLibrary.Components
 
         public void Dispose()
         {
-           bufferInternal= null;
+            bufferInternal = null;
         }
     }
 }

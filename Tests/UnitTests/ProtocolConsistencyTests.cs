@@ -1,19 +1,15 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NetworkLibrary.TCP.ByteMessage;
+using NetworkLibrary.TCP.SSL.ByteMessage;
+using NetworkLibrary.TCP.SSL.Custom;
+using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using System.Collections.Concurrent;
-using NetworkLibrary.TCP.ByteMessage;
-using NetworkLibrary.Utils;
-using System.Security.Cryptography.X509Certificates;
-using NetworkLibrary.TCP.SSL.ByteMessage;
-using NetworkLibrary.TCP.SSL.Custom; 
-using System.Net.Security;
-using NetworkLibrary.TCP;
 
 namespace UnitTests
 {
@@ -30,7 +26,7 @@ namespace UnitTests
             int completionCount = clAmount;
             int numErrors = 0;
             ByteMessageTcpServer server = new ByteMessageTcpServer(2008);
-            ConcurrentDictionary<ByteMessageTcpClient,int> clients = new ConcurrentDictionary<ByteMessageTcpClient,int>();
+            ConcurrentDictionary<ByteMessageTcpClient, int> clients = new ConcurrentDictionary<ByteMessageTcpClient, int>();
 
             Stopwatch sw2 = new Stopwatch();
             AutoResetEvent testCompletionEvent = new AutoResetEvent(false);
@@ -54,7 +50,7 @@ namespace UnitTests
                 toWait[i] = client.ConnectAsyncAwaitable("127.0.0.1", 2008);
                 Console.WriteLine(server.SessionCount);
 
-                clients.TryAdd(client,-1);
+                clients.TryAdd(client, -1);
             }
 
             Task.WaitAll(toWait);
@@ -65,7 +61,7 @@ namespace UnitTests
             // Messages starts here
             Parallel.ForEach(clients, client =>
             {
-                for (int i = 0; i < numMsg-1; i++)
+                for (int i = 0; i < numMsg - 1; i++)
                 {
                     var msg = new byte[32];
                     PrefixWriter.WriteInt32AsBytes(msg, 0, i);
@@ -85,14 +81,14 @@ namespace UnitTests
                 if (count == 502)
                 {
                     Interlocked.Decrement(ref completionCount);
-                    if(Interlocked.CompareExchange(ref completionCount,0,0)==0)
+                    if (Interlocked.CompareExchange(ref completionCount, 0, 0) == 0)
                         testCompletionEvent.Set();
                     return;
                 }
 
                 int currVal = BitConverter.ToInt32(arg2, offset);
                 var prevVal = clients[client];
-                if (currVal != prevVal+1)
+                if (currVal != prevVal + 1)
                 {
                     Interlocked.Increment(ref numErrors);
                 }
@@ -100,11 +96,11 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
-                var response= new byte[count];
-                Buffer.BlockCopy(arg2,offset,response,0,count);
+                var response = new byte[count];
+                Buffer.BlockCopy(arg2, offset, response, 0, count);
                 server.SendBytesToClient(id, response);
             }
 
@@ -112,9 +108,9 @@ namespace UnitTests
             testCompletionEvent.WaitOne(50000);
             server.ShutdownServer();
 
-            Assert.AreEqual(totMsgCl, numMsg*clAmount);
-            Assert.AreEqual(totMsgsw, numMsg*clAmount);
-            Assert.AreEqual(0,numErrors);
+            Assert.AreEqual(totMsgCl, numMsg * clAmount);
+            Assert.AreEqual(totMsgsw, numMsg * clAmount);
+            Assert.AreEqual(0, numErrors);
         }
 
         [TestMethod]
@@ -138,12 +134,12 @@ namespace UnitTests
             server.OnBytesReceived += OnServerReceviedMessage;
             server.GatherConfig = ScatterGatherConfig.UseQueue;
             server.StartServer();
-            
+
             Task[] toWait = new Task[clAmount];
             for (int i = 0; i < clAmount; i++)
             {
                 var client = new ByteMessageTcpClient();
-                client.GatherConfig= ScatterGatherConfig.UseQueue;
+                client.GatherConfig = ScatterGatherConfig.UseQueue;
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.DropOnCongestion = false;
                 client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
@@ -161,9 +157,9 @@ namespace UnitTests
             Random random = new Random(42);
             Parallel.ForEach(clients, client =>
             {
-                for (int i = 0; i < numMsg-1; i++)
+                for (int i = 0; i < numMsg - 1; i++)
                 {
-                    var msg = new byte[random.Next(505,1000000)];
+                    var msg = new byte[random.Next(505, 1000000)];
                     PrefixWriter.WriteInt32AsBytes(msg, 0, i);
                     client.Key.SendAsync(msg);
                 }
@@ -196,7 +192,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 
@@ -209,8 +205,8 @@ namespace UnitTests
             testCompletionEvent.WaitOne(20000);
             server.ShutdownServer();
 
-            Assert.AreEqual(totMsgCl, numMsg*clAmount);
-            Assert.AreEqual(totMsgsw, numMsg*clAmount);
+            Assert.AreEqual(totMsgCl, numMsg * clAmount);
+            Assert.AreEqual(totMsgsw, numMsg * clAmount);
             Assert.AreEqual(0, numErrors);
 
         }
@@ -307,7 +303,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -407,7 +403,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 
@@ -528,7 +524,7 @@ namespace UnitTests
                 //client.SendAsync(response);
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
                 var response = new byte[count];
@@ -553,7 +549,7 @@ namespace UnitTests
             int clAmount = 10;
             int completionCount = clAmount;
             int numErrors = 0;
-            MiniLogger.AllLog+=(log)=>Console.WriteLine(log);
+            MiniLogger.AllLog += (log) => Console.WriteLine(log);
 
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var ccert = new X509Certificate2("client.pfx", "greenpass");
@@ -640,7 +636,7 @@ namespace UnitTests
                 clients[client] = currVal;
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgsw);
 

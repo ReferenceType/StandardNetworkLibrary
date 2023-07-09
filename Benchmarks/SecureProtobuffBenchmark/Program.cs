@@ -1,13 +1,10 @@
-﻿using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP;
-using NetworkLibrary.TCP.SSL.ByteMessage;
+﻿using NetworkLibrary;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
 using Protobuff;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Security;
-using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,8 +23,8 @@ internal class Program
     static int messageSize;
     static MessageEnvelope clientMessage;
 
-    private static List<SecureProtoClient> clients = new List<SecureProtoClient>();
-    private static SecureProtoServer server;
+    private static List<SecureProtoMessageClient> clients = new List<SecureProtoMessageClient>();
+    private static SecureProtoMessageServer server;
     private static Stopwatch sw2 = new Stopwatch();
     private static long totMsgClient;
     private static long totMsgServer;
@@ -37,7 +34,7 @@ internal class Program
     private static ThreadLocal<long> TotalNumMsgServer = new ThreadLocal<long>(true);
     static void Main(string[] args)
     {
-       
+
         var config = ConsoleInputHandler.ObtainConfig();
         runAsClient = config.runAsClient;
         runAsServer = config.runAsServer;
@@ -58,24 +55,26 @@ internal class Program
         fixedMessage = isFixedMessage ? new MessageEnvelope()
         {
             Header = "Test",
-            Payload = new byte[fixedMessageSize]
+            Payload = new byte[fixedMessageSize],
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
 
         } : new MessageEnvelope();
 
         var scert = new X509Certificate2("server.pfx", "greenpass");
-        server = new SecureProtoServer(port, scert);
+        server = new SecureProtoMessageServer(port, scert);
         server.OnMessageReceived += isFixedMessage ? EchoStatic : EchoDynamic;
         Console.WriteLine("Server Running");
 
     }
 
-    static void EchoDynamic(in Guid arg1, MessageEnvelope arg2)
+    static void EchoDynamic(Guid arg1, MessageEnvelope arg2)
     {
-        server.SendAsyncMessage(in arg1, arg2);
+        server.SendAsyncMessage(arg1, arg2);
     }
-    static void EchoStatic(in Guid arg1, MessageEnvelope arg2)
+    static void EchoStatic(Guid arg1, MessageEnvelope arg2)
     {
-        server.SendAsyncMessage(in arg1, fixedMessage);
+        server.SendAsyncMessage(arg1, fixedMessage);
     }
 
     private static void InitializeClients()
@@ -84,15 +83,17 @@ internal class Program
         clientMessage = new MessageEnvelope()
         {
             Header = "Test",
-            Payload = new byte[messageSize]
+            Payload = new byte[messageSize],
+            From = Guid.NewGuid(),
+            To = Guid.NewGuid(),
 
         };
-        clients = new List<SecureProtoClient>();
+        clients = new List<SecureProtoMessageClient>();
         var ccert = new X509Certificate2("client.pfx", "greenpass");
 
         for (int i = 0; i < numClients; i++)
         {
-            var client = new SecureProtoClient(ccert);
+            var client = new SecureProtoMessageClient(ccert);
             client.OnMessageReceived += (reply) => client.SendAsyncMessage(reply);
             clients.Add(client);
 
@@ -142,7 +143,7 @@ internal class Program
 
         });
     }
-   
+
     private static void ShowStatus()
     {
         while (Console.ReadLine() != "e")
@@ -158,7 +159,7 @@ internal class Program
             if (runAsClient)
             {
                 totMsgClient = 0;
-                var stats =  new List<TcpStatistics>();
+                var stats = new List<TcpStatistics>();
                 foreach (var client in clients)
                 {
                     client.GetStatistics(out TcpStatistics stat);
@@ -192,7 +193,7 @@ internal class Program
             }
             Thread.Sleep(1000);
         }
-        
+
     }
 
 }

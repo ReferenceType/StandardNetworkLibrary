@@ -1,14 +1,8 @@
 ﻿using NetworkLibrary.Utils;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace NetworkLibrary.UDP
 {
@@ -49,8 +43,8 @@ namespace NetworkLibrary.UDP
 
         public AsyncUdpClient()
         {
-            recieveBuffer = new byte[65500];
-            clientSocket = new Socket(AddressFamily.InterNetwork,SocketType.Dgram, ProtocolType.Udp);
+            recieveBuffer = ByteCopy.GetNewArray(65000, true);
+            clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
             clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
             //clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
@@ -90,7 +84,10 @@ namespace NetworkLibrary.UDP
                 var ep = new IPEndPoint(ipAdress.MapToIPv4(), port);
                 RemoteEndPoint = ep;
                 if (receive)
-                    Receive();
+                    for (int i = 0; i < Environment.ProcessorCount; i++)
+                    {
+                        Receive();
+                    }
             }
 
 
@@ -106,10 +103,18 @@ namespace NetworkLibrary.UDP
             RemoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
             clientSocket.Connect(RemoteEndPoint);
             Connected = true;
-            //clientSocket.Blocking = false;
+            clientSocket.Blocking = false;
+            for (int i = 0; i < 16; i++)
+            {
+                //  TT(new byte[65000]);
+            }
             clientSocket.BeginReceive(recieveBuffer, 0, recieveBuffer.Length, SocketFlags.None, EndRecieve, null);
         }
+        private void TT(byte[] buffer)
+        {
+            clientSocket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, EndRecieve2, buffer);
 
+        }
         #region Receive
         private void Receive()
         {
@@ -162,6 +167,26 @@ namespace NetworkLibrary.UDP
             else
                 Receive();
         }
+        private void EndRecieve2(IAsyncResult ar)
+        {
+            int amount = 0;
+            try
+            {
+                amount = clientSocket.EndReceive(ar);
+            }
+            catch (Exception e)
+            {
+                OnError?.Invoke(e);
+                return;
+            };
+            var buff = (byte[])ar.AsyncState;
+
+            HandleBytesReceived(buff, 0, amount);
+            if (ar.CompletedSynchronously)
+                ThreadPool.UnsafeQueueUserWorkItem((e) => TT(buff), null);
+            else
+                TT(buff);
+        }
         private void EndRecieveFrom(IAsyncResult ar)
         {
             int amount = 0;
@@ -205,7 +230,7 @@ namespace NetworkLibrary.UDP
             }
             catch (Exception e)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable to send the Udp Datagram due to : "+e.Message);
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable to send the Udp Datagram due to : " + e.Message);
             }
         }
 
@@ -219,7 +244,7 @@ namespace NetworkLibrary.UDP
             clientSocket.SendTo(bytes, offset, count, SocketFlags.None, endpoint);
         }
 
-        public void ReceiveOnceFrom(EndPoint endPoint, Action<byte[],int,int> OnReceived)
+        public void ReceiveOnceFrom(EndPoint endPoint, Action<byte[], int, int> OnReceived)
         {
             var buffer = BufferPool.RentBuffer(64000);
             clientSocket.BeginReceiveFrom(buffer, 0, 62000, SocketFlags.None, ref endPoint, OnReceived_, buffer);
@@ -228,21 +253,21 @@ namespace NetworkLibrary.UDP
             {
                 try
                 {
-                    int amount = clientSocket.EndReceiveFrom(ar,ref endPoint);
+                    int amount = clientSocket.EndReceiveFrom(ar, ref endPoint);
                     byte[] bytes = ar.AsyncState as byte[];
                     OnReceived?.Invoke(bytes, 0, amount);
                     BufferPool.ReturnBuffer(bytes);
                 }
-                catch(Exception e) 
+                catch (Exception e)
                 {
-                    MiniLogger.Log(MiniLogger.LogLevel.Error,"ReceiveOnceFrom Error: "+e.Message);
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "ReceiveOnceFrom Error: " + e.Message);
                     OnReceived?.Invoke(null, 0, 0);
                 }
-            
+
             }
         }
 
-     
+
 
         public void JoinMulticastGroup(IPAddress multicastAddr)
         {

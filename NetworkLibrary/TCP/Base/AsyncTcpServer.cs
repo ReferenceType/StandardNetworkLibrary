@@ -1,19 +1,15 @@
-﻿using System;
-using NetworkLibrary.TCP.Base;
+﻿using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
+using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NetworkLibrary.Components.Statistics;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public class AsyncTcpServer:TcpServerBase
+    public class AsyncTcpServer : TcpServerBase
     {
         public ClientAccepted OnClientAccepted;
         public BytesRecieved OnBytesReceived;
@@ -23,7 +19,7 @@ namespace NetworkLibrary.TCP.Base
         public bool Stopping { get; private set; }
 
         protected Socket ServerSocket;
-        protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+        private protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
 
         private TcpServerStatisticsPublisher statisticsPublisher;
 
@@ -31,6 +27,7 @@ namespace NetworkLibrary.TCP.Base
         {
             ServerPort = port;
         }
+
 
         #region Start
         public override void StartServer()
@@ -41,11 +38,14 @@ namespace NetworkLibrary.TCP.Base
             ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
             ServerSocket.Listen(10000);
 
-            SocketAsyncEventArgs e = new SocketAsyncEventArgs();
-            e.Completed += Accepted;
-            if (!ServerSocket.AcceptAsync(e))
+            for (int i = 0; i < Environment.ProcessorCount; i++)
             {
-                Accepted(null, e);
+                SocketAsyncEventArgs e = new SocketAsyncEventArgs();
+                e.Completed += Accepted;
+                if (!ServerSocket.AcceptAsync(e))
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem((s) => Accepted(null, e), null);
+                }
             }
 
             statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
@@ -71,6 +71,7 @@ namespace NetworkLibrary.TCP.Base
             if (acceptedArg.SocketError != SocketError.Success)
             {
                 HandleError(acceptedArg.SocketError, "While Accepting Client an Error Occured :");
+                acceptedArg.Dispose();
                 return;
             }
 
@@ -79,11 +80,11 @@ namespace NetworkLibrary.TCP.Base
                 acceptedArg.Dispose();
                 return;
             }
-            
+
             Guid clientGuid = Guid.NewGuid();
             var session = CreateSession(acceptedArg, clientGuid);
 
-            session.OnBytesRecieved += HandleBytesRecieved;
+            session.OnBytesRecieved += HandleBytesReceived;
             session.OnSessionClosed += HandleDeadSession;
 
             Sessions.TryAdd(clientGuid, session);
@@ -95,6 +96,8 @@ namespace NetworkLibrary.TCP.Base
             session.StartSession();
 
             HandleClientAccepted(clientGuid, acceptedArg);
+
+            acceptedArg.Dispose();
         }
 
         protected virtual bool IsConnectionAllowed(SocketAsyncEventArgs acceptArgs)
@@ -110,14 +113,14 @@ namespace NetworkLibrary.TCP.Base
         #endregion Accept
 
         #region Create Session
-        protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected virtual IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
             var session = new TcpSession(e, sessionId);
             session.socketSendBufferSize = ClientSendBufsize;
-            session.socketRecieveBufferSize = ClientReceiveBufsize;
+            session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
-            session.OnSessionClosed +=(id)=> OnClientDisconnected?.Invoke(id);
+            session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 session.UseQueue = true;
@@ -137,21 +140,21 @@ namespace NetworkLibrary.TCP.Base
             });
         }
 
-        public override void SendBytesToClient(in Guid id, byte[] bytes)
+        public override void SendBytesToClient(Guid id, byte[] bytes)
         {
-            if(Sessions.TryGetValue(id,out var session))
+            if (Sessions.TryGetValue(id, out var session))
                 session.SendAsync(bytes);
         }
 
-        public void SendBytesToClient(in Guid id, byte[] bytes, int offset, int count)
+        public void SendBytesToClient(Guid id, byte[] bytes, int offset, int count)
         {
             if (Sessions.TryGetValue(id, out var session))
-                session.SendAsync(bytes,offset,count);
+                session.SendAsync(bytes, offset, count);
         }
 
-        protected virtual void HandleBytesRecieved(Guid guid, byte[] bytes, int offset, int count)
+        protected virtual void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {
-            OnBytesReceived?.Invoke(in guid, bytes, offset, count);
+            OnBytesReceived?.Invoke(guid, bytes, offset, count);
         }
 
         #endregion
@@ -169,7 +172,7 @@ namespace NetworkLibrary.TCP.Base
 
         public override void CloseSession(Guid sessionId)
         {
-            if(Sessions.TryGetValue(sessionId,out var session))
+            if (Sessions.TryGetValue(sessionId, out var session))
             {
                 session.EndSession();
             }
@@ -183,7 +186,7 @@ namespace NetworkLibrary.TCP.Base
                 ServerSocket.Dispose();
             }
             catch { }
-           
+
 
             foreach (var session in Sessions)
             {
@@ -204,7 +207,7 @@ namespace NetworkLibrary.TCP.Base
 
         public override IPEndPoint GetSessionEndpoint(Guid sessionId)
         {
-            if(Sessions.TryGetValue(sessionId, out var session))
+            if (Sessions.TryGetValue(sessionId, out var session))
             {
                 return session.RemoteEndpoint;
             }

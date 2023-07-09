@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Concurrent;
 
 namespace NetworkLibrary.Utils
 {
@@ -10,11 +7,11 @@ namespace NetworkLibrary.Utils
         public delegate T ConstructorCallback();
         public ConstructorCallback HowToConstruct;
 
-        public readonly ConcurrentBag<T> pool= new ConcurrentBag<T>();
+        public readonly ConcurrentBag<T> pool = new ConcurrentBag<T>();
 
         public T RentObject()
         {
-            if(!pool.TryTake(out T obj))
+            if (!pool.TryTake(out T obj))
             {
                 return HowToConstruct == null ? new T() : HowToConstruct.Invoke();
             }

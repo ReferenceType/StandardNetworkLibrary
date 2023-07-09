@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="protobuf-net" Version="3.1.26" />
-    <PackageReference Include="Protobuf.Network.Library" Version="1.0.0" />
+    <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
+    <ProjectReference Include="..\Protobuff\Protobuff.csproj" />
   </ItemGroup>
 
   <ItemGroup>

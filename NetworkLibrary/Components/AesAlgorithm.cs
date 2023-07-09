@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace NetworkLibrary.Components
 {
-    public class AesAlgorithm:IDisposable
+    public class AesAlgorithm : IDisposable
     {
         private readonly SymmetricAlgorithm algorithm;
         private readonly ICryptoTransform encryptor;
@@ -17,19 +15,26 @@ namespace NetworkLibrary.Components
         public int DecryptorInputBlockSize { get => decryptor.InputBlockSize; }
         public int DecryptorOutputBlockSize { get => decryptor.OutputBlockSize; }
 
-        private readonly byte[] finalBlock= new byte[0];
-        public AesAlgorithm(byte[] Key, byte[] IV,string algorithmName = null)
+        private readonly byte[] finalBlock = new byte[0];
+        public AesAlgorithm(byte[] Key, byte[] IV, string algorithmName = null)
         {
-            if(algorithmName == null)
+            if (algorithmName == null)
             {
+#if UNITY_STANDALONE
                 // AES.create is not compatible with Unity... 
-                algorithm =  new System.Security.Cryptography.RijndaelManaged();//Aes.Create();
+                algorithm = new System.Security.Cryptography.RijndaelManaged();
+#else
+                // AES.create is not compatible with Unity... 
+                //algorithm = Aes.Create();
+                algorithm = new System.Security.Cryptography.RijndaelManaged();
+
+#endif
             }
             else
             {
                 algorithm = Aes.Create(algorithmName);
             }
-            
+
             algorithm.Key = Key;
             algorithm.IV = IV;
 
@@ -66,7 +71,7 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[] Decrypt(byte[] buffer, int offset, int count)
         {
-            
+
             byte[] output = decryptor.TransformFinalBlock(buffer, offset, count);
             return output;
 

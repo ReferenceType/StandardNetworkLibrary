@@ -1,18 +1,11 @@
-﻿using NetworkLibrary.TCP.ByteMessage;
+﻿using NetworkLibrary.TCP.SSL.Custom;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Text;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using NetworkLibrary.TCP.SSL.ByteMessage;
-using NetworkLibrary.TCP.SSL.Custom;
-using System.Security.Cryptography.X509Certificates;
 
 namespace ConsoleTest
 {
@@ -58,7 +51,7 @@ namespace ConsoleTest
             for (int i = 0; i < clientAmount; i++)
             {
                 var client = new CustomSslClient(ccert);
-                client.OnBytesReceived += ( byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
+                client.OnBytesReceived += (byte[] arg2, int offset, int count) => OnClientReceivedMessage(client, arg2, offset, count);
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
                 client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
                 clients.Add(client);
@@ -85,7 +78,7 @@ namespace ConsoleTest
                 cl.SendAsync(new byte[502]);
             }
 
-           
+
             Console.WriteLine("All messages are dispatched in :" + sw2.ElapsedMilliseconds +
                 "ms. Press enter to see status");
             Console.ReadLine();
@@ -93,7 +86,7 @@ namespace ConsoleTest
             Console.WriteLine("Press E to Exit");
             while (Console.ReadLine() != "e")
             {
-               ShowStatus();
+                ShowStatus();
             }
             void ShowStatus()
             {
@@ -118,7 +111,7 @@ namespace ConsoleTest
                 if (count == 502)
                 {
                     lastTimeStamp = (int)sw2.ElapsedMilliseconds;
-                    if(Volatile.Read(ref totMsgClient) == numMsg * clientAmount + clientAmount)
+                    if (Volatile.Read(ref totMsgClient) == numMsg * clientAmount + clientAmount)
                     {
                         Console.WriteLine("--- All Clients are finished receiving response --- \n");
                         ShowStatus();
@@ -128,16 +121,16 @@ namespace ConsoleTest
                 }
             }
 
-            void OnServerReceviedMessage(in Guid id, byte[] arg2, int offset, int count)
+            void OnServerReceviedMessage(Guid id, byte[] arg2, int offset, int count)
             {
                 Interlocked.Increment(ref totMsgServer);
                 if (count == 502)
                 {
-                    server.SendBytesToClient(in id, new byte[502]);
+                    server.SendBytesToClient(id, new byte[502]);
                     return;
                 }
 
-                server.SendBytesToClient(in id, response);
+                server.SendBytesToClient(id, response);
             }
 
         }

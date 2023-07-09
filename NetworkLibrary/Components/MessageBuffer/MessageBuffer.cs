@@ -1,21 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 
 namespace NetworkLibrary.Components.MessageBuffer
 {
-    public class MessageBuffer:IMessageQueue
+    public class MessageBuffer : IMessageQueue
     {
-        public int CurrentIndexedMemory { get => Volatile.Read( ref currentIndexedMemory); }
+        public int CurrentIndexedMemory { get => Volatile.Read(ref currentIndexedMemory); }
         public int MaxIndexedMemory;
         public long TotalMessageDispatched { get; protected set; }
 
         protected PooledMemoryStream writeStream = new PooledMemoryStream();
         protected PooledMemoryStream flushStream = new PooledMemoryStream();
-        protected readonly object loki =  new object();
+        protected readonly object loki = new object();
         protected bool writeLengthPrefix;
         protected int currentIndexedMemory;
         protected bool disposedValue;
@@ -28,32 +24,29 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool IsEmpty()
         {
-             return Volatile.Read(ref disposedValue) || writeStream.Position == 0;
+            return Volatile.Read(ref disposedValue) || writeStream.Position == 0;
         }
 
         public bool TryEnqueueMessage(byte[] bytes)
         {
             lock (loki)
             {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory&& !disposedValue)
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
-                
+
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
                     {
-                        var len = BitConverter.GetBytes(bytes.Length);
-                        Interlocked.Add(ref currentIndexedMemory, 4);
-                        writeStream.Write(len, 0, 4);
-
+                        currentIndexedMemory += 4;
+                        writeStream.WriteInt(bytes.Length);
                     }
 
                     writeStream.Write(bytes, 0, bytes.Length);
-                    Interlocked.Add(ref currentIndexedMemory, bytes.Length);
-
+                    currentIndexedMemory += bytes.Length;
                     return true;
                 }
-               
+
             }
             return false;
 
@@ -62,22 +55,19 @@ namespace NetworkLibrary.Components.MessageBuffer
         {
             lock (loki)
             {
-                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory && !disposedValue)
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
-                
+
                     TotalMessageDispatched++;
 
                     if (writeLengthPrefix)
                     {
-                        var len = BitConverter.GetBytes(count);
-
-                        Interlocked.Add(ref currentIndexedMemory, 4);
-                        writeStream.Write(len, 0, 4);
-
+                        currentIndexedMemory += 4;
+                        writeStream.WriteInt(count);
                     }
 
                     writeStream.Write(bytes, offset, count);
-                    Interlocked.Add(ref currentIndexedMemory, count);
+                    currentIndexedMemory += count;
                     return true;
                 }
 
@@ -99,15 +89,15 @@ namespace NetworkLibrary.Components.MessageBuffer
                 flushStream = temp;
 
                 buffer = flushStream.GetBuffer();
-                amountWritten = (int)flushStream.Position;
+                amountWritten = flushStream.Position32;
 
-                Interlocked.Add(ref currentIndexedMemory, -amountWritten);
-                flushStream.Position = 0;
+                currentIndexedMemory -= amountWritten;
+                flushStream.Position32 = 0;
 
                 return true;
             }
 
-            
+
         }
 
         protected virtual void Dispose(bool disposing)
@@ -119,14 +109,14 @@ namespace NetworkLibrary.Components.MessageBuffer
                     Volatile.Write(ref disposedValue, true);
                     if (disposing)
                     {
-                        writeStream.Flush();
-                        flushStream.Flush();
+                        writeStream.Clear();
+                        flushStream.Clear();
                         writeStream.Dispose();
                         flushStream.Dispose();
                     }
                 }
             }
-           
+
         }
 
         public void Dispose()
@@ -137,7 +127,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public void Flush()
         {
-            flushStream.Flush();   
+            flushStream.Clear();
         }
     }
 }

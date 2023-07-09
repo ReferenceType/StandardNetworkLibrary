@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace NetworkLibrary.Components
 {
@@ -18,20 +16,14 @@ namespace NetworkLibrary.Components
         private int currentExpectedByteLenght;
         private int originalCapacity;
 
-        private enum OperationState
-        {
-            AwaitingMsgHeader,
-            AwaitingMsgBody,
-        }
-
         private readonly Guid Guid;
-        public Action<byte[], int, int> OnMessageReady;
+        public event Action<byte[], int, int> OnMessageReady;
 
-        private OperationState currentState;
+        private bool awaitingHeader;
 
         public ByteMessageReader(Guid guid, int bufferSize = 256000)
         {
-            currentState = OperationState.AwaitingMsgHeader;
+            awaitingHeader = true;
             currentExpectedByteLenght = 4;
             Guid = guid;
 
@@ -51,7 +43,7 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void HandleBytes(byte[] incomingBytes, int offset, int count)
         {
-            if (currentState == OperationState.AwaitingMsgHeader)
+            if (awaitingHeader)
             {
                 HandleHeader(incomingBytes, offset, count);
             }
@@ -82,7 +74,7 @@ namespace NetworkLibrary.Components
                 {
                     offset += currentExpectedByteLenght;
                     count -= currentExpectedByteLenght;
-                    currentState = OperationState.AwaitingMsgBody;
+                    awaitingHeader = false;
 
                     currentExpectedByteLenght = expectedMsgLenght;
                     HandleBody(incomingBytes, offset, count);
@@ -137,14 +129,14 @@ namespace NetworkLibrary.Components
                     AppendHeaderChunk(incomingBytes, offset, remaining);
                     currentExpectedByteLenght = 4 - remaining;
 
-                    currentState = OperationState.AwaitingMsgHeader;
+                    awaitingHeader = true;
                     return;
                 }
                 // nothing to store
                 else
                 {
                     currentExpectedByteLenght = 4;
-                    currentState = OperationState.AwaitingMsgHeader;
+                    awaitingHeader = true;
                     return;
                 }
             }
@@ -179,10 +171,10 @@ namespace NetworkLibrary.Components
                 fixed (byte* destination = &internalBufer[currentMsgBufferPosition])
                 {
                     fixed (byte* message_ = &bytes[offset])
-                        Buffer.MemoryCopy(message_, destination, count,count);
+                        Buffer.MemoryCopy(message_, destination, count, count);
                 }
             }
-            
+
             currentMsgBufferPosition += count;
         }
 
@@ -238,7 +230,7 @@ namespace NetworkLibrary.Components
 
         public void ReleaseResources()
         {
-            if(internalBufer!= null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
+            if (internalBufer != null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
         }
         #endregion
     }

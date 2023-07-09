@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net5.0;net6.0;net7.0</TargetFrameworks>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>Protobuf.Network.Library</PackageId>
     <Title>Protobuf Network Library</Title>
@@ -14,11 +14,15 @@
     <AssemblyVersion>1.0.4.0</AssemblyVersion>
     <Version>1.1.0</Version>
     <FileVersion>1.0.4.0</FileVersion>
-    <PackageReleaseNotes>Holepunch system is extended.
-Unencrypted Udp holepunch channel option is added.  Old and newer versions are compatible(only encyrpted), but holepunch is not guarantied.
-Task syncronisation contextes are fixed (ConfigureAwait(false) and patch on TaskCompletitionSource TaskCreationOptions.RunContinuationsAsynchronously ) 
-to aviod possible deadlocks on some client applications such as WPF.</PackageReleaseNotes>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="P2P\Generic\**" />
+    <EmbeddedResource Remove="P2P\Generic\**" />
+    <None Remove="P2P\Generic\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="protobuf-net" Version="3.1.22" />
@@ -32,13 +36,26 @@ to aviod possible deadlocks on some client applications such as WPF.</PackageRel
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\Licence.txt">
+    <None Include="..\NetworkLibrary\Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Resource Include="..\..\Licence.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Licence.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

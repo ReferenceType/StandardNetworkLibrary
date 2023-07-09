@@ -1,39 +1,36 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace NetworkLibrary.Utils
 {
     public class Spinlock
     {
-        private int lockValue=0;
+        private int lockValue = 0;
         SpinWait spinWait = new SpinWait();
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Take()
         {
-            if(Interlocked.CompareExchange(ref lockValue, 1, 0) != 0)
+            if (Interlocked.CompareExchange(ref lockValue, 1, 0) != 0)
             {
                 int spinCount = 0;
 
-                while ( Interlocked.CompareExchange(ref lockValue, 1, 0) != 0)
+                while (Interlocked.CompareExchange(ref lockValue, 1, 0) != 0)
                 {
 
                     if (spinCount < 22)
                     {
                         spinCount++;
                     }
-  
+
                     else
                     {
                         spinWait.SpinOnce();
                     }
                 }
             }
-          
+
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

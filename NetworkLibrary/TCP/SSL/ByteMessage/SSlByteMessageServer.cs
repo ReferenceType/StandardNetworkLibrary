@@ -1,11 +1,9 @@
 ﻿using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 
 namespace NetworkLibrary.TCP.SSL.ByteMessage
 {
@@ -15,9 +13,9 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         {
         }
 
-        protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
+        private protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var ses =  new SslByteMessageSession(guid, tuple.Item1);
+            var ses = new SslByteMessageSession(guid, tuple.Item1);
             ses.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             ses.RemoteEndpoint = tuple.Item2;
 

@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-/// <summary>
+﻿/// <summary>
 /// Represents a class which is serializable by protobuf.net
 /// </summary>
-public interface IProtoMessage {}
+public interface IProtoMessage { }
 

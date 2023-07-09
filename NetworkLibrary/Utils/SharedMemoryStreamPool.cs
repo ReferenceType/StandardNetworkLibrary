@@ -1,14 +1,12 @@
 ﻿using NetworkLibrary.Components;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
 
 namespace NetworkLibrary.Utils
 {
-    public class SharerdMemoryStreamPool:IDisposable
+    public class SharerdMemoryStreamPool : IDisposable
     {
         private ConcurrentObjectPool<PooledMemoryStream> pool = new ConcurrentObjectPool<PooledMemoryStream>();
+        private static ConcurrentObjectPool<PooledMemoryStream> poolStatic = new ConcurrentObjectPool<PooledMemoryStream>();
         private bool disposedValue;
 
         public PooledMemoryStream RentStream()
@@ -16,7 +14,12 @@ namespace NetworkLibrary.Utils
             if (disposedValue)
                 throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
-                return pool.RentObject();
+            return pool.RentObject();
+        }
+
+        public static PooledMemoryStream RentStreamStatic()
+        {
+            return poolStatic.RentObject();
         }
 
         public void ReturnStream(PooledMemoryStream stream)
@@ -24,8 +27,14 @@ namespace NetworkLibrary.Utils
             if (disposedValue)
                 throw new ObjectDisposedException(nameof(SharerdMemoryStreamPool));
 
-            stream.Flush();
+            stream.Clear();
             pool.ReturnObject(stream);
+        }
+
+        public static void ReturnStreamStatic(PooledMemoryStream stream)
+        {
+            stream.Clear();
+            poolStatic.ReturnObject(stream);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -36,7 +45,7 @@ namespace NetworkLibrary.Utils
                 {
                     for (int i = 0; i < pool.pool.Count; i++)
                     {
-                        if(pool.pool.TryTake(out var stram))
+                        if (pool.pool.TryTake(out var stram))
                             stram.Dispose();
                     }
                 }
@@ -52,4 +61,6 @@ namespace NetworkLibrary.Utils
             GC.SuppressFinalize(this);
         }
     }
+
+
 }

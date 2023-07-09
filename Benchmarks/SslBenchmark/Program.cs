@@ -1,23 +1,9 @@
-﻿using NetworkLibrary;
-using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP;
-using NetworkLibrary.TCP.ByteMessage;
+﻿using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
-using System;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net;
 using System.Net.Security;
-using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace ConsoleTest
 {
@@ -127,7 +113,7 @@ namespace ConsoleTest
             int j = 0;
             foreach (var client1 in clients)
             {
-                 client1.Connect("127.0.0.1", port);
+                client1.Connect("127.0.0.1", port);
                 j++;
             }
             Console.WriteLine("All Clients Connected");
@@ -147,7 +133,7 @@ namespace ConsoleTest
             fixedMessage = isFixedMessage ? new byte[fixedMessageSize] : new byte[0];
             var scert = new X509Certificate2("server.pfx", "greenpass");
 
-            server = new SslByteMessageServer(port,scert);
+            server = new SslByteMessageServer(port, scert);
             server.RemoteCertificateValidationCallback
                 += ValidateCertAsClient;
 
@@ -163,11 +149,11 @@ namespace ConsoleTest
             Console.WriteLine("Server Running");
 
         }
-        static void EchoDynamic(in Guid id, byte[] arg2, int offset, int count)
+        static void EchoDynamic(Guid id, byte[] arg2, int offset, int count)
         {
             server.SendBytesToClient(id, arg2, offset, count);
         }
-        static void EchoStatic(in Guid id, byte[] arg2, int offset, int count)
+        static void EchoStatic(Guid id, byte[] arg2, int offset, int count)
         {
             server.SendBytesToClient(id, fixedMessage);
         }
@@ -187,7 +173,7 @@ namespace ConsoleTest
                 if (runAsClient)
                 {
                     totMsgClient = 0;
-                    var stats =  new List<TcpStatistics>();
+                    var stats = new List<TcpStatistics>();
                     foreach (var client in clients)
                     {
                         client.GetStatistics(out TcpStatistics stat);

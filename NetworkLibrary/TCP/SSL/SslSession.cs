@@ -4,11 +4,9 @@ using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Net;
 using System.Net.Security;
-using System.Text;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace NetworkLibrary.TCP.SSL.Base
@@ -38,7 +36,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         private int SessionClosing = 0;
         private long totalBytesSend;
         private long totalBytesReceived;
-        private long totalMessageReceived=0;
+        private long totalMessageReceived = 0;
         private long totalBytesSendPrev = 0;
         private long totalBytesReceivedPrev = 0;
         private long totalMsgReceivedPrev;
@@ -59,7 +57,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected virtual void ConfigureBuffers()
         {
             receiveBuffer = BufferPool.RentBuffer(ReceiveBufferSize);
-            if(UseQueue) sendBuffer = BufferPool.RentBuffer(SendBufferSize);
+            if (UseQueue) sendBuffer = BufferPool.RentBuffer(SendBufferSize);
 
         }
 
@@ -72,15 +70,20 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         }
 
-       public void SendAsync(byte[] buffer, int offset, int count)
-       {
+        public void SendAsync(byte[] buffer, int offset, int count)
+        {
             if (IsSessionClosing())
                 return;
             try
             {
                 SendAsync_(buffer, offset, count);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch(Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, 
+                        "Unexcpected error while sending async with ssl session" + e.Message+"Trace " +e.StackTrace);
+            }
         }
         private void SendAsync_(byte[] buffer, int offset, int count)
         {
@@ -97,7 +100,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                     enqueueLock.Release();
                     return;
                 }
-              
+
             }
             enqueueLock.Release();
 
@@ -125,7 +128,12 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 SendAsync_(buffer);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "Unexcpected error while sending async with ssl session" + e.Message + "Trace " + e.StackTrace);
+            }
         }
         private void SendAsync_(byte[] buffer)
         {
@@ -172,12 +180,12 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 HandleError("While attempting to send an error occured", ex);
             }
-             totalBytesSend+=count;
+            totalBytesSend += count;
         }
 
         private void SentInternal(IAsyncResult ar)
         {
-            
+
             if (ar.CompletedSynchronously)
             {
                 ThreadPool.UnsafeQueueUserWorkItem((s) => Sent(ar), null);
@@ -220,7 +228,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             if (messageQueue.IsEmpty())
             {
                 messageQueue.Flush();
-                
+
                 SendSemaphore.Release();
                 enqueueLock.Release();
                 if (IsSessionClosing())
@@ -292,7 +300,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 EndSession();
                 ReleaseReceiveResourcesIdempotent();
             }
-            totalBytesReceived+= amountRead;
+            totalBytesReceived += amountRead;
 
             // Stack overflow prevention.
             if (ar.CompletedSynchronously)
@@ -317,6 +325,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             EndSession();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected bool IsSessionClosing()
         {
             return Interlocked.CompareExchange(ref SessionClosing, 1, 1) == 1;
@@ -345,18 +354,18 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         protected virtual void ReleaseSendResources()
         {
-            if (UseQueue) 
+            if (UseQueue)
                 BufferPool.ReturnBuffer(sendBuffer);
 
             messageQueue?.Dispose();
-            messageQueue = null;
+            //messageQueue = null;
             enqueueLock.Release();
         }
 
         int receiveResReleased = 0;
         private void ReleaseReceiveResourcesIdempotent()
         {
-            if (Interlocked.CompareExchange(ref receiveResReleased,1,0)==0)
+            if (Interlocked.CompareExchange(ref receiveResReleased, 1, 0) == 0)
             {
                 ReleaseReceiveResources();
             }
@@ -379,14 +388,14 @@ namespace NetworkLibrary.TCP.SSL.Base
                 enqueueLock.Take();
                 disposedValue = true;
 
-                OnBytesRecieved= null;
+                OnBytesRecieved = null;
                 OnSessionClosed = null;
-               
-                if(!SendSemaphore.IsTaken())
+
+                if (!SendSemaphore.IsTaken())
                     ReleaseSendResourcesIdempotent();
                 if (!SendSemaphore.IsTaken())
                     ReleaseSendResourcesIdempotent();
-                enqueueLock.Release();       
+                enqueueLock.Release();
                 SendSemaphore.Release();
             }
         }

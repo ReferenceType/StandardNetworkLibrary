@@ -1,18 +1,10 @@
 ﻿//#define UseLocalCounter
-using NetworkLibrary;
 using NetworkLibrary.Components.Statistics;
-using NetworkLibrary.TCP;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Runtime.ConstrainedExecution;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TcpMessageBenchmark;
@@ -34,7 +26,7 @@ namespace ConsoleTest
         static int messageSize;
         static byte[] clientMessage;
 
-        private static List<ByteMessageTcpClient> clients =  new List<ByteMessageTcpClient>();
+        private static List<ByteMessageTcpClient> clients = new List<ByteMessageTcpClient>();
         private static ByteMessageTcpServer server;
         private static Stopwatch sw2 = new Stopwatch();
         private static long totMsgClient;
@@ -57,7 +49,7 @@ namespace ConsoleTest
             messageSize = config.messageSize;
 
             Prepare();
-            if(runAsClient) Benchmark();
+            if (runAsClient) Benchmark();
 
             ShowStatus();
             Environment.Exit(0);
@@ -75,6 +67,7 @@ namespace ConsoleTest
             if (runAsClient)
             {
                 InitializeClients();
+
             }
         }
         private static void Benchmark()
@@ -122,7 +115,7 @@ namespace ConsoleTest
             }
             Task.WaitAll(toWait);
             Console.WriteLine("All Clients Connected");
-           
+
         }
 
         private static void Echo(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
@@ -150,11 +143,11 @@ namespace ConsoleTest
             Console.WriteLine("Server Running");
 
         }
-        static void EchoDynamic(in Guid id, byte[] arg2, int offset, int count)
+        static void EchoDynamic(Guid id, byte[] arg2, int offset, int count)
         {
             server.SendBytesToClient(id, arg2, offset, count);
         }
-        static void EchoStatic(in Guid id, byte[] arg2, int offset, int count)
+        static void EchoStatic(Guid id, byte[] arg2, int offset, int count)
         {
             server.SendBytesToClient(id, fixedMessage);
         }
@@ -193,7 +186,7 @@ namespace ConsoleTest
                     var elapsedSeconds = (double)lastTimeStamp / 1000;
                     var messagePerSecond = totMsgClient / elapsedSeconds;
 
-                   
+
                     Console.WriteLine("-> Client Statistics Snapshot: ");
                     Console.WriteLine(TcpStatistics.GetAverageStatistics(stats).ToString());
                     Console.WriteLine("# Average Request-Response Per second " + (totMsgClient / elapsedSeconds).ToString("N1"));

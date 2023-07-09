@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Concurrent;
 
 namespace NetworkLibrary.Components
 {
@@ -31,7 +28,7 @@ namespace NetworkLibrary.Components
             algorithmPool.Add(alg);
 
         }
-        public byte[] Decrypt(byte[]bytes) => Decrypt(bytes,0,bytes.Length);
+        public byte[] Decrypt(byte[] bytes) => Decrypt(bytes, 0, bytes.Length);
         public byte[] Decrypt(byte[] bytes, int offset, int count)
         {
             var cry = RentAlgorithm();
@@ -91,7 +88,7 @@ namespace NetworkLibrary.Components
             int res;
             try
             {
-                 res = cry.EncryptInto(source, sourceOffset, sourceCount, output, outputOffset);
+                res = cry.EncryptInto(source, sourceOffset, sourceCount, output, outputOffset);
             }
             catch
             {

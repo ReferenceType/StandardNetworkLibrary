@@ -3,12 +3,13 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Threading;
-
+using System.Runtime.InteropServices;
+#if NET5_0_OR_GREATER
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
+#endif
 namespace NetworkLibrary
 {
     /*
@@ -27,8 +28,8 @@ namespace NetworkLibrary
         public static int MaxMemoryBeforeForceGc = 100000000;
         public const int MaxBufferSize = 1073741824;
         public const int MinBufferSize = 256;
-        private static readonly ConcurrentBag<WeakReference<byte[]>> weakReferencePool= new ConcurrentBag<WeakReference<byte[]>>();
-        private static readonly ConcurrentBag<WeakReference<byte[]>>[] bufferBuckets =  new ConcurrentBag<WeakReference<byte[]>>[32];
+        private static readonly ConcurrentBag<WeakReference<byte[]>> weakReferencePool = new ConcurrentBag<WeakReference<byte[]>>();
+        private static readonly ConcurrentBag<WeakReference<byte[]>>[] bufferBuckets = new ConcurrentBag<WeakReference<byte[]>>[32];
         private static SortedDictionary<int, int> bucketCapacityLimits = new SortedDictionary<int, int>()
         {
             { 256,10000 },
@@ -57,14 +58,14 @@ namespace NetworkLibrary
 
         };
         static readonly Process process = Process.GetCurrentProcess();
-        static ManualResetEvent autoGcHandle =  new ManualResetEvent(false);
+        static ManualResetEvent autoGcHandle = new ManualResetEvent(false);
+        private static Thread memoryMaintainer;
 
         static BufferPool()
         {
             Init();
-            Thread thread = new Thread(MaintainMemory);
-            thread.Priority= ThreadPriority.Lowest;
-            thread.Start();
+            memoryMaintainer = new Thread(MaintainMemory);
+            memoryMaintainer.Priority = ThreadPriority.Lowest;
         }
 
         /// <summary>
@@ -74,6 +75,8 @@ namespace NetworkLibrary
         public static void StartCollectGcOnIdle()
         {
             autoGcHandle.Set();
+            if (!memoryMaintainer.IsAlive)
+                memoryMaintainer.Start();
         }
 
         /// <summary>
@@ -106,11 +109,10 @@ namespace NetworkLibrary
                 var deltaT = (lastTime - currentProcTime).TotalMilliseconds;
                 lastTime = currentProcTime;
 
-                if (deltaT <100 && process.WorkingSet64< MaxMemoryBeforeForceGc)
+                if (deltaT < 100 && process.WorkingSet64 < MaxMemoryBeforeForceGc)
                     GC.Collect();
-                process.Refresh();
             }
-           
+
         }
 
 
@@ -124,14 +126,14 @@ namespace NetworkLibrary
         public static byte[] RentBuffer(int size)
         {
             byte[] buffer;
-            if(MaxBufferSize < size)
+            if (MaxBufferSize < size)
                 throw new InvalidOperationException(
-                    string.Format("Unable to rent buffer bigger than max buffer size: {0}",MaxBufferSize));
+                    string.Format("Unable to rent buffer bigger than max buffer size: {0}", MaxBufferSize));
             if (size <= MinBufferSize) return new byte[size];
 
             int idx = GetBucketIndex(size);
 
-            while(bufferBuckets[idx].TryTake(out WeakReference<byte[]> bufferRef))
+            while (bufferBuckets[idx].TryTake(out WeakReference<byte[]> bufferRef))
             {
                 if (bufferRef.TryGetTarget(out buffer))
                 {
@@ -139,8 +141,9 @@ namespace NetworkLibrary
                     return buffer;
                 }
             }
-            buffer = new byte[GetBucketSize(idx)];
-           return buffer;
+
+            buffer = ByteCopy.GetNewArray(GetBucketSize(idx));
+            return buffer;
 
         }
 
@@ -154,14 +157,14 @@ namespace NetworkLibrary
             if (buffer.Length <= MinBufferSize) return;
 
             int idx = GetBucketIndex(buffer.Length);
-            if(weakReferencePool.TryTake(out var wr))
+            if (weakReferencePool.TryTake(out var wr))
             {
                 wr.SetTarget(buffer);
                 bufferBuckets[idx - 1].Add(wr);
 
             }
             else
-            bufferBuckets[idx-1].Add(new WeakReference<byte[]>(buffer));
+                bufferBuckets[idx - 1].Add(new WeakReference<byte[]>(buffer));
             buffer = null;
         }
 
@@ -180,6 +183,37 @@ namespace NetworkLibrary
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int LeadingZeros(int x)
         {
+#if NET5_0_OR_GREATER
+ 
+            if (Lzcnt.IsSupported)
+            {
+                // LZCNT contract is 0->32
+                return (int)Lzcnt.LeadingZeroCount((uint)x);
+            }
+
+            if (ArmBase.IsSupported)
+            {
+                return ArmBase.LeadingZeroCount(x);
+            }
+            else
+            {
+             const int numIntBits = sizeof(int) * 8;
+            x |= x >> 1;
+            x |= x >> 2;
+            x |= x >> 4;
+            x |= x >> 8;
+            x |= x >> 16;
+            //count the ones
+            x -= x >> 1 & 0x55555555;
+            x = (x >> 2 & 0x33333333) + (x & 0x33333333);
+            x = (x >> 4) + x & 0x0f0f0f0f;
+            x += x >> 8;
+            x += x >> 16;
+            return numIntBits - (x & 0x0000003f); //subtract # of 1s from 32
+            }
+
+            
+#else
             const int numIntBits = sizeof(int) * 8;
             x |= x >> 1;
             x |= x >> 2;
@@ -193,6 +227,7 @@ namespace NetworkLibrary
             x += x >> 8;
             x += x >> 16;
             return numIntBits - (x & 0x0000003f); //subtract # of 1s from 32
+#endif
         }
     }
 }

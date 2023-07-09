@@ -1,19 +1,16 @@
 ﻿using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 
 namespace NetworkLibrary.TCP.SSL.Custom
 {
     public class CustomSslServer : ByteMessageTcpServer
     {
-        
+
         private X509Certificate2 certificate;
         public CustomSslServer(int port, X509Certificate2 certificate) : base(port)
         {
@@ -51,12 +48,12 @@ namespace NetworkLibrary.TCP.SSL.Custom
 
 
         // override create session
-        protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId )
+        private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
         {
 
-            var session = new CustomSslSession(e, sessionId,(byte[])e.UserToken);
+            var session = new CustomSslSession(e, sessionId, (byte[])e.UserToken);
             session.socketSendBufferSize = ClientSendBufsize;
-            session.socketRecieveBufferSize = ClientReceiveBufsize;
+            session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
             return session;

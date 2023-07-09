@@ -55,19 +55,11 @@
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="NetworkLibrary, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Protobuff\bin\Debug\netstandard2.0\NetworkLibrary.dll</HintPath>
-    </Reference>
     <Reference Include="protobuf-net, Version=3.0.0.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
       <HintPath>..\..\packages\protobuf-net.3.1.22\lib\net462\protobuf-net.dll</HintPath>
     </Reference>
     <Reference Include="protobuf-net.Core, Version=3.0.0.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
       <HintPath>..\..\packages\protobuf-net.Core.3.1.25\lib\net462\protobuf-net.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="Protobuff, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Protobuff\bin\Debug\netstandard2.0\Protobuff.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
@@ -110,6 +102,16 @@
     <None Include="server.pfx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\NetworkLibrary\NetworkLibrary.csproj">
+      <Project>{d844e241-d256-440c-89eb-b7315ac1334f}</Project>
+      <Name>NetworkLibrary</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Protobuff\Protobuff.csproj">
+      <Project>{9a0ab8aa-9dad-4300-aa82-bd3d82eaf16e}</Project>
+      <Name>Protobuff</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

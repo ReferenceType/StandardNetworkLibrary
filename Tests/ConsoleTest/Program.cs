@@ -1,38 +1,34 @@
-﻿
-using NetworkLibrary.TCP.SSL;
-using NetworkLibrary;
+﻿using NetworkLibrary;
+using NetworkLibrary.Components;
+using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.MessageProtocol.Serialization;
+using NetworkLibrary.TCP.Base;
+using NetworkLibrary.TCP.ByteMessage;
+using NetworkLibrary.TCP.SSL.ByteMessage;
+using NetworkLibrary.TCP.SSL.Custom;
+using NetworkLibrary.UDP;
+using NetworkLibrary.UDP.Reliable.Test;
+using NetworkLibrary.Utils;
+using ProtoBuf;
+using Protobuff;
+using Protobuff.Components.Serialiser;
+using Protobuff.P2P;
+using Protobuff.Pure;
+using Protobuff.UDP;
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NetworkLibrary.TCP.SSL.ByteMessage;
-using NetworkLibrary.UDP;
-using NetworkLibrary.TCP.ByteMessage;
-using NetworkLibrary.Utils;
-using System.Security.Cryptography;
-using NetworkLibrary.TCP.SSL.Custom;
-using System.Security.Cryptography.X509Certificates;
-using NetworkLibrary.Components;
-using Protobuff;
-using NetworkLibrary.TCP;
-using System.Runtime.InteropServices;
-using System.Net.Security;
-using Protobuff.P2P;
-using System.Security;
-using System.Numerics;
-using NetworkLibrary.UDP.Secure;
-using System.Buffers;
-using Microsoft.Win32;
-using NetworkLibrary.Components.Statistics;
-using ProtoBuf;
-using System.Net.Sockets;
-using NetworkLibrary.TCP.Base;
 
 namespace ConsoleTest
 {
@@ -45,14 +41,14 @@ namespace ConsoleTest
 
         static Stopwatch sw = new Stopwatch();
         static Stopwatch sw2 = new Stopwatch();
-       
+
         //static AutoResetEvent are = new AutoResetEvent (false);
         static int totMsgCl = 0;
         static int totMsgsw = 0;
         private static ByteMessageTcpServer server;
         static byte[] resp = new byte[32];
-        static bool lastSW=false;
-        private static int prev=-1;
+        static bool lastSW = false;
+        private static int prev = -1;
         static Random randomG = new Random();
         private static bool pause;
 
@@ -61,7 +57,17 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
-            
+            TestLobby();
+            //TestReliableModules();
+            Console.ReadLine();
+            // PureServerClientTest();
+            //SerializerTest();
+            //Console.ReadLine();
+            //return;
+            //SerializerTestProto();
+
+
+            //PerfSerializer();
             ////Parallel.For(0, 2, j =>
             ////{
             //    for (int i = 0; i < 10000000; i++)
@@ -77,7 +83,7 @@ namespace ConsoleTest
             //        client.Disconnect();
 
             //    }
-          //  });
+            //  });
 
             //void ClientBytesReceived(byte[] bytes, int offset, int count)
             //{
@@ -91,7 +97,7 @@ namespace ConsoleTest
             //PoolTest();
             //UdpProtoTest();
             //EnvelopeTest();
-            RelayTest();
+            // RelayTest();
             //ByteCopyTest();
             //BitConverterTest();
             //ByteCopyTest2();
@@ -106,21 +112,255 @@ namespace ConsoleTest
             //UdpTest();
             //UdpTest2();
             //UdpTestMc();
+        }
+
+        private static void TestReliableModules()
+        {
+            Stopwatch sw = new Stopwatch();
+            int count = 50000;
+            int completed = count;
+            Mockup m = new Mockup();
+            m.RemoveNoiseFeedback = false;
+            m.RemoveNoiseSend = false;
+            byte[] data = new byte[32];
+            m.OnReceived += (voff, off, cnt) =>
+            {
+                if (cnt == data.Length)
+                {
+
+                    if (Interlocked.Decrement(ref completed) == 0)
+                    {
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine("########################################");
+                        Console.WriteLine(sw.ElapsedMilliseconds);
+
+                    }
+                }
+            };
+            sw.Start();
+
+            for (int i = 0; i < count; i++)
+            {
+                m.SendTest(data, 0, data.Length);
+
+            }
+
+        }
+
+        private static void TestLobby()
+        {
+            var scert = new X509Certificate2("server.pfx", "greenpass");
+            var cert = new X509Certificate2("client.pfx", "greenpass");
+            string ip = "127.0.0.1";
+            int port = 2222;
+            int numClients = 10;
+            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
+            server.StartServer();
+
+            List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
+            for (int i = 0; i < numClients; i++)
+            {
+                var cl = new SecureProtoRoomClient(cert);
+                cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - " + m.Header);
+                cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - " + m.Header);
+                cl.OnTcpMessageReceived += (m) => Console.WriteLine("Driect Tcp - " + m.Header);
+                cl.OnUdpMessageReceived += (m) => Console.WriteLine("Driect Udp - " + m.Header);
+
+                cl.Connect(ip, port);
+                cl.CreateOrJoinRoom("WA");
+
+                clients.Add(cl);
+            }
+            foreach (var client in clients)
+            {
+                foreach (var client2 in clients)
+                {
+                    if (client.SessionId.CompareTo(client2.SessionId) > 0)
+                    {
+                        var r = client.RequestHolePunchAsync(client2.SessionId).Result;
+
+                    }
+                }
+                break;
+            }
+            Thread.Sleep(3000);
+            clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
+
+            for (int i = 0; i < 1; i++)
+            {
+                clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo", Payload = new byte[128000] });
+                clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" , Payload = new byte[128000] });
+                clients[0].SendMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct TCp Yo" , Payload = new byte[128000] });
+                clients[0].SendUdpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct UDp Yo", Payload = new byte[128000] });
+                clients[0].SendRudpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct RUDp Yo" , Payload = new byte[128000] });
+            }
+
+            Console.ReadLine();
+        }
+
+
+        [ProtoContract]
+        class TestMSG
+        {
+            [ProtoMember(1)]
+            public string p1 { get; set; }
+            [ProtoMember(2)]
+            public string p2 { get; set; }
+        }
+        private static void PureServerClientTest()
+        {
+            var msg = new TestMSG() { p1 = "AA", p2 = "BBB" };
+
+            var server = new PureProtoServer(2009);
+            server.BytesReceived += OnbytesReceived;
+            server.StartServer();
+
+            var client = new PureProtoClient();
+            client.BytesReceived += OnBytesReceivedCL;
+            client.Connect("127.0.0.1", 2009);
+            client.SendAsync(msg);
+
+            void OnbytesReceived(Guid guid, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine("ServerRec");
+                server.SendAsync(guid, msg);
+
+            }
+            void OnBytesReceivedCL(byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine("ClientRecRec");
+            }
+        }
 
 
 
+        private static void SerializerTestProto()
+        {
+            MessageEnvelope env = new MessageEnvelope()
+            {
+                IsInternal = true,
+                From = Guid.NewGuid(),
+                To = Guid.NewGuid(),
+                Header = "rattatta",
+
+                MessageId = Guid.NewGuid(),
+                TimeStamp = DateTime.Now,
+                KeyValuePairs = new Dictionary<string, string>() {
+                    { "K1", "v2" } ,
+                    { "K3", "" },
+                    { "K2", null } ,
+                    { "K4", "%%" } ,
+                }
+            };
+            var stream = new PooledMemoryStream();
+            Serializer.Serialize(stream, env);
+            stream.Position = 0;
+            //var res = Serializer.Deserialize<MessageEnvelope>(stream);
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < 1000000; i++)
+            {
+                Serializer.Serialize(stream, env);
+                var r = Serializer.Deserialize<MessageEnvelope>(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Position));
+                stream.Position = 0;
+
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+        }
+
+        private static void SerializerTest()
+        {
+            PooledMemoryStream stream = new PooledMemoryStream();
+            MessageEnvelope env = new MessageEnvelope()
+            {
+                IsInternal = true,
+                From = Guid.NewGuid(),
+                To = Guid.NewGuid(),
+                Header = "rattatta",
+
+                MessageId = Guid.NewGuid(),
+                TimeStamp = DateTime.Now,
+                KeyValuePairs = new Dictionary<string, string>() {
+                    { "K1", "v2" } ,
+                    { "K3", "" },
+                    { "K2", null } ,
+                    { "K4", "%%" } ,
+                }
+            };
+            EnvelopeSerializer.Serialize(stream, env);
+            var result = EnvelopeSerializer.Deserialize(stream.GetBuffer(), 0);
+            stream.Position = 0;
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < 5000000; i++)
+            {
+                EnvelopeSerializer.Serialize(stream, env);
+                var r = EnvelopeSerializer.Deserialize(stream.GetBuffer(), 0);
+                stream.Position = 0;
+
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+        }
+
+        private static void PerfSerializer()
+        {
+            var ser1 = new ConcurrentProtoSerialiser();
+            var ser2 = new GenericMessageSerializer<MessageEnvelope, ProtoSerializer>();
+
+            var message = new MessageEnvelope()
+            {
+                IsInternal = true,
+                From = Guid.NewGuid(),
+                To = Guid.NewGuid(),
+                //MessageId = Guid.NewGuid(),
+                //TimeStamp = DateTime.Now,
+                Header = "rattatta",
+                //KeyValuePairs = new Dictionary<string, string>() {
+                //    { "K1", "v2" } ,
+                //    { "K3", "" },
+                //    { "K2", null } ,
+                //    { "K4", "%%" } ,
+                //}
+            };
+            PooledMemoryStream stream = new PooledMemoryStream();
+            Stopwatch sw = new Stopwatch();
+            var bytes = ser1.SerializeMessageEnvelope(message);
+            sw.Start();
+            for (int i = 0; i < 1000000; i++)
+            {
+                //ser1.SerializeMessageEnvelope(message);
+                ser2.SerializeMessageEnvelope(message);
+
+                //var res = ser1.DeserialiseEnvelopedMessage(bytes,0, bytes.Length);
+                var res = ser2.DeserialiseEnvelopedMessage(bytes, 0, bytes.Length);
+            }
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
         }
 
         private static void fuck()
         {
-            
+
 
             AsyncTcpServer server = new AsyncTcpServer(20012);
             server.OnBytesReceived += ServerBytesReceived;
             server.StartServer();
 
-           
-            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
             {
                 var request = UTF8Encoding.ASCII.GetString(bytes, offset, count);
                 Console.WriteLine(request);
@@ -193,11 +433,11 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
         private static void FTTest()
         {
             Console.ReadLine();
-            long size =0;
+            long size = 0;
 
             Task.Run(() =>
             {
-                Socket s = new Socket(AddressFamily.InterNetwork,SocketType.Stream, ProtocolType.Tcp);
+                Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 s.Bind(new IPEndPoint(IPAddress.Any, 1881));
                 s.Listen(1000);
                 var cl = s.Accept();
@@ -207,9 +447,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     Console.WriteLine("sening");
                     string p0 = @"C:\Users\dcano\Downloads\House.of.the.Dragon.S01E08.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-PSA.mkv";
                     string p1 = @"C:\Users\dcano\Downloads\Doctor Strange (2016) [2160p] [4K] [BluRay] [5.1] [YTS.MX]\Doctor.Strange.2016.2160p.4K.BluRay.x265.10bit.AAC5.1-[YTS.MX].mkv";
-                    cl.SendFile(p1,null,null, TransmitFileOptions.UseKernelApc);
-                    
-                    Console.WriteLine("sent"+sw.ElapsedMilliseconds);
+                    cl.SendFile(p1, null, null, TransmitFileOptions.UseKernelApc);
+
+                    Console.WriteLine("sent" + sw.ElapsedMilliseconds);
                     Console.WriteLine(size.ToString());
                 }
                 catch (Exception e)
@@ -234,7 +474,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     size += am;
                 }
                 Console.WriteLine(am.ToString());
-                
+
             });
             Console.ReadLine();
         }
@@ -251,7 +491,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
 
-            void ServerBytesReceived(in Guid clientId, byte[] bytes, int offset, int count)
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
             {
                 Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
                 server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
@@ -264,7 +504,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
         }
 
         [ProtoContract]
-        class SamplePayload :IProtoMessage
+        class SamplePayload : IProtoMessage
         {
             [ProtoMember(1)]
             public string sample;
@@ -275,10 +515,10 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
-            SecureProtoServer server = new SecureProtoServer(20008, scert);
+            SecureProtoMessageServer server = new SecureProtoMessageServer(20008, scert);
             server.OnMessageReceived += ServerMessageReceived;
 
-            var client = new SecureProtoClient(cert);
+            var client = new SecureProtoMessageClient(cert);
             client.OnMessageReceived += ClientMessageReceived;
             client.Connect("127.0.0.1", 20008);
 
@@ -287,15 +527,15 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             // You can just send a message, get replies on ClientMessageReceived.
             client.SendAsyncMessage(messageEnvelope);
-            client.SendAsyncMessage(messageEnvelope,Payload);
+            client.SendAsyncMessage(messageEnvelope, Payload);
 
             // Or you can wait for a reply async.
             MessageEnvelope result = await client.SendMessageAndWaitResponse(messageEnvelope, Payload);
             var payload = result.UnpackPayload<SamplePayload>();
 
-            void ServerMessageReceived(in Guid clientId, MessageEnvelope message)
+            void ServerMessageReceived(Guid clientId, MessageEnvelope message)
             {
-                server.SendAsyncMessage(in clientId, message);
+                server.SendAsyncMessage(clientId, message);
             }
 
             void ClientMessageReceived(MessageEnvelope message)
@@ -306,9 +546,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         private static void PoolTest()
         {
-            Random rng =  new Random(42);
+            Random rng = new Random(42);
             sw.Start();
-            AutoResetEvent a =  new AutoResetEvent(false);
+            AutoResetEvent a = new AutoResetEvent(false);
             ConcurrentQueue<byte[]> qq = new ConcurrentQueue<byte[]>();
 
             Thread t1 = new Thread(() =>
@@ -338,14 +578,14 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             t2.Start();
             t1.Join();
 
-          
 
 
-                sw.Stop();
+
+            sw.Stop();
             Console.WriteLine(sw.ElapsedMilliseconds);
             //for (int i = 0; i < 10000000; i++)
             //{
-                
+
             //}
 
 
@@ -400,7 +640,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             });
 
 
-            while (Console.ReadLine() !="e")
+            while (Console.ReadLine() != "e")
             {
                 Console.WriteLine(totMsgCl);
                 Console.WriteLine(totMsgsw);
@@ -417,19 +657,19 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 totMsgCl++;
             }
 
-             void c1(MessageEnvelope obj)
+            void c1(MessageEnvelope obj)
             {
                 //Console.WriteLine("1");
                 MessageEnvelope fuckery1 = new MessageEnvelope();
                 fuckery1.Payload = new byte[randomG.Next(500, 32000)];
-                
+
                 client1.SendAsyncMessage(fuckery);
                 Task.Run(() => client1.SendAsyncMessage(fuckery));
                 totMsgsw++;
             }
         }
 
-       
+
 
         //private static void EnvelopeTest()
         //{
@@ -453,7 +693,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         //}
 
-        
+
 
         private static void BitConverterTest()
         {
@@ -462,7 +702,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             sw.Start();
             for (int i = 0; i < 200000000; i++)
             {
-                m2(h0,0);
+                m2(h0, 0);
             }
             sw.Stop();
             Console.WriteLine(sw.ElapsedMilliseconds);
@@ -473,10 +713,10 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             }
             int m2(byte[] h, int offset)
             {
-                if(BitConverter.IsLittleEndian)
+                if (BitConverter.IsLittleEndian)
                     return (int)(h[offset] | h[offset + 1] << 8 | h[offset + 2] << 16 | h[offset + 3] << 24);
                 else
-                    return (int)(h[offset+3] | h[offset + 2] << 8 | h[offset + 1] << 16 | h[offset] << 24);
+                    return (int)(h[offset + 3] | h[offset + 2] << 8 | h[offset + 1] << 16 | h[offset] << 24);
 
 
             }
@@ -484,19 +724,19 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         private static void RelayTest()
         {
-            string ip = "82.60.167.182";
+            string ip = "127.0.0.1";
             MessageEnvelope testMessage = new MessageEnvelope()
             {
                 Header = "Test",
                 Payload = new byte[32]
             };
-           
+
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
 
             long TotUdp = 0;
-            var server = new SecureProtoRelayServer(20011, scert);
-           // Thread.Sleep(1000000000);
+            // var server = new SecureProtoRelayServer(20011, scert);
+            // Thread.Sleep(1000000000);
             //Task.Run(async () =>
             //{
             //    return;
@@ -517,17 +757,17 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 var client = new RelayClient(cert);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
                 client.OnUdpMessageReceived += (reply) => ClientUdpReceived(client, reply);
-                client.OnPeerRegistered += (peerId) => OnPeerRegistered(client,peerId);
+                client.OnPeerRegistered += (peerId) => OnPeerRegistered(client, peerId);
 
                 try
                 {
                     client.Connect(ip, 20011);
-                    
+
                     clients.Add(client);
                     //client.StartPingService();
                 }
                 catch { }
-               
+
                 //Thread.Sleep(1000);
             }
             //var client1 = new RelayClient(cert);
@@ -538,16 +778,16 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //client1.Connect("127.0.0.1", 20011);
             //clients.Add(client1);
             Thread.Sleep(3500);
-           // clients[0].Disconnect();
-            while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First().Key, 5000, encrypted:false).Result)
+            // clients[0].Disconnect();
+            while (!clients[0].RequestHolePunchAsync(clients[0].Peers.First().Key, 20000, encrypted: true).Result)
             {
 
             }
-            Thread.Sleep(5000);
-            Task.Run( () =>
+            Thread.Sleep(500);
+            Task.Run(() =>
             {
                 return;
-                Parallel.ForEach(clients, async(client) =>
+                Parallel.ForEach(clients, async (client) =>
                 {
                     foreach (var peer in client.Peers.Keys)
                     {
@@ -558,16 +798,16 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     }
                 });
             });
-            Parallel.ForEach(clients,  (client) =>
+            Parallel.ForEach(clients, (client) =>
             {
-                
+
                 var testMessage_ = new MessageEnvelope()
                 {
                     Header = "Test",
                     Payload = new byte[32]
                 };
 
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 5; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers.Keys)
@@ -581,7 +821,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             });
             //clients[0].SendUpMesssage(clients[0].Peers.First(), new byte[32], "testData");
-            while (Console.ReadLine()!="e")
+            while (Console.ReadLine() != "e")
             {
                 Console.WriteLine(totMsgCl);
                 Console.WriteLine(TotUdp);
@@ -589,7 +829,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             void OnPeerRegistered(RelayClient client, Guid peerId)
             {
-               // Console.WriteLine(peerId);
+                // Console.WriteLine(peerId);
                 return;
                 for (int i = 0; i < 1; i++)
                 {
@@ -600,12 +840,12 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             }
             void ClientMsgReceived(RelayClient client, MessageEnvelope reply)
             {
-                Interlocked.Increment(ref totMsgCl);
-                client.SendAsyncMessage(reply.From, reply);
+                //Interlocked.Increment(ref totMsgCl);
+                client.SendAsyncMessage(reply.From, testMessage);
 
             }
 
-           
+
             void ClientUdpReceived(RelayClient client, MessageEnvelope reply)
             {
                 Interlocked.Increment(ref TotUdp);
@@ -721,7 +961,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         private static void ByteCopyTest()
         {
-           byte[] bytes = new byte[128000];
+            byte[] bytes = new byte[128000];
             sw.Start();
             for (int i = 0; i < 100000000; i++)
             {
@@ -759,9 +999,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
         //    {
         //        Header = "Test",
         //        Payload = new byte[2]
-                
+
         //    };
-           
+
         //    MessageEnvelope end = new MessageEnvelope()
         //    {
         //        Header = "Stop"
@@ -843,9 +1083,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         //}
 
-       
 
-       
+
+
 
         private static void UdpTest2()
         {
@@ -860,7 +1100,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             cl2.OnBytesRecieved += ClientBytesRecieved;
             //cl2.Connect("127.0.0.1", 2008);
             cl2.SetRemoteEnd("127.0.0.1", 2008);
-           
+
             cl2.SocketSendBufferSize = 64000;
             cl2.ReceiveBufferSize = 64000;
 
@@ -901,39 +1141,39 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
             }
 
-            void ServerReceived(in Guid arg1, byte[] arg2, int arg3, int arg4)
+            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgServer);
-                if(arg4 == 502)
+                if (arg4 == 502)
                 {
-                    server.SendBytesToClient(arg1,new byte[502]);
+                    server.SendBytesToClient(arg1, new byte[502]);
                     return;
                 }
                 server.SendBytesToClient(arg1, resp);
             }
 
-            void ClientReceived( byte[] arg2, int arg3, int arg4)
+            void ClientReceived(byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgClient);
-                if(arg4!= 32)
+                if (arg4 != 32)
                 {
 
                 }
-                if(arg4 == 502)
+                if (arg4 == 502)
                 {
                     sw.Stop();
                     Console.WriteLine(sw.ElapsedMilliseconds);
                 }
-               // client.SendAsync(req);
+                // client.SendAsync(req);
             }
         }
 
-       
+
 
         private static void SSlTest()
         {
-            int totMsgClient=0;
-            int totMsgServer=0;
+            int totMsgClient = 0;
+            int totMsgServer = 0;
             byte[] req = new byte[32];
             byte[] resp = new byte[32];
 
@@ -955,19 +1195,19 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             }
 
-            while (Console.ReadLine()!="e")
+            while (Console.ReadLine() != "e")
             {
                 Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
                 Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
             }
 
-            void ServerReceived(in Guid arg1, byte[] arg2, int arg3, int arg4)
+            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgServer);
                 server.SendBytesToClient(arg1, resp);
             }
 
-            void ClientReceived( byte[] arg2, int arg3, int arg4)
+            void ClientReceived(byte[] arg2, int arg3, int arg4)
             {
                 Interlocked.Increment(ref totMsgClient);
 
@@ -977,7 +1217,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         private static bool A(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-           return true;
+            return true;
         }
 
         private static void UdpTestMc()
@@ -989,7 +1229,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             AsyncUdpClient cl = new AsyncUdpClient(2005);
             //cl.Connect("127.0.0.1",2008);
-            cl.SetRemoteEnd("127.0.0.1",2008);
+            cl.SetRemoteEnd("127.0.0.1", 2008);
             cl.SendAsync(new byte[111]);
             cl.JoinMulticastGroup(IPAddress.Parse(ip));
 
@@ -1037,7 +1277,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 cl.ReceiveBufferSize = 64000;
                 clients.Add(cl);
             }
-            
+
             Thread.Sleep(2222);
 
             var bytes_ = new byte[1500];
@@ -1051,7 +1291,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                     {
                         cl.SendAsync(bytes_);
                     });
-                  
+
 
                     //Console.WriteLine("Sending");
                     //Thread.Sleep(1);
@@ -1078,7 +1318,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             t.Join();
             t2.Join();
 
-           //t.Wait();
+            //t.Wait();
             //t2.Wait();
             Console.WriteLine("Done all " + sw2.ElapsedMilliseconds);
 
@@ -1101,10 +1341,10 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
         static void ClientBytesRecieved(byte[] bytes, int offset, int count)
         {
             Interlocked.Increment(ref totMsgCl);
-           //  Console.WriteLine("udp client recieved");
+            //  Console.WriteLine("udp client recieved");
             // cl.SendBytes(new byte[11111]);
         }
-       
+
 
         //----------TCP ----------------------------------------------------------------
         private static void TcpTest()
@@ -1120,13 +1360,13 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //BufferManager.InitContigiousSendBuffers(clAmount*2, 128000);
             //BufferManager.InitContigiousReceiveBuffers(clAmount*2, 128000);
 
-            int dep =0;
+            int dep = 0;
             for (int i = 0; i < clAmount; i++)
             {
 
                 var client = new ByteMessageTcpClient();
                 client.MaxIndexedMemory = server.MaxIndexedMemoryPerClient;
-                client.DropOnCongestion=false;
+                client.DropOnCongestion = false;
                 //client.OnConnected += async () =>
                 //{
                 //    await Task.Delay(10000); Console.WriteLine("-------------------                            --------------"); client.Disconnect();
@@ -1142,7 +1382,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
             server.OnBytesReceived += SWOnMsgRecieved;
             Console.ReadLine();
-            Console.WriteLine(server.SessionCount);           
+            Console.WriteLine(server.SessionCount);
             Console.ReadLine();
             Console.ReadLine();
             var msg = new byte[32];
@@ -1155,7 +1395,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
 
             const int numMsg = 1000000;
-           
+
             var t1 = new Thread(() =>
             {
                 for (int i = 0; i < numMsg; i++)
@@ -1184,7 +1424,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //t1.Start();
             sw2.Start();
 
-            
+
             sw.Start();
 
             //-------------------
@@ -1193,7 +1433,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 for (int i = 0; i < numMsg; i++)
                 {
                     client.SendAsync(msg);
-                   // if (i == 1000000)client.Disconnect();
+                    // if (i == 1000000)client.Disconnect();
                 }
             });
             foreach (var client in clients)
@@ -1206,19 +1446,19 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             //t1.Join();
             Console.WriteLine(sw2.ElapsedMilliseconds);
 
-           // t2.Join();
-            Console.WriteLine("2-- "+sw2.ElapsedMilliseconds);
+            // t2.Join();
+            Console.WriteLine("2-- " + sw2.ElapsedMilliseconds);
 
             Console.ReadLine();
             GC.Collect();
             for (int i = 0; i < 6; i++)
             {
-                Console.WriteLine("Total on server: "+totMsgsw);
-                Console.WriteLine("Total on clients: "+totMsgCl);
+                Console.WriteLine("Total on server: " + totMsgsw);
+                Console.WriteLine("Total on clients: " + totMsgCl);
                 Console.WriteLine("2-- " + sw2.ElapsedMilliseconds);
-                Console.WriteLine("last was sw "+lastSW);
-                Console.WriteLine("sw ses count "+server.SessionCount);
-                
+                Console.WriteLine("last was sw " + lastSW);
+                Console.WriteLine("sw ses count " + server.SessionCount);
+
                 Console.ReadLine();
                 if (i == 2)
                 {
@@ -1238,13 +1478,13 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             });
             Console.WriteLine("DC");
             Console.ReadLine();
-           
+
             Console.Read();
         }
 
         private static void clientMsgRec2(ByteMessageTcpClient client, byte[] arg2, int offset, int count)
         {
-           // Console.WriteLine("tot msg client: " + totMsgCl);
+            // Console.WriteLine("tot msg client: " + totMsgCl);
 
             clientMsgRec(arg2, offset, count);
 
@@ -1258,7 +1498,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             lastSW = false;
         }
 
-        private static void clientMsgRec(/*ByteProtocolTcpClient client,*/ byte[] arg2, int offset,int count)
+        private static void clientMsgRec(/*ByteProtocolTcpClient client,*/ byte[] arg2, int offset, int count)
         {
             if (count == 502)
             {
@@ -1268,7 +1508,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 //sw.Reset();
                 //return;
             }
-            
+
             Interlocked.Increment(ref totMsgCl);
             //Console.WriteLine("Sending");
             //client.SendAsync(resp);
@@ -1281,19 +1521,19 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         }
 
-        private static void SWOnMsgRecieved(in Guid arg1, byte[] arg2, int offset, int count)
+        private static void SWOnMsgRecieved(Guid arg1, byte[] arg2, int offset, int count)
         {
-           
+
             //server.SendBytesToClient(arg1, resp);
-           // server.SendBytesToClient(arg1, resp);
+            // server.SendBytesToClient(arg1, resp);
             Interlocked.Increment(ref totMsgsw);
 
 
             if (count == 502)
             {
-                Console.WriteLine("Time: " +sw2.ElapsedMilliseconds);
+                Console.WriteLine("Time: " + sw2.ElapsedMilliseconds);
                 Console.WriteLine("tot msg sw: " + totMsgsw);
-                server.SendBytesToClient(arg1,new byte[502]);
+                server.SendBytesToClient(arg1, new byte[502]);
 
                 //return;
             }

@@ -3,9 +3,7 @@ using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.Components.MessageProcessor.Unmanaged;
 using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Collections.Generic;
 using System.Net.Security;
-using System.Text;
 
 namespace NetworkLibrary.TCP.SSL.ByteMessage
 {
@@ -13,7 +11,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
     {
         ByteMessageReader reader;
 
-        public SslByteMessageSession(Guid sessionId, SslStream sessionStream ) : base(sessionId, sessionStream)
+        public SslByteMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
             reader = new ByteMessageReader(sessionId);
             reader.OnMessageReady += HandleMessage;

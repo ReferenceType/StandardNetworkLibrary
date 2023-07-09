@@ -1,14 +1,11 @@
 ﻿using NetworkLibrary.Components.Statistics;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices.ComTypes;
-using System.Text;
+using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Xml.Schema;
 
 namespace NetworkLibrary.UDP
 {
@@ -39,13 +36,13 @@ namespace NetworkLibrary.UDP
                 socketSendBufferSize = value;
             }
         }
-
+        public EndPoint LocalEndpoint => ServerSocket.LocalEndPoint;
         private int receiveBufferSize = 1280000000;
         private int socketSendBufferSize = 1280000000;
         protected Socket ServerSocket;
-        protected ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs> RegisteredClients 
+        protected ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs> RegisteredClients
             = new ConcurrentDictionary<IPEndPoint, SocketAsyncEventArgs>();
-        protected ConcurrentDictionary<IPEndPoint, UdpStatistics> Statistics 
+        protected ConcurrentDictionary<IPEndPoint, UdpStatistics> Statistics
             = new ConcurrentDictionary<IPEndPoint, UdpStatistics>();
         protected int port = 0;
 
@@ -56,7 +53,7 @@ namespace NetworkLibrary.UDP
         public AsyncUdpServer(int port = 20008)
         {
             // IPV6 is not compatible with Unity.
-            ServerSocket = new Socket(AddressFamily.InterNetwork,SocketType.Dgram, ProtocolType.Udp);
+            ServerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             ServerSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
             // Not compatible with Unity..
             //ServerSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
@@ -73,7 +70,7 @@ namespace NetworkLibrary.UDP
         }
         public void GetStatistics(out UdpStatistics generalStats, out ConcurrentDictionary<IPEndPoint, UdpStatistics> sessionStats)
         {
-            statisticsPublisher.GetStatistics(out generalStats,out sessionStats);
+            statisticsPublisher.GetStatistics(out generalStats, out sessionStats);
         }
         // 239.0.0.0 to 239.255.255.255
         public void SetMulticastAddress(string Ip, int port) => multicastEndpoint = new IPEndPoint(IPAddress.Parse(Ip), port);
@@ -91,21 +88,22 @@ namespace NetworkLibrary.UDP
         {
             var e = new SocketAsyncEventArgs();
             e.Completed += Received;
-            e.SetBuffer(new byte[ClientReceiveBufferSize], 0, ClientReceiveBufferSize);
+            e.SetBuffer(ByteCopy.GetNewArray(ClientReceiveBufferSize, true), 0, ClientReceiveBufferSize);
             e.RemoteEndPoint = serverEndpoint;
 
             Receive(e);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Receive(SocketAsyncEventArgs e)
         {
-            
             if (!ServerSocket.ReceiveFromAsync(e))
             {
-                ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e),null);
+                ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e), null);
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Received(object sender, SocketAsyncEventArgs e)
         {
             if (e.SocketError != SocketError.Success)
@@ -140,6 +138,7 @@ namespace NetworkLibrary.UDP
 
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void HandleBytesReceived(IPEndPoint clientRemoteEndpoint, byte[] buffer, int offset, int count)
         {
             if (Statistics.TryGetValue(clientRemoteEndpoint, out var stats))
@@ -147,7 +146,7 @@ namespace NetworkLibrary.UDP
                 stats.TotalBytesReceived += count;
                 stats.TotalDatagramReceived += 1;
             }
-           
+
             OnBytesRecieved?.Invoke(clientRemoteEndpoint, buffer, offset, count);
 
         }
@@ -161,16 +160,23 @@ namespace NetworkLibrary.UDP
 
         public void SendBytesToClient(IPEndPoint clientEndpoint, byte[] bytes, int offset, int count)
         {
-            
+
             try
             {
                 ServerSocket.SendTo(bytes, offset, count, SocketFlags.None, clientEndpoint);
-                Statistics[clientEndpoint].TotalBytesSent += count;
-                Statistics[clientEndpoint].TotalDatagramSent +=1;
+                if (Statistics.TryGetValue(clientEndpoint, out var value))
+                {
+                    value.TotalBytesSent += count;
+                    value.TotalDatagramSent += 1;
+                }
+
             }
-            catch 
+            catch
             {
-                Statistics[clientEndpoint].TotalMessageDropped+=1;
+                if (Statistics.TryGetValue(clientEndpoint, out var value))
+                {
+                    value.TotalMessageDropped += 1;
+                }
 
             }
         }

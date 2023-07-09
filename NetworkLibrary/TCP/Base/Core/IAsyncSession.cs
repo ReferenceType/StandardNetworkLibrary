@@ -1,12 +1,10 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using System;
 using System.Net;
-using System.Net.Sockets;
-using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.Base
 {
-    public interface IAsyncSession : IDisposable
+    internal interface IAsyncSession : IDisposable
     {
         /// <summary>
         /// Bytes received event

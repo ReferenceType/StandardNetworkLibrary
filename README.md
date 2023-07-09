@@ -1,35 +1,35 @@
 # Standard Network Library
-High Performance, easy to use, network library supporting 16k+ concurrent clients. 
+High Performance, easy to use network library supporting 16k+ concurrent clients. 
 Provides infrastructure for high throughput message passing, P2P, Nat Traversal, Reliable Udp.
-</br>This repository consist one main assembly and several serialization spesific implemtation assemblies. 
-## Main Assembly
+</br>This repository consist one main core assembly and several serialization spesific implementation assemblies. 
+## Core Network Liblary
  Network Library, which is the core of entire network library. It has all the logic associated with the network system and sub systems, starting from raw bytes to abstractions such as P2P lobbies. It provides generic templates to be used with any serialization methodology. 
 
 ### Core Models
-Plug&Play models, working with raw bytes.
-- ```Tcp Server/Client model``` with dynamic buffering and queuing sub systems, bytes can come fragmented like regular sockets.
-- ```Tcp Byte Message Server/Client``` model where bytes are sent with 4 byte lenght header. It ensure atomic message delivery without fragmentation.
-- ```Udp Server/Client``` models optimised for performance.
-- ```Reliable Udp Client/Server``` models where modern TCP protocol is implemented over Udp.
+Plug&Play high performance models, working with raw bytes.
+- ```Tcp Server/Client model``` with dynamic buffering and queueing sub systems, bytes can come fragmented like regular sockets.
+- ```Tcp Byte Message Server/Client``` where bytes are sent with 4 byte lenght header. It ensure atomic message delivery without fragmentation.
+- ```Udp Server/Client``` standard udp with optimised for performance.
+- ```Reliable Udp Client/Server``` where modern TCP protocol is implemented over Udp.
 - Secure variants of all of the above(SSL with TLS for Tcp, Symetric Key AES for Udp).
 
 ### Templates
-Involves generic clases which works with any serialization protocol.
-- ```Generic Message Server/Client``` model which send and receives serialized messages atomically.
-- ```Generic MessageProtocol Server/client``` model, similar to above, but with addition of "MessageEnvelope" carrier class, used as header/metadata.
-- ```P2P Relay Client/Server``` Model where Peers(Clients) discover each other via Relay server, can use Udp/Tcp to communicate. Supports Udp Holepunch.
-- ```P2P Room/Lobby Server/Client```, extention of Relay model where peers can define a room, similar to game matchmaking servers.
+Involves generic models which can work with any serialization protocol.
+- ```Generic Message Server/Client``` designed to send and receive serialized messages atomically.
+- ```Generic MessageProtocol Server/client``` similar to above, but with addition of "MessageEnvelope" carrier class, used as header/metadata.
+- ```P2P Relay Client/Server``` where Peers(Clients) discover each other via Relay server, can use Udp/Rudp/Tcp to communicate. Supports Udp Holepunch.
+- ```P2P Room/Lobby Server/Client``` extention of Relay model where peers can define a room, similar to game matchmaking servers.
 
 ### Low Level Features
 
 #### Advanced Memory Management
-- Library implements "Shared Thread Local Memory Pool", where all byte arrays and the stream backing buffers are rented from. Memory is weak referenced. Pool provides minimum GC cycles and automatically trims on system memory pressure.
-- As an example, RelayServer can relay 21 Gigabytes/s Udp traffic using 36 mb process memory with 0 GC Collects.
+- Library implements "Shared Thread Local Memory Pool", where all byte arrays and the stream backing buffers are rented from. Memory is weak referenced. Pool allows minimum number GC cycles and automatically trims on system memory pressure.
+- As an example, RelayServer can relay 21 Gigabyte/s Udp traffic using 36 mb process memory with 0 GC Collects.
 
 #### Message Buffering
-- Since the System calls for socket operations are rather expensive, on Tcp models a buffering/queueing system is implemented. This system is active only during high load.
+- Tcp models a buffering/queueing system is implemented. This system is activated only during high load.
 In a nutsell, if the socket is busy sending, next messages are collected and stiched together and sent as batch when the socket becomes available again. Its like Naggle, but without sacrificing the fast sends on moderate traffic.
-- This improves the throughput of small messages quite significantly which will be shown on benchmarks.
+- This improves the throughput of small messages quite significantly as shown on benchmarks.
 
 Library is tested with as many clients as OS(Windows) supports (around 16k dynamic ports). Data reliability(includung RUDP) is tested over the internet extensively.
 Nat Traversal Udp holepunching is also tested over the internet with great success.
@@ -48,7 +48,7 @@ It includes:
 - .NET Standard 2.0+
 
 Nuget Packages are available:
-|Core Network Library| Protobuf Network Library|MessagePack Network Library|NetSeralizer Network Library|Json Network Library|
+|Core Network Library| Protobuf|MessagePack |NetSeralizer|Json |
 |---------------|---------------|---------------|---------------|---------------|
 |[![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)| [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)|[![NuGet](https://img.shields.io/nuget/v/MessagePack.Network.Library)](https://www.nuget.org/packages/MessagePack.Network.Library)|[![NuGet](https://img.shields.io/nuget/v/NetSerializer.Network.Library)](https://www.nuget.org/packages/NetSerializer.Network.Library)|[![NuGet](https://img.shields.io/nuget/v/Json.Network.Library)](https://www.nuget.org/packages/Json.Network.Library)
 
@@ -86,7 +86,7 @@ This benchmarks is only sending message envelope with raw byte payload. For seri
 [SerializationBenchmarks](SerializationBenchmarks.md)
 
 
-# Code Samples & Documentation
+# Documentation & Code Samples
 ## Byte Message TCP Server/Client
 Any chunk of byte array or array segment will reach the destination without fragmentation.
 ```csharp
@@ -131,7 +131,8 @@ Hello I'm the server
    server.RemoteCertificateValidationCallback+= ...
    client.RemoteCertificateValidationCallback+= ...
 ```
-For base Server/Client where raw bytes are transfered you can use following classes. Method and callback signarures are identical to byte message models.
+Base Server/Client where raw bytes are transfered. Method and callback signarures are identical to byte message models.
+There is no protocol implemented over base Server/Client, hence bytes may come fragmented depending on your MTU size.
 ```c#
    AsyncTcpServer server = new AsyncTcpServer(port: 20000);
    AsyncTpcClient client = new AsyncTpcClient();
@@ -142,12 +143,12 @@ For base Server/Client where raw bytes are transfered you can use following clas
    SslServer server = new SslServer(2000, scert);
    SslClient client = new SslClient(ccert);
 ```
-There is no protocol implemented over base Server/Client described above, so bytes may come fragmented depending on your MTU size.
+
 ## Serialized Networks
-Serialized Networks are implementations of generic classes provided by Standard Library
+Serialized Networks are implementations of generic classes provided by Core Library
 It is applicable to all serialization protocols. 
-Examples here is only given for Protobuf-net,
-but signature is identical for any other provided serialization protocol(MessagePack, Json etc).
+</br>```Examples here is only given for Protobuf-net,
+but signature is identical for any other provided serialization protocol(MessagePack, Json etc)```.
 
 ## Pure Message Server/Client
 Implements a server client model where serialized messages are transfered atomically.
@@ -301,11 +302,11 @@ Method signatures and callbacks are identical to proto client/server model (also
 ```
 Additionally there is a broadcast support for TCP and Udp. This allows a single message to be send to relay server and multiplexed to all reachable peers there.
 On Udp case, if holpucnh is active between 2 peers message is sent directly like regular message.
-``` c#
+``` c#yy
       client.BroadcastMessage(peerId, envelope);
       client.BroadcastUdpMessage(peerId, envelope);
 ```
-Udp messages can be more than the datagram limit of 65,527 bytes. The system detects large udp messages as Jumbo messages and sends them in chunks. Receiving end with will try to reconstruct the message. if all the part did not arrive on timeout message will be dropped. In a nutsell it works same as regular udp.
+Udp messages can be more than the datagram limit of 65,527 bytes. The system detects large udp messages as Jumbo messages and sends them in chunks. Receiving end with will try to reconstruct the message. if all the parts does not arrive within a timeout message is dropped. In a nutsell it works same as regular udp.
 Max message size for udp is 16,256,000 bytes.
 </br>This is also applicable to Udp broadcasts.
 ```c#
@@ -318,9 +319,12 @@ We have build in reliable udp protocol implemneted aswell which is TCP implement
       client.SendRudpMessageAndWaitResponse(peerId, envelope, innerMessage);
       client.SendRudpMessageAndWaitResponse(peerId, envelope);
 ```
-On top of that 3 channels are provided for Rudp. Ch1,Ch2 and Realtime.
+On top of that 3 independent channels are provided for Rudp. Ch1,Ch2 and Realtime.
+Reason for this is if you send a large message like a file from single channel, it will be blocked until message is completely sent. hence subsequent messages has to wait in buffer.
+By having independent channels this issue is avoided.
+
 Ch1 and 2 are standard channels with same timeout mechanics of windows TCP implmentation.
-</br> Realtime channel is more sensitive to timeouts and may resend messages "pre-emtively". but resends are much faster so data is delivered reliably with minimum delay.
+</br> Realtime channel is more sensitive to timeouts and may resend messages "pre-emtively". But resends are much faster so data is delivered reliably with minimum delay.
 ```c#
       client.SendRudpMessage(peerId, envelope, RudpChannel.Ch1);
       client.SendRudpMessage(peerId, envelope, RudpChannel.Ch2);

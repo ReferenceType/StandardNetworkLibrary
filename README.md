@@ -285,7 +285,7 @@ Relay client is where your application logic is implemented. You can web your cl
 
       client.OnPeerRegistered += (Guid peerId) => ..
       client.OnPeerUnregistered += (Guid peerId) => ..
-      client.OnMessageReceived += (MessageEnvelope message) => ..                                                       
+      client.OnMessageReceived += (MessageEnvelope message) => .. 
       client.OnUdpMessageReceived += (MessageEnvelope message) => ..
       client.OnDisconnected += () => ..
 
@@ -309,7 +309,8 @@ Udp messages can be more than the datagram limit of 65,527 bytes. The system det
 Max message size for udp is 16,256,000 bytes.
 </br>This is also applicable to Udp broadcasts.
 ```c#
-      client.SendUdpMesssage(destinationPeerId, new MessageEnvelope() { Header = "Hello" Payload = new byte[256000]});
+      client.SendUdpMesssage(destinationPeerId,
+             new MessageEnvelope() { Header = "Hello" Payload = new byte[256000]});
 ```
 We have build in reliable udp protocol implemneted aswell which is TCP implemented over UDP. 
 ```c#

@@ -48,9 +48,9 @@ It includes:
 - .NET Standard 2.0+
 
 Nuget Packages are available:
-|Core Network Library| Protobuf Network Library|
-|-------------------|-------------------------|
-|    [![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)| [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)|
+|Core Network Library| Protobuf Network Library|MessagePack Network Library|NetSeralizer Network Library|Json Network Library|
+|---------------|---------------|---------------|---------------|---------------|
+|[![NuGet](https://img.shields.io/nuget/v/Standard.Network.Library)](https://www.nuget.org/packages/Standard.Network.Library)| [![NuGet](https://img.shields.io/nuget/v/Protobuf.Network.Library)](https://www.nuget.org/packages/Protobuf.Network.Library/)|[![NuGet](https://img.shields.io/nuget/v/MessagePack.Network.Library)](https://www.nuget.org/packages/MessagePack.Network.Library)|[![NuGet](https://img.shields.io/nuget/v/NetSerializer.Network.Library)](https://www.nuget.org/packages/NetSerializer.Network.Library)|[![NuGet](https://img.shields.io/nuget/v/Json.Network.Library)](https://www.nuget.org/packages/Json.Network.Library)
 
 
 

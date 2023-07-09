@@ -267,7 +267,7 @@ Basically you have a Relay server somewhere in your network, which can act as a 
 <br/>Relay clients (Peers) connect to Relay server and get notifications about existince of other peers. Peers can send messages to each other through Relay Server, or directly to each other (Udp holepunch).
 <br/><img src="https://user-images.githubusercontent.com/109621184/204115163-3c8da2c3-9030-4325-9f4a-28935ed98977.png" width=50% height=50%>
 
-### Relay server
+## Relay server
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally NAT traversal methods such as UDP holepunching provided to allow direct communication via Internet or LAN (UDP only so far, but we have reliable udp).
 <br/> To use the Relay server, simply declere your server as:
 ``` c#
@@ -276,19 +276,18 @@ Server is completely passive, allowing other peers to discover and send messages
       server.StartServer();
 ```
 Relay server is already pre-configured.
-### Relay Client
+## Relay Client
 Relay client is where your application logic is implemented. You can web your client applications to discover and talk with each other.
 </br>To declere a client:
 ``` c#
       var cert = new X509Certificate2("client.pfx", "greenpass");
       var client = new RelayClient(cert);
 
-      client.OnPeerRegistered += (Guid peerId) => { // Save it to some concurrent dictionary etc..};
-      client.OnPeerUnregistered += (Guid peerId) => { };
-      client.OnMessageReceived += (MessageEnvelope message) => { // Handle your messages, 
-                                                                 // I use switch case on message.Header };
-      client.OnUdpMessageReceived += (MessageEnvelope message) => { };
-      client.OnDisconnected += () => { };
+      client.OnPeerRegistered += (Guid peerId) => ..
+      client.OnPeerUnregistered += (Guid peerId) => ..
+      client.OnMessageReceived += (MessageEnvelope message) => ..                                                       
+      client.OnUdpMessageReceived += (MessageEnvelope message) => ..
+      client.OnDisconnected += () => ..
 
       client.Connect("127.0.0.1", 20010);
 ```

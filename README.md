@@ -83,7 +83,7 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 
 #### Note
 This benchmarks is only sending message envelope with raw byte payload. For serialization spesific performance please refer to:
-[a relative link](SerializationBenchmarks.md)
+[SerializationBenchmarks](SerializationBenchmarks.md)
 
 
 # Code Samples & Documentation
@@ -188,7 +188,7 @@ Declare your type:
 Message protocol is something I came up with to wrap all types of messages with a standard header.
 It is an extention of Pure Message Server/Client. Difference here is we have ```MessageEnvelope``` As a Carrier/Metadata/Header class.
 ```MessageEnvelope``` is serialized Statically, independently of serialization protocol.
-As for the reason for it, please refer the document Benchmarks.md
+As for the reason for it, please refer the document [SerializationBenchmarks](SerializationBenchmarks.md)
 
 You can define a header, key-value pairs, as metadata and information about the payload.
 Most importantly the Payload propery of the envelope carries the Inner message bytes. 

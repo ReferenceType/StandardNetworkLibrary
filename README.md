@@ -1,11 +1,11 @@
 # Standard Network Library
 High Performance, easy to use network library supporting 16k+ concurrent clients. 
-Provides infrastructure for high throughput message passing, P2P, Nat Traversal, Reliable Udp.
-</br>This repository consist one main core assembly and several serialization spesific implementation assemblies. 
-## Core Network Liblary
+</br>Provides infrastructure for high throughput message passing, P2P, Nat Traversal, Reliable Udp.
+</br>This repository consist of main core assembly and several serialization spesific implementation assemblies. 
+## Core Network Library
  Network Library, which is the core of entire network library. It has all the logic associated with the network system and sub systems, starting from raw bytes to abstractions such as P2P lobbies. It provides generic templates to be used with any serialization methodology. 
 
-### Core Models
+### Core Components
 Plug&Play high performance models, working with raw bytes.
 - ```Tcp Server/Client model``` with dynamic buffering and queueing sub systems, bytes can come fragmented like regular sockets.
 - ```Tcp Byte Message Server/Client``` where bytes are sent with 4 byte lenght header. It ensure atomic message delivery without fragmentation.
@@ -25,7 +25,7 @@ Involves generic models which can work with any serialization protocol.
 #### Advanced Memory Management
 - Library implements "Shared Thread Local Memory Pool", where all byte arrays and the stream backing buffers are rented from. Memory is weak referenced. Pool allows minimum number GC cycles and automatically trims on system memory pressure.
 - As an example, RelayServer can relay 21 Gigabyte/s Udp traffic using 36 mb process memory with 0 GC Collects.
-
+  
 #### Message Buffering
 - Tcp models a buffering/queueing system is implemented. This system is activated only during high load.
 In a nutsell, if the socket is busy sending, next messages are collected and stiched together and sent as batch when the socket becomes available again. Its like Naggle, but without sacrificing the fast sends on moderate traffic.

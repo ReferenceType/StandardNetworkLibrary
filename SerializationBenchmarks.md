@@ -47,6 +47,8 @@ For each received reply clients send a new message. This gives us high load infi
 |NetSerializer    |91 bytes       |4.1m  Msg/s |
 |Static Serializer |72 bytes       |9.46m Msg/s |
 
+Benchmarks and source coude can be found here: [Serialization Benchmarks](SerializedNetwork)
+
 - Binary and data contract serialisation is too slow and too large.
 - Json, considering its text based, shows more than expected performance.
 - MessagePack does not skip serialization of default properties, Hence the size is large.
@@ -69,3 +71,4 @@ I will use the custom serialization for the MessageEnvelope and internal message
 - Its by far the smallest size and highest performance.
 - I dont have to precompile any models for IL2CPP builds such as in Unity (reflection.emit is not allowed).
 - I can provide serialization agnostic unified Relay/Room server with any type of Peer Client(Protobuf, MessagePack etc..).
+

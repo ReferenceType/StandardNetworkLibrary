@@ -23,7 +23,7 @@ Involves generic models which can work with any serialization protocol.
 
 ### Internal Features
 #### Message Buffering/Queueing
-- Tcp models a buffering/queueing system is implemented. This system is activated only during high load.
+- Tcp models come with a buffering/queueing system. This system is activated only during high load.
 In a nutsell, if the socket is busy sending, next messages are buffered/queued and stiched together. When the socket becomes available again, sent as batch. Its like Naggle, but without sacrificing the fast sends on moderate/low traffic.
 - This improves the throughput of small messages quite significantly (1000 fold compared to naive sends) as shown on benchmarks.
 
@@ -40,7 +40,7 @@ Nat Traversal Udp holepunching is also tested over the internet with success.
 Note: Libary has unsafe code and stack allocations. Unsafe sections are well tested and not subject to change.
 
 ## Sub Assemblies 
-Generic models from main assembly are implemented with the spesific serializers. All method signatures and usage are identical.
+Generic models from main assembly are implemented with the spesific serializer. All method signatures and usage are identical.
 It includes:
 - Protobuf-Net
 - MessagePack

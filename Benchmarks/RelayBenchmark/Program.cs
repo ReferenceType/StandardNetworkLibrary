@@ -186,8 +186,8 @@ namespace RelayBenchmark
 
             var cert = new X509Certificate2("client.pfx", "greenpass");
             var scert = new X509Certificate2("server.pfx", "greenpass");
-            //var server = new SecureProtoRelayServer(20011, scert);
-            //server.StartServer();
+            var server = new SecureProtoRelayServer(20011, scert);
+            server.StartServer();
             //Task.Run(async () => { while (true) { await Task.Delay(10000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
             var clients = new List<RelayClient>();
             int numclients = 20;

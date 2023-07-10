@@ -24,10 +24,11 @@ namespace NetworkLibrary.TCP.SSL.Custom
             sslStream.AuthenticateAsServer(certificate, true, System.Security.Authentication.SslProtocols.Tls12, false);
             // create key for this client
 
-            var rnd = new RNGCryptoServiceProvider();
+            var rnd =  RandomNumberGenerator.Create();
             var byteKey = new byte[16];
 
             rnd.GetNonZeroBytes(byteKey);
+            rnd.Dispose();
             acceptArgs.UserToken = byteKey;
 
             sslStream.Write(byteKey, 0, byteKey.Length);

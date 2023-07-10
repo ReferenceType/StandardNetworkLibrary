@@ -125,8 +125,8 @@ Hello I'm the server
 Note: Important performance setting here is whether to use a buffer or a queue as buffering policy. Use Buffer if messages are mainly regions of byte[] such as (buffer, offset,count).
 Use Queue if the messages are full byte[] (0 to end).
 ```c#
-       client.GatherConfig = ScatterGatherConfig.UseQueue;
-       server.GatherConfig = ScatterGatherConfig.UseBuffer;
+    client.GatherConfig = ScatterGatherConfig.UseQueue;
+    server.GatherConfig = ScatterGatherConfig.UseBuffer;
 ```
 </br>For SSL variants difference is:
 ```c#

@@ -257,6 +257,9 @@ Basically you have a Relay server somewhere in your network, which can act as a 
 
 ## Relay server
 Server is completely passive, allowing other peers to discover and send messages to each other. Additionally NAT traversal methods such as UDP holepunching provided to allow direct communication via Internet or LAN (UDP only so far, but we have reliable udp).
+
+```Relay Server Is Serialization Agnostic``` which means any serialized network Peers, (Protobuff, MessagePack etc) can use the same relay server.
+
 <br/> To use the Relay server, simply declere your server as:
 ``` c#
       var scert = new X509Certificate2("server.pfx", "greenpass");
@@ -333,6 +336,9 @@ Additionally keeping same message system to send 1-1 messages among peers.
 
 You can join multiple rooms
 
+```Room Server Is Serialization Agnostic``` which means any serialized network Peers, (Protobuf, MessagePack etc) can use the same Room server.
+
+
 Decleration of Server and client
 ``` c#
      var server = new SecureProtoRoomServer(20010, scert);
@@ -360,6 +366,10 @@ Additionally to the standard 1-1 message callback we have room message callbacks
     client1.OnUdpMessageReceived += (message) => ..
 
 ```
+## P2P Remarks
+- Relay and lobby servers only uses MessageEnvelope and staticly serialized internal message types to communicate and provide functionalities, Therefore any Room client or Relay client, independent of what type of serialization they use, can acces and use all functionalities simultaneously.
+- Peers with different serialization protocols can talk with each other. They can send MessageEnvelope and Raw bytes without a problem. Understanding which protocol peer uses should be defined in application which is up to the user. Hence their serialized inner messages can be deserialized from envelope payload bytes accordingly.
+
 # Cyber Security
 All secure TCP variants are implementing standard SSL socket with TLS authentication/validation.
 

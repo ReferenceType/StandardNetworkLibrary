@@ -39,7 +39,9 @@ Once the receiving end receives a message with a ```MessageId``` and sends a rep
 Note that when such async call is active/pending socket is not blocked, you can send as many messages as you want parallelly in between.
 
 ## Payload
-Payload is essentially an index for some bytes. 
+Payload is essentially an index for some bytes.
+
+<br><img src="https://user-images.githubusercontent.com/109621184/235491942-422dfdc0-0bdd-4bf9-b49e-d831f1f53c56.png" width=60% height=60%>
  ### 1. Raw bytes
 ```c#
         MessageEnvelope envelope = new MessageEnvelope()
@@ -53,7 +55,7 @@ Payload is essentially an index for some bytes.
 ```
 when sent through a network system this bytes will reach to its destination atomically.
 
-### 2. A serialized message
+### 2. Serialized message
 considering a method such as
 ```  client.SendAsyncMessage(messageEnvelope, innerMessage); ``` The inner message will be serialized as byte payload.
 Receiving end is responsible to deserialize from the information provided by the message envelope.
@@ -64,7 +66,7 @@ OnMessageReceived(envelope)
     SomeDataClass innerMesssage = envelope.UnpackPayload<SomeDataClass>()
 }
 ```
-
+You can acces payload region by using ```.Payload```, ```.PayloadOffset``` and ```.PayloadCount``` properties of message envelope
 ## Remarks
 - MessageEnvelope and some internal messages are serialized statically with efficient binary encoding. See [SerializationBenchmarks](SerializationBenchmarks.md)
 - On receiving end, payload bytes are volatile. If the execution leaves the stack, bytes may be overwitten by next message. If you intend to store payload, either copy manually or call LockBytes() method of the message envelope.

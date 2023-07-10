@@ -370,4 +370,6 @@ This key is not shared and only provides communication with Relay server. If pee
 
 In case of holepunching, during the procedure with two peers, Relay server generates a key to be shared between two peers. If the procedure succees, PeerA and B will use this symetric key to directly communicate. Of course this key exchange is also done with secure SSL channel.
 
+Under no condition not a single message (including internal messages) is sent without encyption.
+
 The certificates(.pfx files) located in library are just placeholders, they are generated using OpenSSL only for test purposes. Eventhough they provide encrption, they are publicly avaibale hence not secure. You should generate your own certificates for usage. I am not going to go in detail for authority payments and signing procedure here but in future i will provide SSL generation and signing application where you can generate and sign certificates to be used on local networks.

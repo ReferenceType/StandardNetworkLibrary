@@ -1,15 +1,16 @@
 # Standard Network Library
-High Performance, easy to use network library supporting 16k+ concurrent clients. 
+High Performance, easy to use network library supporting 16k+ concurrent clients on all provided topologies. 
+Designed for distributed realtime concurrent applications over LAN or Internet.
 </br>Provides infrastructure for high throughput message passing, P2P, Nat Traversal, Reliable Udp.
-</br>This repository consist of main core assembly and several serialization spesific implementation assemblies. 
+</br>This repository consist of main core assembly and several serialization spesific sub assemblies. 
 ## Core Network Library
- Network Library, which is the core of entire network library. It has all the logic associated with the network system and sub systems, starting from raw bytes to abstractions such as P2P lobbies. It provides generic templates to be used with any serialization methodology. 
+ Network Library, which is the core of entire network library. Includes all logic associated with the network systems, starting from raw bytes to abstractions such as P2P lobbies. It provides generic templates to be used with any type of serialization. 
 
 ### Core Components
-Plug&Play high performance models, working with raw bytes.
+Plug&Play mature high performance models, working with raw bytes. Also used as base for complex abstracted models.
 - ```Tcp Server/Client model``` with dynamic buffering and queueing sub systems, bytes can come fragmented like regular sockets.
 - ```Tcp Byte Message Server/Client``` where bytes are sent with 4 byte lenght header. It ensure atomic message delivery without fragmentation.
-- ```Udp Server/Client``` standard udp with optimised for performance.
+- ```Udp Server/Client``` udp system where a server is emulated with optimised for performance.
 - ```Reliable Udp Client/Server``` where modern TCP protocol is implemented over Udp.
 - Secure variants of all of the above(SSL with TLS for Tcp, Symetric Key AES for Udp).
 
@@ -20,24 +21,26 @@ Involves generic models which can work with any serialization protocol.
 - ```P2P Relay Client/Server``` where Peers(Clients) discover each other via Relay server, can use Udp/Rudp/Tcp to communicate. Supports Udp Holepunch.
 - ```P2P Room/Lobby Server/Client``` extention of Relay model where peers can define a room, similar to game matchmaking servers.
 
-### Low Level Features
+### Internal Features
+#### Message Buffering/Queueing
+- Tcp models a buffering/queueing system is implemented. This system is activated only during high load.
+In a nutsell, if the socket is busy sending, next messages are buffered/queued and stiched together. When the socket becomes available again, sent as batch. Its like Naggle, but without sacrificing the fast sends on moderate/low traffic.
+- This improves the throughput of small messages quite significantly (1000 fold compared to naive sends) as shown on benchmarks.
 
 #### Advanced Memory Management
 - Library implements "Shared Thread Local Memory Pool", where all byte arrays and the stream backing buffers are rented from. Memory is weak referenced. Pool allows minimum number GC cycles and automatically trims on system memory pressure.
 - As an example, RelayServer can relay 21 Gigabyte/s Udp traffic using 36 mb process memory with 0 GC Collects.
-  
-#### Message Buffering
-- Tcp models a buffering/queueing system is implemented. This system is activated only during high load.
-In a nutsell, if the socket is busy sending, next messages are collected and stiched together and sent as batch when the socket becomes available again. Its like Naggle, but without sacrificing the fast sends on moderate traffic.
-- This improves the throughput of small messages quite significantly as shown on benchmarks.
 
-Library is tested with as many clients as OS(Windows) supports (around 16k dynamic ports). Data reliability(includung RUDP) is tested over the internet extensively.
-Nat Traversal Udp holepunching is also tested over the internet with great success.
+#### Build In Serialization
+- Library provides high performance binary encoders for primitivish* types and employs static srialization for internal message types and carrier classes with smallest possible byte size.
 
-Note: Libary has unsafe code and stack allocations. But these parts are well tested and not subject to change.
+Library is tested with as many clients as OS(Windows) supports (around 16k dynamic ports). Data reliability includung RUDP is tested over the internet extensively.
+Nat Traversal Udp holepunching is also tested over the internet with success.
+
+Note: Libary has unsafe code and stack allocations. Unsafe sections are well tested and not subject to change.
 
 ## Sub Assemblies 
-Generic models from main assembly are implemented with the spesific serializers.
+Generic models from main assembly are implemented with the spesific serializers. All method signatures and usage are identical.
 It includes:
 - Protobuf-Net
 - MessagePack
@@ -77,9 +80,9 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 |Mumber Of Clients|Protobuf Echo per Second|Secure Protobuf Echo per Second|
 |---|---|---|
 |100|9,440,000|8,050,000|
-|1000|8,380,000|7,980,000|
-|5000|8,360,000|7,950,000|
-|10000|8,340,000|7,890,000|
+|1000|8,780,000|7,480,000|
+|5000|8,360,000|7,390,000|
+|10000|8,340,000|7,350,000|
 
 #### Note
 This benchmarks is only sending message envelope with raw byte payload. For serialization spesific performance please refer to:
@@ -186,30 +189,9 @@ Declare your type:
 ```
 ## MessageProtocol Server/Client
 
-Message protocol is something I came up with to wrap all types of messages with a standard header.
-It is an extention of Pure Message Server/Client. Difference here is we have ```MessageEnvelope``` As a Carrier/Metadata/Header class.
-```MessageEnvelope``` is serialized Statically, independently of serialization protocol.
-As for the reason for it, please refer the document [SerializationBenchmarks](SerializationBenchmarks.md)
-
-You can define a header, key-value pairs, as metadata and information about the payload.
-Most importantly the Payload propery of the envelope carries the Inner message bytes. 
-```UnpackPayload<T>()``` will deserialize the message on your type from the payload bytes.
-
-It can also be raw bytes coming from some source (i.e. jpg image). Which you can set it by MessageEnvelope.SetPayload() method on the sender side.
-You cant send both raw bytes and an serializable inner message with same envelope, Inner message will overwrite your payload.
-This bytes are volatile (will be overwitten once code leaves the stack) unless you call LockBytes() method or copy manually. (important if you store it somewhere)
-
-
-Its a simple implementation of a generic class from Standard Library.
-```c#
- public class SecureProtoMessageServer : GenericSecureMessageServerWrapper<ProtoSerializer>
-    {
-        public SecureProtoMessageServer(int port, X509Certificate2 cerificate) : base(port, cerificate)
-        {
-        }
-    }
-```
-### Usage
+Message protocol is implemented for wrapping all dynamic message types with a standard header.
+Please refer to [MessageProtocol Documentation](MessageProtocol.md) for detailed explanation.
+ 
 You can declare your payload types, which any type that is serializable with protobuf.
 ```c#
         [ProtoContract]

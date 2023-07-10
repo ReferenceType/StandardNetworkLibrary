@@ -66,3 +66,6 @@ For each received reply clients send a new message. This gives us high load infi
 
 ## Conclusion
 I will use the custom serialization for the MessageEnvelope and internal message types.
+- Its by far the smallest size and highest performance.
+- I dont have to precompile any models for IL2CPP builds such as in Unity (reflection.emit is not allowed).
+- I can provide serialization agnostic unified Relay/Room server with any type of Peer Client(Protobuf, MessagePack etc..).

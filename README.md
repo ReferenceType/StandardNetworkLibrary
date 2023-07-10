@@ -1,6 +1,6 @@
 # Standard Network Library
 High Performance, easy to use network library supporting 16k+ concurrent clients on all provided topologies. 
-Designed for distributed realtime concurrent applications over LAN or Internet.
+</br>Designed for distributed realtime concurrent applications over LAN or Internet.
 </br>Provides infrastructure for high throughput message passing, P2P, Nat Traversal, Reliable Udp.
 </br>This repository consist of main core assembly and several serialization spesific sub assemblies. 
 ## Core Network Library

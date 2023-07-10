@@ -45,7 +45,7 @@ For each received reply clients send a new message. This gives us high load infi
 |MessagePack      |172 bytes      |3.05m Msg/s |
 |Protobuf-net     |86 bytes       |3.5m  Msg/s |
 |NetSerializer    |91 bytes       |4.1m  Msg/s |
-|Static Serializer |72 bytes       |9.06m Msg/s |
+|Static Serializer |72 bytes       |9.46m Msg/s |
 
 - Binary and data contract serialisation is too slow and too large.
 - Json, considering its text based, shows more than expected performance.
@@ -56,12 +56,13 @@ For each received reply clients send a new message. This gives us high load infi
  the best performance when the type is well known and not subject to change.
 
 ### Static Serializer
-- It is a simple serialization where I index each property with a variant during serialization (flag bits => is default or not).
+- It is a simple serialization where I index each property with a variant during serialization (flag bits => skip serialization or not).
 - i.e. 8 bit index bit 0 represend wether the first property is serialized or skipped (default values are skipped) bit 1-> second property etc.
 - When deserializing this index is read and related properties is deserialized from the bytes in order.
 - All primitives are zigzag encoded variants. This allows significant size rediction on small numbers.
 - Strings are Utf8 encoded and has a header(variant) to indicate their lenght.
 - Guid is encoded as two fixed int64
+- Collections Array/List/Dictionary are encoded with collection lenght and susequent repeated primitives.
 
 ## Conclusion
 I will use the custom serialization for the MessageEnvelope and internal message types.

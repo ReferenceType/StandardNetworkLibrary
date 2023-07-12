@@ -10,12 +10,14 @@
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
     <Copyright>Apache-2.0</Copyright>
     <Product>ProtobufNetworkLibrary</Product>
-    <PackageLicenseFile>Licence.txt</PackageLicenseFile>
-    <AssemblyVersion>1.0.4.0</AssemblyVersion>
-    <Version>1.1.0</Version>
-    <FileVersion>1.0.4.0</FileVersion>
-    <PackageReleaseNotes></PackageReleaseNotes>
+    <AssemblyVersion>2.01</AssemblyVersion>
+    <Version>2.0.1</Version>
+    <FileVersion>2.0.1</FileVersion>
+    <PackageReleaseNotes>Relay Server and Room Server is moved to NetworkLibrary.P2P and its deprecated on this assembly.
+Minor fixes</PackageReleaseNotes>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <PackageTags>protobuf;network;p2p;holepunch;nat traversal;high performance;reliable udp</PackageTags>
+    <PackageLicenseFile>Licence.txt</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,26 +38,14 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\NetworkLibrary\Licence.txt">
+    <None Include="..\Resources\Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <Resource Include="..\..\Licence.txt">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Resource>
-  </ItemGroup>
+ 
   <ItemGroup>
     <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Update="Licence.txt">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
   </ItemGroup>
 
 </Project>

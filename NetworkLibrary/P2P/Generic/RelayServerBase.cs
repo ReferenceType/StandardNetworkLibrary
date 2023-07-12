@@ -45,8 +45,9 @@ namespace NetworkLibrary.P2P.Generic
             udpServer = new AsyncUdpServer(port);
 
             ServerUdpInitKey = new byte[16];
-            var rng = new RNGCryptoServiceProvider();
+            var rng = RandomNumberGenerator.Create();
             rng.GetNonZeroBytes(ServerUdpInitKey);
+            rng.Dispose();
             relayDectriptor = new ConcurrentAesAlgorithm(ServerUdpInitKey, ServerUdpInitKey);
 
             udpServer.OnClientAccepted += UdpClientAccepted;
@@ -234,8 +235,9 @@ namespace NetworkLibrary.P2P.Generic
             if (message.KeyValuePairs != null && message.KeyValuePairs.TryGetValue("Encrypted", out _))
             {
                 var random = new byte[16];
-                RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+                var rng = RandomNumberGenerator.Create();
                 rng.GetNonZeroBytes(random);
+                rng.Dispose();
                 cryptoKey = random;
             }
             if (ClientUdpEndpoints.TryGetValue(message.To, out var endpointsD) &&

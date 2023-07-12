@@ -31,8 +31,9 @@ namespace NetworkLibrary.MessageProtocol.Fast
             server.OnClientDisconnected += HandleClientDisconnected;
 
             server.MaxIndexedMemoryPerClient = 128000000;
-            server.StartServer();
         }
+
+        public void StartServer() => server.StartServer();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)

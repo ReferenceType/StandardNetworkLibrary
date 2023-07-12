@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary;
+using NetworkLibrary.P2P;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
@@ -292,7 +293,7 @@ namespace Examples
             var cert = new X509Certificate2("client.pfx", "greenpass");
             var scert = new X509Certificate2("server.pfx", "greenpass");
 
-            var server = new SecureProtoRoomServer(20010, scert);
+            var server = new RoomServer(20010, scert);
             server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
             server.StartServer();
 

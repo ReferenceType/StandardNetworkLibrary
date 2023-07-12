@@ -62,6 +62,7 @@ namespace HybridProtoNetworkBenchmark
 
             server = new ProtoMessageServer(port);
             server.OnMessageReceived += isFixedMessage ? EchoStatic : EchoDynamic;
+            server.StartServer();
             Console.WriteLine("Server Running");
 
         }

@@ -2,6 +2,7 @@
 using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.MessageProtocol.Serialization;
+using NetworkLibrary.P2P;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.TCP.ByteMessage;
 using NetworkLibrary.TCP.SSL.ByteMessage;
@@ -163,7 +164,7 @@ namespace ConsoleTest
             string ip = "127.0.0.1";
             int port = 2222;
             int numClients = 10;
-            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
+            var server = new RoomServer(port, scert);
             server.StartServer();
 
             List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
@@ -597,8 +598,9 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
         private static void UdpProtoTest()
         {
             var random = new byte[16];
-            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+            var rng = RandomNumberGenerator.Create();
             rng.GetNonZeroBytes(random);
+            rng.Dispose();
 
             ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(random, random);
             ConcurrentAesAlgorithm algo2 = new ConcurrentAesAlgorithm(random, random);

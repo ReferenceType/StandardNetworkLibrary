@@ -11,12 +11,15 @@
     <PackageProjectUrl>https://github.com/ReferenceType/StandardNetworkLibrary</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
     <Authors>RefrenceType</Authors>
-    <PackageLicenseFile>Licence.txt</PackageLicenseFile>
     <Copyright>Apache 2.0</Copyright>
-    <Version>1.0.7</Version>
-    <AssemblyVersion>1.0.5.0</AssemblyVersion>
-    <FileVersion>1.0.5.0</FileVersion>
-    <PackageReleaseNotes>Task Syncronisation contexts are fixed to aviod possible deadlocks on some client applications such as WPF.</PackageReleaseNotes>
+    <Version>2.0.1</Version>
+    <AssemblyVersion>2.0.1</AssemblyVersion>
+    <FileVersion>2.0.1</FileVersion>
+    <PackageReleaseNotes>Relay and room server are no longer generic but directly implemented on NetworkLibrary.P2P.
+Servers are unified and compatible with any serialization
+</PackageReleaseNotes>
+    <PackageLicenseFile>Licence.txt</PackageLicenseFile>
+    <PackageTags>tcp;udp;rupd;p2p;holepucnh;room;server;client;network;library;socket;</PackageTags>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -49,7 +52,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\Licence.txt">
+    <None Include="..\Resources\Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

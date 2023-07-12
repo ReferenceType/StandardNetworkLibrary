@@ -54,8 +54,9 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
                 endpointTransferMsg = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
 
                 random = new byte[16];
-                RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+                var rng =  RandomNumberGenerator.Create();
                 rng.GetNonZeroBytes(random);
+                rng.Dispose();
 
                 MessageEnvelope envelope = new MessageEnvelope
                 {

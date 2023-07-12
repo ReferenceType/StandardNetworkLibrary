@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NetworkLibrary;
+using NetworkLibrary.P2P;
 using ProtoBuf;
 using Protobuff.P2P;
 using System;
@@ -35,7 +36,7 @@ namespace UnitTests
             string ip = "127.0.0.1";
             int port = 2222;
             int numClients = 10;
-            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
+            var server = new RoomServer(port, scert);
             server.StartServer();
 
             List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
@@ -102,7 +103,7 @@ namespace UnitTests
             string ip = "127.0.0.1";
             int port = 2223;
             int numClients = 10;
-            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
+            var server = new RoomServer(port, scert);
             server.StartServer();
 
             List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();
@@ -180,7 +181,7 @@ namespace UnitTests
             string ip = "127.0.0.1";
             int port = 2224;
             int numClients = 10;
-            SecureProtoRoomServer server = new SecureProtoRoomServer(port, scert);
+            var server = new RoomServer(port, scert);
             server.StartServer();
 
             List<SecureProtoRoomClient> clients = new List<SecureProtoRoomClient>();

@@ -1,21 +1,23 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>Json.Network.Library</PackageId>
     <Title>Json Network Library</Title>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>ReferenceType</Authors>
     <Description>Message passing and P2P network library using System.Text.Json</Description>
     <Copyright>Apache-2.0</Copyright>
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
     <PackageTags>json;network;p2p;holepunch;nat traversal;high performance;reliable udp</PackageTags>
     <PackageLicenseFile>Licence.txt</PackageLicenseFile>
+    <PackageReleaseNotes>Relay Server and Room Server is moved to NetworkLibrary.P2P.
+Minor fixes</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\Licence.txt">
+    <None Include="..\..\Resources\Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

@@ -14,7 +14,7 @@ namespace NetworkLibrary.UDP.Jumbo
         {
             this.receiver = new Receiver();
             this.sender = new Sender();
-            sender.OnSend = SendBytestoSocket;
+            sender.OnSend = SendBytesToSocket;
             receiver.OnMessageExtracted = HandleExtractedMessage;
         }
 
@@ -23,7 +23,7 @@ namespace NetworkLibrary.UDP.Jumbo
             MessageReceived?.Invoke(arg1, arg2, arg3);
         }
 
-        private void SendBytestoSocket(byte[] arg1, int arg2, int arg3)
+        private void SendBytesToSocket(byte[] arg1, int arg2, int arg3)
         {
             SendToSocket?.Invoke(arg1, arg2, arg3);
         }
@@ -40,6 +40,10 @@ namespace NetworkLibrary.UDP.Jumbo
 
         public void Release()
         {
+            SendToSocket = null;
+            MessageReceived = null;
+            sender.Release();
+            receiver.Release();
         }
 
         internal void Send(in Segment s1, in Segment s2)

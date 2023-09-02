@@ -54,7 +54,7 @@ namespace NetworkLibrary.P2P.Generic
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
 
         [Obsolete("Use SessionId instead")]
-        public Guid sessionId { get; private set; }
+        private Guid sessionId;
         public Guid SessionId => sessionId;
 
         public bool IsConnected { get => isConnected; private set => isConnected = value; }
@@ -80,7 +80,7 @@ namespace NetworkLibrary.P2P.Generic
         private ConcurrentDictionary<Guid, IPEndPoint> punchedEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> peerCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
         private ClientStateManager<S> clientStateManager;
-        public RelayClientBase(X509Certificate2 clientCert)
+        public RelayClientBase(X509Certificate2 clientCert, int udpPort = 0)
         {
             clientStateManager = new ClientStateManager<S>(this);
             tcpMessageClient = new SecureMessageClient<S>(clientCert);
@@ -88,7 +88,7 @@ namespace NetworkLibrary.P2P.Generic
             tcpMessageClient.OnDisconnected += HandleDisconnect;
             tcpMessageClient.RemoteCertificateValidationCallback += CertificateValidation;
 
-            udpServer = new ClientUdpModule<S>(0);
+            udpServer = new ClientUdpModule<S>(udpPort);
             udpServer.SocketReceiveBufferSize = 12800000;
             udpServer.SocketSendBufferSize = 12800000;
             udpServer.OnBytesRecieved += HandleUdpBytesReceived;
@@ -207,6 +207,19 @@ namespace NetworkLibrary.P2P.Generic
 
                 OnDisconnected?.Invoke();
                 IsConnected = false;
+                foreach (var item in RUdpModules)
+                {
+                    foreach (var m in item.Value)
+                    {
+                        m?.Release();
+                    }
+                }
+                RUdpModules.Clear();
+                foreach (var item in JumboUdpModules)
+                {
+                    item.Value?.Release();
+                }
+                JumboUdpModules.Clear();
             }
 
         }
@@ -400,6 +413,32 @@ namespace NetworkLibrary.P2P.Generic
 
         }
 
+        private void SendUdpMesssageInternal(Guid toId, MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
+        {
+            ConcurrentAesAlgorithm algo;
+
+            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+            {
+                algo = peerCryptos[endpoint];
+            }
+            else
+            {
+                endpoint = relayServerEndpoint;
+                algo = udpEncriptor;
+
+            }
+
+            if (!udpServer.TrySendAsync(endpoint, message, serializationCallback, algo, out var excessStream))
+            {
+                if (JumboUdpModules.TryGetValue(toId, out var mod))
+                    mod.Send(excessStream.GetBuffer(), 0, excessStream.Position32);
+                else
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable To find jumbo module with Id: " + toId + " in session " + sessionId);
+
+            }
+
+        }
+
 
 
         public void SendUdpMesssage(Guid toId, MessageEnvelope message)
@@ -410,6 +449,17 @@ namespace NetworkLibrary.P2P.Generic
             message.To = toId;
 
             SendUdpMesssageInternal(toId, message);
+
+        }
+
+        public void SendUdpMesssage(Guid toId, MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
+        {
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+                return;
+            message.From = sessionId;
+            message.To = toId;
+
+            SendUdpMesssageInternal(toId, message,serializationCallback);
 
         }
 
@@ -628,6 +678,8 @@ namespace NetworkLibrary.P2P.Generic
             message.To = toId;
             tcpMessageClient.SendAsyncMessage(message);
         }
+
+
         public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -864,9 +916,9 @@ namespace NetworkLibrary.P2P.Generic
             }
             else
             {
-                if (UdpAwaiter.IsWaiting(message.MessageId))
+                if (Awaiter.IsWaiting(message.MessageId))
                 {
-                    UdpAwaiter.ResponseArrived(message);
+                    Awaiter.ResponseArrived(message);
                 }
                 switch (message.Header)
                 {
@@ -1055,6 +1107,13 @@ namespace NetworkLibrary.P2P.Generic
             RemoveJudpModule(peerId);
             pinger.PeerUnregistered(peerId);
             PeerInfos.TryRemove(peerId, out _);
+            if(RUdpModules.TryRemove(peerId, out var m))
+                foreach (var item in m)
+                {
+                    item?.Release();
+                }
+            if(JumboUdpModules.TryRemove(peerId, out var m1))
+                m1.Release();
         }
         #endregion
 
@@ -1136,7 +1195,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 foreach (var item in mod)
                 {
-                    item.Close();
+                    item.Release();
                 }
             }
         }
@@ -1182,9 +1241,9 @@ namespace NetworkLibrary.P2P.Generic
         {
             var msg = serialiser.DeserialiseEnvelopedMessage(arg1, arg2, arg3);
 
-            if (UdpAwaiter.IsWaiting(msg.MessageId))
+            if (Awaiter.IsWaiting(msg.MessageId))
             {
-                UdpAwaiter.ResponseArrived(msg);
+                Awaiter.ResponseArrived(msg);
             }
             else
                 HandleUdpMessageReceived(msg);
@@ -1256,7 +1315,7 @@ namespace NetworkLibrary.P2P.Generic
                 SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
         }
-        GenericMessageAwaiter<MessageEnvelope> UdpAwaiter => tcpMessageClient.Awaiter;//= new GenericMessageAwaiter<MessageEnvelope>();
+        GenericMessageAwaiter<MessageEnvelope> Awaiter => tcpMessageClient.Awaiter;//= new GenericMessageAwaiter<MessageEnvelope>();
         public Task<MessageEnvelope> SendRudpMessageAndWaitResponse(Guid to, MessageEnvelope msg, int timeoutMs = 10000, RudpChannel channel = RudpChannel.Ch1)
         {
             if (RUdpModules.TryGetValue(to, out var mod))
@@ -1264,7 +1323,7 @@ namespace NetworkLibrary.P2P.Generic
                 msg.From = sessionId;
                 msg.To = to;
                 msg.MessageId = Guid.NewGuid();
-                var task = UdpAwaiter.RegisterWait(msg.MessageId, timeoutMs);
+                var task = Awaiter.RegisterWait(msg.MessageId, timeoutMs);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
                 serialiser.EnvelopeMessageWithBytesDontWritePayload(stream, msg, msg.PayloadCount);
@@ -1291,7 +1350,7 @@ namespace NetworkLibrary.P2P.Generic
                 msg.From = sessionId;
                 msg.To = to;
                 msg.MessageId = Guid.NewGuid();
-                var task = UdpAwaiter.RegisterWait(msg.MessageId, timeoutMs);
+                var task = Awaiter.RegisterWait(msg.MessageId, timeoutMs);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
                 serialiser.EnvelopeMessageWithInnerMessage(stream, msg, innerMessage);

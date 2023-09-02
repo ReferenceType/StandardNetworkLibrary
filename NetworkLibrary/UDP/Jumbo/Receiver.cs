@@ -90,9 +90,14 @@ namespace NetworkLibrary.UDP.Jumbo
 
         private void OnTick(object state)
         {
+
             foreach (var message in pendingMessages)
             {
-                message.Value.Tick(1000);
+                try
+                {
+                    message.Value.Tick(1000);
+                }
+                catch{ }
             }
         }
 
@@ -129,33 +134,6 @@ namespace NetworkLibrary.UDP.Jumbo
            
             pend.Append(currenSeq, buffer, offset, count);
 
-
-            //lock (locker)
-            //{
-            //    int originalOffset = offset;
-            //    int msgNo = PrimitiveEncoder.ReadInt32(buffer, ref offset);
-            //    byte totNumSeq = buffer[offset++];
-            //    byte currenSeq = buffer[offset++];
-            //    count = count - (offset - originalOffset);
-            //    if (totNumSeq == 1)
-            //    {
-            //        OnMessageExtracted?.Invoke(buffer, offset, count);
-            //        return;
-            //    }
-            //    if (pendingMessages.TryGetValue(msgNo, out var pend))
-            //    {
-            //        pend.Append(currenSeq, buffer, offset, count);
-            //        return;
-            //    }
-
-            //    var pending = new PendingMessage(SharerdMemoryStreamPool.RentStreamStatic(), 5000, totNumSeq, msgNo);
-            //    pending.Append(currenSeq, buffer, offset, count);
-            //    pendingMessages.TryAdd(msgNo, pending);
-            //    pending.TimedOut = MessagetimedOut;
-            //    pending.Completed = MessageComplete;
-            //    //Reliable.Timer.Register(pending);
-            //}
-
         }
 
         internal void MessageComplete(PendingMessage message)
@@ -173,6 +151,13 @@ namespace NetworkLibrary.UDP.Jumbo
                 pendingMessages.TryRemove(message.MessageNo, out _);
 
             BufferPool.ReturnBuffer(message.msgBuffer);
+        }
+
+        internal void Release()
+        {
+            timer.Dispose();
+            OnMessageExtracted = null;
+            pendingMessages.Clear();
         }
     }
 }

@@ -144,8 +144,6 @@ namespace NetworkLibrary.UDP.Jumbo
                 tempBuff[offset_++] = curresntSeq++;
                 tempbuffCnt += offset_;
 
-               
-
                 ByteCopy.BlockCopy(buffer, offset, tempBuff, offset_, count);
               
                 tempbuffCnt += count;
@@ -218,7 +216,6 @@ namespace NetworkLibrary.UDP.Jumbo
                 tempBuff[offset_++] = (byte)totalNumSeq;
                 tempBuff[offset_++] = curresntSeq++;
                 tempbuffCnt += offset_;
-
 
                 ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, count);
 
@@ -305,5 +302,9 @@ namespace NetworkLibrary.UDP.Jumbo
 
         }
 
+        internal void Release()
+        {
+            OnSend = null;
+        }
     }
 }

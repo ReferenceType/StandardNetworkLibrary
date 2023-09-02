@@ -55,7 +55,16 @@ namespace NetworkLibrary.UDP
             ServerSocket.SendBufferSize = SocketSendBufferSize;
 
             serverEndpoint = new IPEndPoint(IPAddress.Any, port);
-            ServerSocket.Bind(serverEndpoint);
+            try
+            {
+                ServerSocket.Bind(serverEndpoint);
+            }
+            catch 
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Warning, $"Unable to bind udp port {port} choosing default");
+                serverEndpoint = new IPEndPoint(IPAddress.Any, 0);
+                ServerSocket.Bind(serverEndpoint);
+            }
             ServerSocket.Blocking = false;
             this.port = port;
         }

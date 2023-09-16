@@ -101,7 +101,7 @@ namespace NetworkLibrary.P2P.Components.Modules
             sender.ProcessBytesToSend(first, second);
         }
 
-        internal void Close()
+        internal void Release()
         {
             OnReceived = null;
             OnSend = null;

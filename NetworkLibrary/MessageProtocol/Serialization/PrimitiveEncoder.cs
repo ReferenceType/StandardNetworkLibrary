@@ -144,6 +144,16 @@ namespace NetworkLibrary
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe static void WriteFixedUint16(byte[]buffer, int offset, ushort value)
+        {
+            if(buffer.Length-offset < 2)
+                throw new InvalidDataException("Buffer does not have enough space");
+
+            fixed (byte* b = &buffer[offset])
+                *(short*)b = (short)value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ushort ReadUInt16(PooledMemoryStream stream)
         {
             int result = 0;

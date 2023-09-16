@@ -2,13 +2,14 @@
 using NetworkLibrary.P2P.Generic;
 using System;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Threading;
 
 namespace NetworkLibrary.P2P.Components.StateManagemet.Client
 {
     internal class ClientStateManager<S> : StateManager where S : ISerializer, new()
     {
-        private RelayClientBase<S> client;
+        internal RelayClientBase<S> client;
         private ConcurrentDictionary<Guid, string> pendingHolepunchStates = new ConcurrentDictionary<Guid, string>();
         private ClientConnectionState pendingState;
         public ClientStateManager(RelayClientBase<S> client) : base(client)
@@ -39,7 +40,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                 return null;
             }
 
-            var state = new ClientHolepunchState(message.From, message.MessageId, this);
+            var state = new ClientHolepunchState(message.From, message.MessageId, this, client.relayServerEndpoint);
             state.Completed += (x) => { OnHolepunchComplete(state); };
             state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints);
             state.InitiateByRemote(message);
@@ -50,7 +51,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         {
             pendingHolepunchStates.TryAdd(clientId, null);
 
-            var state = new ClientHolepunchState(clientId, stateId, this);
+            var state = new ClientHolepunchState(clientId, stateId, this, client.relayServerEndpoint);
             state.Completed += (x) => { OnHolepunchComplete(state); };
             state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints);
             AddState(state);

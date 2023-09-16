@@ -21,17 +21,17 @@ namespace NetworkLibrary.UDP.Jumbo
             }
             return buffer;
         }
-
+        public static int FragmentSize = 64000;
         int currentMsgNo = 0;
         public int ReserveForPrefix = 38;
         public Action<byte[], int, int> OnSend;
         public void ProcessBytes(byte[] buffer, int offset, int count)
         {
-            if (count < 256000)
-            {
-                ProcessBytesUnsafe(buffer, offset, count);
-            }
-            else
+            //if (count < 256000)
+            //{
+            //    ProcessBytesUnsafe(buffer, offset, count);
+            //}
+            //else
             {
                 ProcessBytesSafe(buffer, offset, count);
             }
@@ -43,8 +43,8 @@ namespace NetworkLibrary.UDP.Jumbo
                 Buffer.MemoryCopy(message_, b, count, count);
 
             
-            int totalNumSeq = count / 64000;
-            if (count % 64000 != 0)
+            int totalNumSeq = count / FragmentSize;
+            if (count % FragmentSize != 0)
             {
                 totalNumSeq++;
             }
@@ -53,22 +53,25 @@ namespace NetworkLibrary.UDP.Jumbo
             byte curresntSeq = 1;
 
             var tempBuff = GetBuffer();
-            while (count > 64000)
+            while (count > FragmentSize)
             {
                 int offset_ = ReserveForPrefix;
                 int tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
 
-              //  ByteCopy.BlockCopy(buffer, offset, tempBuff, offset_, 64000);
+                //  ByteCopy.BlockCopy(buffer, offset, tempBuff, offset_, fragmentsize);
                 fixed (byte* dest = &tempBuff[offset_])
-                    Buffer.MemoryCopy(b+offset, dest, 64000, 64000);
-                offset += 64000;
-                count -= 64000;
-                tempbuffCnt += 64000;
+                    Buffer.MemoryCopy(b+offset, dest, FragmentSize, FragmentSize);
+                offset += FragmentSize;
+                count -= FragmentSize;
+                tempbuffCnt += FragmentSize;
                 var cc = tempBuff[tempbuffCnt-1];
                 var a = buffer[offset];
 
@@ -80,9 +83,12 @@ namespace NetworkLibrary.UDP.Jumbo
                 int offset_ = ReserveForPrefix;
                 int tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
 
                 var a = buffer[offset - 1];
@@ -103,8 +109,8 @@ namespace NetworkLibrary.UDP.Jumbo
             ByteCopy.BlockCopy(buffer,offset, buff, 0, count);
             offset = 0;
             buffer = buff;
-            int totalNumSeq = count / 64000;
-            if (count % 64000 != 0)
+            int totalNumSeq = count / FragmentSize;
+            if (count % FragmentSize != 0)
             {
                 totalNumSeq++;
             }
@@ -113,21 +119,24 @@ namespace NetworkLibrary.UDP.Jumbo
             byte curresntSeq = 1;
 
             var tempBuff = GetBuffer();
-            while (count > 64000)
+            while (count > FragmentSize)
             {
                 int offset_ = ReserveForPrefix;
                 int tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
 
-                ByteCopy.BlockCopy(buffer, offset, tempBuff, offset_, 64000);
+                ByteCopy.BlockCopy(buffer, offset, tempBuff, offset_, FragmentSize);
                
-                offset += 64000;
-                count -= 64000;
-                tempbuffCnt += 64000;
+                offset += FragmentSize;
+                count -= FragmentSize;
+                tempbuffCnt += FragmentSize;
                 var cc = tempBuff[tempbuffCnt - 1];
                 var a = buffer[offset];
 
@@ -139,12 +148,13 @@ namespace NetworkLibrary.UDP.Jumbo
                 int offset_ = ReserveForPrefix;
                 int tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
-
-               
 
                 ByteCopy.BlockCopy(buffer, offset, tempBuff, offset_, count);
               
@@ -158,8 +168,8 @@ namespace NetworkLibrary.UDP.Jumbo
         public void ProcessBytes(in Segment first, in Segment second)
         {
             int count = first.Count + second.Count;
-            int totalNumSeq = count / 64000;
-            if (count % 64000 != 0)
+            int totalNumSeq = count / FragmentSize;
+            if (count % FragmentSize != 0)
             {
                 totalNumSeq++;
             }
@@ -171,9 +181,12 @@ namespace NetworkLibrary.UDP.Jumbo
             int offset_ = ReserveForPrefix;
             int tempbuffCnt = 0;
 
-            PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-            tempBuff[offset_++] = (byte)totalNumSeq;
-            tempBuff[offset_++] = curresntSeq++;
+            //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+            //tempBuff[offset_++] = (byte)totalNumSeq;
+            //tempBuff[offset_++] = curresntSeq++;
+            //tempbuffCnt += offset_;
+            WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+            curresntSeq++;
             tempbuffCnt += offset_;
 
             ByteCopy.BlockCopy(first.Array, first.Offset, tempBuff, offset_, first.Count);
@@ -181,7 +194,7 @@ namespace NetworkLibrary.UDP.Jumbo
             offset_ += first.Count;
             tempbuffCnt += first.Count;
 
-            int toCopyMore = 64000-first.Count;
+            int toCopyMore = FragmentSize - first.Count;
             int secondOffset = second.Offset;
             ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, toCopyMore);
 
@@ -190,21 +203,24 @@ namespace NetworkLibrary.UDP.Jumbo
             secondOffset+= toCopyMore;
             OnSend?.Invoke(tempBuff, 0, tempbuffCnt);
 
-            while (count > 64000)
+            while (count > FragmentSize)
             {
                  offset_ = ReserveForPrefix;
                  tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
 
-                ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, 64000);
+                ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, FragmentSize);
 
-                secondOffset += 64000;
-                count -= 64000;
-                tempbuffCnt += 64000;
+                secondOffset += FragmentSize;
+                count -= FragmentSize;
+                tempbuffCnt += FragmentSize;
 
                 OnSend?.Invoke(tempBuff, 0, tempbuffCnt);
 
@@ -214,11 +230,13 @@ namespace NetworkLibrary.UDP.Jumbo
                 offset_ = ReserveForPrefix;
                 tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
-
 
                 ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, count);
 
@@ -231,8 +249,8 @@ namespace NetworkLibrary.UDP.Jumbo
         public unsafe void ProcessBytes(in SegmentUnsafe first, in Segment second)
         {
             int count = first.Count + second.Count;
-            int totalNumSeq = count / 64000;
-            if (count % 64000 != 0)
+            int totalNumSeq = count / FragmentSize;
+            if (count % FragmentSize != 0)
             {
                 totalNumSeq++;
             }
@@ -244,12 +262,15 @@ namespace NetworkLibrary.UDP.Jumbo
             int offset_ = ReserveForPrefix;
             int tempbuffCnt = 0;
 
-            PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-            tempBuff[offset_++] = (byte)totalNumSeq;
-            tempBuff[offset_++] = curresntSeq++;
+            //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+            //tempBuff[offset_++] = (byte)totalNumSeq;
+            //tempBuff[offset_++] = curresntSeq++;
+            //tempbuffCnt += offset_;
+            WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+            curresntSeq++;
             tempbuffCnt += offset_;
 
-         //   ByteCopy.BlockCopy(first.Array, first.Offset, tempBuff, offset_, first.Count);
+            //   ByteCopy.BlockCopy(first.Array, first.Offset, tempBuff, offset_, first.Count);
 
             fixed (byte* dest = &tempBuff[offset_])
                 Buffer.MemoryCopy(first.Array + first.Offset, dest, first.Count, first.Count);
@@ -258,7 +279,7 @@ namespace NetworkLibrary.UDP.Jumbo
             offset_ += first.Count;
             tempbuffCnt += first.Count;
 
-            int toCopyMore = 64000 - first.Count;
+            int toCopyMore = FragmentSize - first.Count;
             int secondOffset = second.Offset;
             ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, toCopyMore);
 
@@ -267,21 +288,24 @@ namespace NetworkLibrary.UDP.Jumbo
             secondOffset += toCopyMore;
             OnSend?.Invoke(tempBuff, 0, tempbuffCnt);
 
-            while (count > 64000)
+            while (count > FragmentSize)
             {
                 offset_ = ReserveForPrefix;
                 tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;// this includes reserve
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
 
-                ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, 64000);
+                ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, FragmentSize);
 
-                secondOffset += 64000;
-                count -= 64000;
-                tempbuffCnt += 64000;
+                secondOffset += FragmentSize;
+                count -= FragmentSize;
+                tempbuffCnt += FragmentSize;
 
                 OnSend?.Invoke(tempBuff, 0, tempbuffCnt);
 
@@ -291,11 +315,13 @@ namespace NetworkLibrary.UDP.Jumbo
                 offset_ = ReserveForPrefix;
                 tempbuffCnt = 0;
 
-                PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
-                tempBuff[offset_++] = (byte)totalNumSeq;
-                tempBuff[offset_++] = curresntSeq++;
+                //PrimitiveEncoder.WriteInt32(tempBuff, ref offset_, msgNo);
+                //tempBuff[offset_++] = (byte)totalNumSeq;
+                //tempBuff[offset_++] = curresntSeq++;
+                //tempbuffCnt += offset_;
+                WriteMetadata((ushort)FragmentSize, msgNo, (byte)totalNumSeq, curresntSeq, tempBuff, ref offset_);
+                curresntSeq++;
                 tempbuffCnt += offset_;
-
 
                 ByteCopy.BlockCopy(second.Array, secondOffset, tempBuff, offset_, count);
 
@@ -304,6 +330,17 @@ namespace NetworkLibrary.UDP.Jumbo
             }
 
         }
-
+        private void WriteMetadata(ushort chunkSize,int messageNo,byte totalNumSeq, byte curresntSeq, byte[] buffer, ref int offset_)
+        {
+            PrimitiveEncoder.WriteInt32(buffer, ref offset_, messageNo);
+            buffer[offset_++] = (byte)totalNumSeq;
+            buffer[offset_++] = curresntSeq;
+            PrimitiveEncoder.WriteFixedUint16(buffer, offset_, chunkSize);
+            offset_ += 2;
+        }
+        internal void Release()
+        {
+            OnSend = null;
+        }
     }
 }

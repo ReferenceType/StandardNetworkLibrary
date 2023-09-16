@@ -243,32 +243,48 @@ namespace NetworkLibrary.P2P.Generic
             if (ClientUdpEndpoints.TryGetValue(message.To, out var endpointsD) &&
                 ClientUdpEndpoints.TryGetValue(message.From, out var endpointsR))
             {
+
                 // requester
-                SendAsyncMessage(message.From, new MessageEnvelope()
+                var mreq =  new MessageEnvelope()
                 {
                     IsInternal = true,
                     From = message.To,
                     To = message.From,
                     MessageId = message.MessageId,
                     Header = Constants.InitiateHolepunch
-                },
+                };
+
+                //if (endpointsD.Last().ToIpEndpoint().Address == ((IPEndPoint)udpServer.LocalEndpoint).Address)
+                //    mreq.KeyValuePairs = new Dictionary<string, string>() { { "UseRelayIp", null } };
+
+                SendAsyncMessage(message.From,mreq,
                     (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                                 new EndpointTransferMessage()
                                 {
                                     IpRemote = cryptoKey,
                                     LocalEndpoints = endpointsD
                                 }));
+
+
                 // destination
-                SendAsyncMessage(message.To, new MessageEnvelope()
+                var mdest = new MessageEnvelope()
                 {
                     IsInternal = true,
                     From = message.From,
                     To = message.To,
                     MessageId = message.MessageId,
                     Header = Constants.InitiateHolepunch
-                },
+                };
+
+                //if (endpointsR.Last().ToIpEndpoint().Address == ((IPEndPoint)udpServer.LocalEndpoint).Address)
+                //    mreq.KeyValuePairs = new Dictionary<string, string>() { { "UseRelayIp", null } };
+
+                SendAsyncMessage(message.To, mdest,
                   (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
-                              new EndpointTransferMessage() { IpRemote = cryptoKey, LocalEndpoints = endpointsR }));
+                              new EndpointTransferMessage() { 
+                                  IpRemote = cryptoKey,
+                                  LocalEndpoints = endpointsR 
+                              }));
             }
         }
 

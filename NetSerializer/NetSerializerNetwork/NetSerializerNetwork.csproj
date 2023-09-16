@@ -5,7 +5,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>NetSerializer.Network.Library</PackageId>
     <Title>NetSerializer Network Library</Title>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Description>Message passing and P2P network library using .NetSerializer</Description>
     <Copyright>Apache-2.0</Copyright>
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>

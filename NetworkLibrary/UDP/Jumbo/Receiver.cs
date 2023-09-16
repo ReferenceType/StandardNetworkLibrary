@@ -20,14 +20,16 @@ namespace NetworkLibrary.UDP.Jumbo
         int totalSequences;
         public Action<PendingMessage> Completed;
         public Action<PendingMessage> TimedOut;
-        public PendingMessage( int lifetime, byte totalSequences, int messageNo)
+        int chunkSize = 0;
+        public PendingMessage( int lifetime, byte totalSequences, int messageNo, int chunkSize)
         {
             MessageNo = messageNo;
             this.totalSequences = totalSequences;
             this.lifetime = lifetime;
-            msgBuffer = BufferPool.RentBuffer(totalSequences * 64000);
+            msgBuffer = BufferPool.RentBuffer(totalSequences * chunkSize);
             written = new int[totalSequences];
             remaining = totalSequences;
+            this.chunkSize = chunkSize;
         }
 
         // this appends are concurrent
@@ -37,12 +39,12 @@ namespace NetworkLibrary.UDP.Jumbo
 
             if (Interlocked.CompareExchange(ref written[seqNo - 1], 1, 0) == 0)
             {
-                int offs = (seqNo - 1) * 64000;
+                int offs = (seqNo - 1) * chunkSize;
                 ByteCopy.BlockCopy(buffer, offset, msgBuffer, offs,count);
 
                 if (seqNo == totalSequences)
                 {
-                    int totalbytes = ((totalSequences - 1) * 64000) + count;
+                    int totalbytes = ((totalSequences - 1) * chunkSize) + count;
                     Interlocked.Exchange(ref totalBytes, totalbytes);
                 }
                 lifetime += 1000;
@@ -115,15 +117,19 @@ namespace NetworkLibrary.UDP.Jumbo
             int msgNo = PrimitiveEncoder.ReadInt32(buffer, ref offset);
             byte totNumSeq = buffer[offset++];
             byte currenSeq = buffer[offset++];
+            ushort chunksize = BitConverter.ToUInt16(buffer, offset);
+            offset += 2;
             count = count - (offset - originalOffset);
 
+           
+           
            
             bool taken = false;
             Monitor.Enter(locker, ref taken);
             { 
                 if (!pendingMessages.TryGetValue(msgNo, out pend))
                 {
-                    pend = new PendingMessage( 5000, totNumSeq, msgNo);
+                    pend = new PendingMessage( 50000, totNumSeq, msgNo,chunksize);
                     pendingMessages.TryAdd(msgNo, pend);
                     pend.TimedOut = MessagetimedOut;
                     pend.Completed = MessageComplete;
@@ -155,9 +161,15 @@ namespace NetworkLibrary.UDP.Jumbo
 
         internal void Release()
         {
-            timer.Dispose();
+            
             OnMessageExtracted = null;
             pendingMessages.Clear();
+            try
+            {
+                timer?.Dispose();
+
+            }
+            catch { }
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.UDP.Reliable.Components;
 using System;
+using System.Threading;
 
 namespace NetworkLibrary.UDP.Jumbo
 {
@@ -9,7 +10,8 @@ namespace NetworkLibrary.UDP.Jumbo
         Sender sender;
         public Action<byte[], int, int> SendToSocket;
         public Action<byte[], int, int> MessageReceived;
-
+        public static int Fragmentsize { set => Sender.FragmentSize = value; }
+        public static bool ControlSends;
         public JumboModule()
         {
             this.receiver = new Receiver();
@@ -26,6 +28,8 @@ namespace NetworkLibrary.UDP.Jumbo
         private void SendBytesToSocket(byte[] arg1, int arg2, int arg3)
         {
             SendToSocket?.Invoke(arg1, arg2, arg3);
+            if (ControlSends)
+                Thread.Sleep(1);
         }
 
         public void Send(byte[] data, int offset, int count)

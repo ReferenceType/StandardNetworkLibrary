@@ -5,7 +5,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>Json.Network.Library</PackageId>
     <Title>Json Network Library</Title>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>ReferenceType</Authors>
     <Description>Message passing and P2P network library using System.Text.Json</Description>
     <Copyright>Apache-2.0</Copyright>

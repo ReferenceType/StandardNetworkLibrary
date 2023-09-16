@@ -12,7 +12,7 @@
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
     <Authors>RefrenceType</Authors>
     <Copyright>Apache 2.0</Copyright>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <AssemblyVersion>2.0.1</AssemblyVersion>
     <FileVersion>2.0.1</FileVersion>
     <PackageReleaseNotes>Relay and room server are no longer generic but directly implemented on NetworkLibrary.P2P.

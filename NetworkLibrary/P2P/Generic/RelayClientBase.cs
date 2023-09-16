@@ -45,6 +45,11 @@ namespace NetworkLibrary.P2P.Generic
             }
             public PeerInformation() { }
         }
+        class EndpointGroup
+        {
+            public IPEndPoint ToSend;
+            public IPEndPoint ToReceive;
+        }
 
         public Action<Guid> OnPeerRegistered;
         public Action<Guid> OnPeerUnregistered;
@@ -52,13 +57,17 @@ namespace NetworkLibrary.P2P.Generic
         public Action<MessageEnvelope> OnMessageReceived;
         public Action OnDisconnected;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
+        GenericMessageAwaiter<MessageEnvelope> Awaiter => tcpMessageClient.Awaiter;//= new GenericMessageAwaiter<MessageEnvelope>();
+        const ushort AbsUdpPackageMax = 62400;
+        public ushort MaxUdpPackageSize { get => maxUdpPackageSize; set { maxUdpPackageSize = value > AbsUdpPackageMax ? AbsUdpPackageMax : value;
+                udpServer.MaxUdpPackageSize = maxUdpPackageSize; JumboModule.Fragmentsize = maxUdpPackageSize;} }
 
-        [Obsolete("Use SessionId instead")]
         private Guid sessionId;
         public Guid SessionId => sessionId;
 
         public bool IsConnected { get => isConnected; private set => isConnected = value; }
         public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
+        public bool EnableJumboUdpRateControl{ set { JumboModule.ControlSends = value; } }
         internal ConcurrentDictionary<Guid, List<ReliableUdpModule>> RUdpModules = new ConcurrentDictionary<Guid, List<ReliableUdpModule>>();
         internal ConcurrentDictionary<Guid, JumboModule> JumboUdpModules = new ConcurrentDictionary<Guid, JumboModule>();
         internal ConcurrentDictionary<Guid, PeerInformation> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInformation>();
@@ -66,6 +75,7 @@ namespace NetworkLibrary.P2P.Generic
 
         internal string connectHost;
         internal int connectPort;
+        private ushort maxUdpPackageSize = 64200;
         internal ClientUdpModule<S> udpServer;
 
         internal IPEndPoint relayServerEndpoint;
@@ -77,7 +87,7 @@ namespace NetworkLibrary.P2P.Generic
         private bool connecting;
         private PingHandler pinger = new PingHandler();
         private GenericMessageSerializer<S> serialiser = new GenericMessageSerializer<S>();
-        private ConcurrentDictionary<Guid, IPEndPoint> punchedEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
+        private ConcurrentDictionary<Guid, EndpointGroup> punchedEndpoints = new ConcurrentDictionary<Guid, EndpointGroup>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> peerCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
         private ClientStateManager<S> clientStateManager;
         public RelayClientBase(X509Certificate2 clientCert, int udpPort = 0)
@@ -337,15 +347,20 @@ namespace NetworkLibrary.P2P.Generic
         private void SendUdpMesssageInternal(Guid toId, MessageEnvelope message)
         {
             ConcurrentAesAlgorithm algo;
-            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+            IPEndPoint endpoint;
+            if (punchedEndpoints.TryGetValue(toId, out EndpointGroup endpoints))
+            {
+                endpoint = endpoints.ToSend;
                 algo = peerCryptos[endpoint];
+
+            }
             else
             {
                 endpoint = relayServerEndpoint;
                 algo = udpEncriptor;
 
             }
-            if (message.PayloadCount > 64200)
+            if (message.PayloadCount > MaxUdpPackageSize)
             {
                 SendLargeUdpMessage(toId,message);
                 return;
@@ -390,9 +405,10 @@ namespace NetworkLibrary.P2P.Generic
         private void SendUdpMesssageInternal<T>(Guid toId, MessageEnvelope message, T innerMessage)
         {
             ConcurrentAesAlgorithm algo;
-
-            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+            IPEndPoint endpoint;
+            if (punchedEndpoints.TryGetValue(toId, out var endpoints))
             {
+                endpoint = endpoints.ToSend;
                 algo = peerCryptos[endpoint];
             }
             else
@@ -416,9 +432,10 @@ namespace NetworkLibrary.P2P.Generic
         private void SendUdpMesssageInternal(Guid toId, MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
         {
             ConcurrentAesAlgorithm algo;
-
-            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+            IPEndPoint endpoint;
+            if (punchedEndpoints.TryGetValue(toId, out var endpoints))
             {
+                endpoint = endpoints.ToSend;
                 algo = peerCryptos[endpoint];
             }
             else
@@ -955,10 +972,13 @@ namespace NetworkLibrary.P2P.Generic
 
         public Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
         {
-            if (clientStateManager.IsHolepunchStatePending(peerId) ||
-                punchedEndpoints.ContainsKey(peerId))
+            if (clientStateManager.IsHolepunchStatePending(peerId) )
             {
                 return Task.FromResult(false);
+            }
+            if (punchedEndpoints.ContainsKey(peerId))
+            {
+                return Task.FromResult(true);
             }
 
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -997,14 +1017,27 @@ namespace NetworkLibrary.P2P.Generic
             foreach (var ep in state.targetEndpoints.LocalEndpoints)
             {
                 var ipEp = ep.ToIpEndpoint();
-                if (!ipEp.Equals(state.succesfulEpToReceive))
+                if (ipEp.Equals(state.succesfulEpToReceive) || ipEp.Equals(state.succesfullEpToSend))
                 {
-                    peerCryptos.TryRemove(ipEp, out _);
+                    continue;
                 }
+                peerCryptos.TryRemove(ipEp, out _);
+                Console.WriteLine(ipEp + "removed");
             }
-            punchedEndpoints.TryAdd(state.destinationId, state.succesfulEpToReceive);
+            if (!peerCryptos.ContainsKey(state.succesfulEpToReceive))
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Error receive endpoint is missing on cryptos");
+                peerCryptos.TryAdd(state.succesfulEpToReceive, new ConcurrentAesAlgorithm(state.cryptoKey, state.cryptoKey));
+            }
+            if (!peerCryptos.ContainsKey(state.succesfullEpToSend))
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Error send endpoint is missing on cryptos");
+                peerCryptos.TryAdd(state.succesfullEpToSend, new ConcurrentAesAlgorithm(state.cryptoKey, state.cryptoKey));
+            }
+           
+            punchedEndpoints.TryAdd(state.destinationId, new EndpointGroup() { ToReceive = state.succesfulEpToReceive,ToSend = state.succesfullEpToSend });
 
-            MiniLogger.Log(MiniLogger.LogLevel.Info, $"HolePunched on {state.succesfulEpToReceive}");
+            MiniLogger.Log(MiniLogger.LogLevel.Info, $"HolePunched, Receive Endpoint: {state.succesfulEpToReceive}, Send Endpoint {state.succesfullEpToSend}");
         }
 
 
@@ -1101,19 +1134,18 @@ namespace NetworkLibrary.P2P.Generic
             Peers.TryRemove(peerId, out _);
 
             if (punchedEndpoints.TryRemove(peerId, out var ep) && ep != null)
-                peerCryptos.TryRemove(ep, out _);
+            {
+                peerCryptos.TryRemove(ep.ToReceive, out _);
+                peerCryptos.TryRemove(ep.ToSend, out _);
+
+            }
 
             RemoveRudpModule(peerId);
             RemoveJudpModule(peerId);
             pinger.PeerUnregistered(peerId);
             PeerInfos.TryRemove(peerId, out _);
-            if(RUdpModules.TryRemove(peerId, out var m))
-                foreach (var item in m)
-                {
-                    item?.Release();
-                }
-            if(JumboUdpModules.TryRemove(peerId, out var m1))
-                m1.Release();
+           
+           
         }
         #endregion
 
@@ -1141,8 +1173,13 @@ namespace NetworkLibrary.P2P.Generic
             o = 0;
 
             ConcurrentAesAlgorithm algo;
-            if (punchedEndpoints.TryGetValue(toId, out var endpoint))
+            IPEndPoint endpoint;
+            if (punchedEndpoints.TryGetValue(toId, out var endpoints))
+            {
+                endpoint = endpoints.ToSend;
                 algo = peerCryptos[endpoint];
+
+            }
             else
             {
                 endpoint = relayServerEndpoint;
@@ -1158,14 +1195,16 @@ namespace NetworkLibrary.P2P.Generic
         #region Jumbo
         private void RemoveJudpModule(Guid peerId)
         {
-            JumboUdpModules.TryRemove(peerId, out var mod);
-            mod.Release();
+            if(JumboUdpModules.TryRemove(peerId, out var mod))
+                mod.Release();
         }
 
         private void CreateJudpModule(Guid peerId)
         {
-            if (JumboUdpModules.ContainsKey(peerId))
-                return;
+            if(JumboUdpModules.TryRemove(peerId, out var m))
+            {
+                m.Release();
+            }
 
             var mod = new JumboModule();
             mod.SendToSocket = (b, o, c) => FrameJumboMessageChunk(peerId, b, o, c);
@@ -1191,13 +1230,18 @@ namespace NetworkLibrary.P2P.Generic
         #region Rudp
         private void RemoveRudpModule(Guid peer)
         {
-            if (RUdpModules.TryRemove(peer, out var mod))
+            try
             {
-                foreach (var item in mod)
+                if (RUdpModules.TryRemove(peer, out var mod))
                 {
-                    item.Release();
+                    foreach (var item in mod)
+                    {
+                        item.Release();
+                    }
                 }
             }
+            catch { }
+           
         }
 
         private void CreateRudpModule(Guid peer)
@@ -1315,7 +1359,7 @@ namespace NetworkLibrary.P2P.Generic
                 SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
         }
-        GenericMessageAwaiter<MessageEnvelope> Awaiter => tcpMessageClient.Awaiter;//= new GenericMessageAwaiter<MessageEnvelope>();
+      
         public Task<MessageEnvelope> SendRudpMessageAndWaitResponse(Guid to, MessageEnvelope msg, int timeoutMs = 10000, RudpChannel channel = RudpChannel.Ch1)
         {
             if (RUdpModules.TryGetValue(to, out var mod))

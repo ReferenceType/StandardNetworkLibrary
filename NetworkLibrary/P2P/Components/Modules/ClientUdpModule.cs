@@ -18,7 +18,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         private GenericMessageSerializer<S> serialiser = new GenericMessageSerializer<S>();
 
         public ClientUdpModule(int port) : base(port) { }
-
+        public int MaxUdpPackageSize = 62400;
         private static void GetTLSStream()
         {
             if (TLSSerialisationStream == null)
@@ -39,7 +39,7 @@ namespace NetworkLibrary.P2P.Components.Modules
 
             serialiser.EnvelopeMessageWithBytes(TLSSerialisationStream,
                 message, message.Payload, message.PayloadOffset, message.PayloadCount);
-            if (TLSSerialisationStream.Position32 > 64500)
+            if (TLSSerialisationStream.Position32 > MaxUdpPackageSize)
             {
                 streamWithLargeMessage = TLSSerialisationStream;
                 return false;
@@ -58,7 +58,7 @@ namespace NetworkLibrary.P2P.Components.Modules
             serialiser.EnvelopeMessageWithInnerMessage(TLSSerialisationStream,
                 message, innerMessage);
 
-            if (TLSSerialisationStream.Position32 > 64500)
+            if (TLSSerialisationStream.Position32 > MaxUdpPackageSize)
             {
                 excessStream = TLSSerialisationStream;
                 return false;
@@ -77,7 +77,7 @@ namespace NetworkLibrary.P2P.Components.Modules
                 message, SerializationCallback);
 
             excessStream = null;
-            if (TLSSerialisationStream.Position32 > 64500)
+            if (TLSSerialisationStream.Position32 > MaxUdpPackageSize)
             {
                 excessStream = TLSSerialisationStream;
                 return false;
@@ -98,7 +98,7 @@ namespace NetworkLibrary.P2P.Components.Modules
             serialiser.EnvelopeMessageWithBytes(TLSSerialisationStream,
                 message, message.Payload, message.PayloadOffset, message.PayloadCount);
 
-            if (TLSSerialisationStream.Position32 > 64500)
+            if (TLSSerialisationStream.Position32 > MaxUdpPackageSize)
             {
                 largeMessageStream = TLSSerialisationStream;
                 return false;
@@ -120,7 +120,7 @@ namespace NetworkLibrary.P2P.Components.Modules
                 message, SerializationCallback);
 
             excessStream = null;
-            if (TLSSerialisationStream.Position32 > 64500)
+            if (TLSSerialisationStream.Position32 > MaxUdpPackageSize)
             {
                 excessStream = TLSSerialisationStream;
                 return false;
@@ -142,7 +142,7 @@ namespace NetworkLibrary.P2P.Components.Modules
 
             serialiser.EnvelopeMessageWithInnerMessage(TLSSerialisationStream,
                 message, innerMessage);
-            if (TLSSerialisationStream.Position32 > 64500)
+            if (TLSSerialisationStream.Position32 > MaxUdpPackageSize)
             {
                 excessStream = TLSSerialisationStream;
                 return false;

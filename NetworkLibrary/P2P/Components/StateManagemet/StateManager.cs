@@ -8,6 +8,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet
 {
     internal interface INetworkNode
     {
+        
         void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm);
         void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback);
         void SendAsyncMessage(Guid destinatioinId, MessageEnvelope message);

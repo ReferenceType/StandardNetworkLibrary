@@ -5,7 +5,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>MessagePack.Network.Library</PackageId>
     <Title>MessagePack Network Library</Title>
-    <Version>1.0.2</Version>
+    <Version>1.1.0</Version>
     <Authors>ReferenceType</Authors>
     <Description>Message passing and P2P network library using MessagePack Serialization</Description>
     <Copyright>Apache-2.0</Copyright>
@@ -21,7 +21,7 @@ Minor fixes</PackageReleaseNotes>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\Resources\Licence.txt">
+    <None Include="..\Resources\Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
@@ -32,7 +32,7 @@ Minor fixes</PackageReleaseNotes>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\NetworkLibrary\NetworkLibrary.csproj" />
+    <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
   </ItemGroup>
 
 </Project>

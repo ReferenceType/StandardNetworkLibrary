@@ -12,10 +12,14 @@ namespace MessageProtocol
         where S : ISerializer, new()
     {
         public Action<E> OnMessageReceived;
-        public bool DeserializeMessages = true;
         private GenericMessageSerializer<E, S> serializer;
         private new MessageSession<E, S> session;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
+
+        public MessageClient()
+        {
+            MapReceivedBytes();
+        }
 
         protected virtual void MapReceivedBytes()
         {
@@ -49,8 +53,6 @@ namespace MessageProtocol
             ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
             session = ses;
 
-            if (DeserializeMessages)
-                MapReceivedBytes();
             return ses;
         }
 

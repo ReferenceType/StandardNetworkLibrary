@@ -40,7 +40,7 @@ namespace NetworkLibrary.MessageProtocol
 
         public void ResponseArrived(E envelopedMessage)
         {
-            if (envelopedMessage.MessageId != null && awaitingMessages.TryGetValue(envelopedMessage.MessageId, out var completionSource))
+            if (awaitingMessages.TryGetValue(envelopedMessage.MessageId, out var completionSource))
             {
                 // lock(do a copy) because continiation will be async.
                 envelopedMessage.LockBytes();
@@ -57,5 +57,7 @@ namespace NetworkLibrary.MessageProtocol
         {
             //todo
         }
+
+       
     }
 }

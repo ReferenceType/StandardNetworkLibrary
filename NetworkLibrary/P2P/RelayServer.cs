@@ -11,7 +11,7 @@ namespace NetworkLibrary.P2P
 {
     public class RelayServer : SecureRelayServerBase<MockSerializer>
     {
-        public RelayServer(int port, X509Certificate2 cerificate) : base(port, cerificate)
+        public RelayServer(int port, X509Certificate2 certificate, string serverName = "Andromeda") : base(port, certificate, serverName)
         {
         }
     }

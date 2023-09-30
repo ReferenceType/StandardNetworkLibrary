@@ -1,4 +1,4 @@
-﻿using NetworkLibrary.Generic;
+﻿using NetworkLibrary.TCP.Generic;
 using Protobuff.Components.Serialiser;
 using System.Security.Cryptography.X509Certificates;
 

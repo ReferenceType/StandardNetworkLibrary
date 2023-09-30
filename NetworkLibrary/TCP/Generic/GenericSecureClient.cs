@@ -10,7 +10,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using static NetworkLibrary.TCP.Base.TcpClientBase;
 
-namespace NetworkLibrary.Generic
+namespace NetworkLibrary.TCP.Generic
 {
 
     public class GenericSecureClient<S> where S : ISerializer, new()
@@ -18,7 +18,7 @@ namespace NetworkLibrary.Generic
         public Action OnDisconnected;
         public BytesRecieved BytesReceived;
         private GenericSecureClientInternal<S> client;
-        public S Serializer =  new S();
+        public S Serializer = new S();
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         public GenericSecureClient(X509Certificate2 certificate, bool writeLenghtPrefix = true)
         {
@@ -75,7 +75,7 @@ namespace NetworkLibrary.Generic
    where S : ISerializer, new()
     {
         public readonly GenericMessageSerializer<S> Serializer = new GenericMessageSerializer<S>();
-        private new GenericSecureSession<S> session;
+        private GenericSecureSession<S> session;
         private readonly bool writeLenghtPrefix;
 
         public GenericSecureClientInternal(X509Certificate2 certificate, bool writeLenghtPrefix = true) : base(certificate)

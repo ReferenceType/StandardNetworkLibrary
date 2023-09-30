@@ -34,7 +34,7 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
             string ip = "127.0.0.1";
-            int port = 2222;
+            int port = 22222;
             int numClients = 10;
             var server = new RoomServer(port, scert);
             server.StartServer();
@@ -101,7 +101,7 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
             string ip = "127.0.0.1";
-            int port = 2223;
+            int port = 22223;
             int numClients = 10;
             var server = new RoomServer(port, scert);
             server.StartServer();
@@ -179,7 +179,7 @@ namespace UnitTests
             var scert = new X509Certificate2("server.pfx", "greenpass");
             var cert = new X509Certificate2("client.pfx", "greenpass");
             string ip = "127.0.0.1";
-            int port = 2224;
+            int port = 22224;
             int numClients = 10;
             var server = new RoomServer(port, scert);
             server.StartServer();

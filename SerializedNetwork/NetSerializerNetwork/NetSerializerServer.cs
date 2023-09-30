@@ -28,10 +28,8 @@ namespace NetSerializerNetwork
             //awaiter = new MessageAwaiter();
 
             server = new NetSerializerServerIntenal(port);
-            server.DeserializeMessages = false;
             server.OnClientAccepted += HandleClientAccepted;
-            // server.OnMessageReceived += HandleMessageReceived;
-            server.OnBytesReceived += OnBytesReceived;
+            server.OnMessageReceived += HandleMessageReceived;
             server.OnClientDisconnected += HandleClientDisconnected;
 
             server.MaxIndexedMemoryPerClient = 128000000;
@@ -42,27 +40,6 @@ namespace NetSerializerNetwork
         private void HandleMessageReceived(Guid id, MessageEnvelope message)
         {
             OnMessageReceived?.Invoke(id, message);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected virtual void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)
-        {
-            MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-            if (!CheckAwaiter(message))
-            {
-                OnMessageReceived?.Invoke(guid, message);
-            }
-        }
-
-        protected bool CheckAwaiter(MessageEnvelope message)
-        {
-            if (server.Awaiter.IsWaiting(message.MessageId))
-            {
-                message.LockBytes();
-                server.Awaiter.ResponseArrived(message);
-                return true;
-            }
-            return false;
         }
 
         public void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)

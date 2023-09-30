@@ -1,5 +1,5 @@
 ﻿using NetSerializerNetwork.Components;
-using NetworkLibrary.Generic;
+using NetworkLibrary.TCP.Generic;
 using System.Security.Cryptography.X509Certificates;
 
 namespace NetSerializerNetwork.Pure

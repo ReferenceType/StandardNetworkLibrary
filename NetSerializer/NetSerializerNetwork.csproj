@@ -3,32 +3,32 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <PackageId>Json.Network.Library</PackageId>
-    <Title>Json Network Library</Title>
-    <Version>1.0.2</Version>
-    <Authors>ReferenceType</Authors>
-    <Description>Message passing and P2P network library using System.Text.Json</Description>
+    <PackageId>NetSerializer.Network.Library</PackageId>
+    <Title>NetSerializer Network Library</Title>
+    <Version>1.1.0</Version>
+    <Description>Message passing and P2P network library using .NetSerializer</Description>
     <Copyright>Apache-2.0</Copyright>
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
-    <PackageTags>json;network;p2p;holepunch;nat traversal;high performance;reliable udp</PackageTags>
+    <PackageTags>netserializer;network;p2p;holepunch;nat traversal;high performance;reliable udp</PackageTags>
     <PackageLicenseFile>Licence.txt</PackageLicenseFile>
+    <Authors>ReferenceType</Authors>
     <PackageReleaseNotes>Relay Server and Room Server is moved to NetworkLibrary.P2P.
 Minor fixes</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\Resources\Licence.txt">
+    <None Include="..\Resources\Licence.txt">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Text.Json" Version="7.0.3" />
+    <PackageReference Include="NetSerializer" Version="4.1.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\NetworkLibrary\NetworkLibrary.csproj" />
+    <ProjectReference Include="..\NetworkLibrary\NetworkLibrary.csproj" />
   </ItemGroup>
 
 </Project>

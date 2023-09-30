@@ -15,6 +15,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,11 +37,11 @@ namespace NetworkLibrary.P2P.Generic
         private ConcurrentAesAlgorithm relayDectriptor;
         internal byte[] ServerUdpInitKey { get; }
         private ServerStateManager<S> stateManager;
-
-        public SecureRelayServerBase(int port, X509Certificate2 cerificate) : base(port, cerificate)
+        private readonly byte[] serverNameBytes;
+        public SecureRelayServerBase(int port, X509Certificate2 certificate, string serverName = "Andromeda") : base(port, certificate)
         {
             OnClientAccepted += HandleClientAccepted;
-            OnBytesReceived += HandleBytesReceived;
+            //OnBytesReceived += HandleTCPReceived;
             OnClientDisconnected += HandleClientDisconnected;
             udpServer = new AsyncUdpServer(port);
 
@@ -57,7 +58,9 @@ namespace NetworkLibrary.P2P.Generic
             udpServer.StartServer();
 
             Task.Run(PeerListPushRoutine);
+            serverNameBytes = Encoding.UTF8.GetBytes(serverName);
         }
+
 
         public void GetTcpStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
            => GetStatistics(out generalStats, out sessionStats);
@@ -87,7 +90,7 @@ namespace NetworkLibrary.P2P.Generic
                         NotifyCurrentPeerList(item.Key);
                     }
                 }
-                catch (Exception ex) { PushPeerList.TrySetResult(true); }
+                catch { PushPeerList.TrySetResult(true); }
 
                 await Task.Delay(1000).ConfigureAwait(false);
 
@@ -170,7 +173,7 @@ namespace NetworkLibrary.P2P.Generic
 
         #region Receive
         // Goal is to only read envelope and route with that, without unpcaking payload.
-        protected void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
+        protected override void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
         {
             try
             {
@@ -426,16 +429,28 @@ namespace NetworkLibrary.P2P.Generic
 
         private void HandleUnregistreredMessage(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
+            if(count == 1 && bytes[offset] == 91)
+            {
+                udpServer.SendBytesToClient(adress, serverNameBytes,0,serverNameBytes.Length);
+                return;
+            }
+            if (count % 16 != 0)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to decrypt unregistered peer message");
+                return;
+            }
             try
             {
                 byte[] result = relayDectriptor.Decrypt(bytes, offset, count);
                 var message1 = serialiser.DeserialiseEnvelopedMessage(result, 0, result.Length);
                 stateManager.HandleMessage(adress, message1);
+                
             }
             catch
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to decrypt unregistered peer message");
             }
+          
         }
 
         void INetworkNode.SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm)

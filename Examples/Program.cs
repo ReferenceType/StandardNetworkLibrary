@@ -279,7 +279,7 @@ namespace Examples
             {
                 Console.WriteLine(client.SessionId + " Received Message From " + reply.From);
                 Console.WriteLine(client.SessionId + " Sending Udp message to: " + reply.From);
-                client.SendUdpMesssage(reply.From, reply);
+                client.SendUdpMessage(reply.From, reply);
             }
 
             void ClientUdpReceived(RelayClient client, MessageEnvelope reply)

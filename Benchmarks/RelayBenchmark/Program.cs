@@ -20,6 +20,7 @@ namespace RelayBenchmark
 
         static void Main(string[] args)
         {
+           //var addr =  Dns.GetHostAddresses("asddsadsa.com");
             //ThreadPool.SetMinThreads(2000, 2000);
             MiniLogger.AllLog += Console.WriteLine;
             //PoolBench();
@@ -186,8 +187,8 @@ namespace RelayBenchmark
 
             var cert = new X509Certificate2("client.pfx", "greenpass");
             var scert = new X509Certificate2("server.pfx", "greenpass");
-            var server = new SecureProtoRelayServer(20011, scert);
-            server.StartServer();
+           // var server = new SecureProtoRelayServer(20011, scert);
+           // server.StartServer();
             //Task.Run(async () => { while (true) { await Task.Delay(10000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
             var clients = new List<RelayClient>();
             int numclients = 2;
@@ -197,7 +198,6 @@ namespace RelayBenchmark
 
             {
                 var client = new RelayClient(cert);
-                client.MaxUdpPackageSize = 2000;
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
                 client.OnUdpMessageReceived += (reply) => ClientUdpReceived(client, reply);
                 //client.OnPeerRegistered += (id) => { /*if (client.sessionId.CompareTo(id) > 0)*/ client.RequestHolePunchAsync(id, 10000, false); };
@@ -230,7 +230,7 @@ namespace RelayBenchmark
                         if (peer.Key == Guid.Empty)
                             throw new Exception();
 
-                        var a = client.RequestHolePunchAsync(peer.Key, 10000, false);
+                        //var a = client.RequestHolePunchAsync(peer.Key, 10000, false);
                         //pndg.Add(a);
                         //client.TestHP(peer.Key, 10000, false);
                         //  Console.WriteLine(peer.Key+" cnt=> "+ ++cc);
@@ -249,23 +249,23 @@ namespace RelayBenchmark
                 var testMessage = new MessageEnvelope()
                 {
                     Header = "Test",
-                    Payload = new byte[126000]
+                    Payload = new byte[255000]
                 };
                 for (int i = 0; i < testMessage.PayloadCount; i++)
                 {
                     testMessage.Payload[i] = (byte)i;
                 }
-                for (int i = 0; i < 1; i++)
+                for (int i = 0; i < 100; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
                         //client.SendAsyncMessage(peer, testMessage);
-                       client.SendUdpMesssage(peer, testMessage);
+                       //client.SendUdpMesssage(peer, testMessage);
                         //  client.BroadcastMessage(testMessage);
                         //client.BroadcastUdpMessage(testMessage);
-                        // client.SendRudpMessage(peer,testMessage);
+                         client.SendRudpMessage(peer,testMessage);
                     }
                 }
                 break;
@@ -290,17 +290,17 @@ namespace RelayBenchmark
             {
 
                 // Interlocked.Increment(ref totMsgCl);
-                for (int i = 0; i < reply.PayloadCount; i++)
-                {
-                    //Console.WriteLine(reply.Payload[reply.PayloadOffset + i]);
-                    if (reply.Payload[reply.PayloadOffset + i] != (byte)i)
-                    {
-                        var a = reply.Payload[reply.PayloadOffset + i];
-                        var b = (byte)i;
-                    }
-                }
-                client.SendUdpMesssage(reply.From, reply);
-                //client.SendRudpMessage(reply.From, reply);
+                //for (int i = 0; i < reply.PayloadCount; i++)
+                //{
+                //    //Console.WriteLine(reply.Payload[reply.PayloadOffset + i]);
+                //    if (reply.Payload[reply.PayloadOffset + i] != (byte)i)
+                //    {
+                //        var a = reply.Payload[reply.PayloadOffset + i];
+                //        var b = (byte)i;
+                //    }
+                //}
+                //client.SendUdpMesssage(reply.From, reply);
+                client.SendRudpMessage(reply.From, reply);
                 return;
                 if (client == clients[0])
                 {

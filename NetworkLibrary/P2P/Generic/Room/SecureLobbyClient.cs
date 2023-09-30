@@ -256,12 +256,12 @@ namespace NetworkLibrary.P2P.Generic.Room
         // Udp
         public void SendUdpMessageToPeer(Guid peerId, MessageEnvelope message)
         {
-            client.SendUdpMesssage(peerId, message);
+            client.SendUdpMessage(peerId, message);
         }
 
         public void SendUdpMessageToPeer<T>(Guid peerId, MessageEnvelope message, T innerMessage)
         {
-            client.SendUdpMesssage(peerId, message, innerMessage);
+            client.SendUdpMessage(peerId, message, innerMessage);
         }
         //--
         // Rudp

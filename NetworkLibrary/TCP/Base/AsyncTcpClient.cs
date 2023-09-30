@@ -56,7 +56,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (e.SocketError != SocketError.Success)
             {
-                HandleError(e, "While Connecting an Error Eccured: ");
+                HandleError(e, "While Connecting an Error Occurred: ");
                 OnConnectFailed?.Invoke(e.ConnectByNameError);
                 connectedCompletionSource?.TrySetException(new SocketException((int)e.SocketError));
             }
@@ -96,7 +96,6 @@ namespace NetworkLibrary.TCP.Base
             ses.SocketRecieveBufferSize = SocketRecieveBufferSize;
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.DropOnCongestion = DropOnCongestion;
-            ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 ses.UseQueue = true;

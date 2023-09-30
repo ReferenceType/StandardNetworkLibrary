@@ -7,13 +7,14 @@ using System.Threading;
 
 namespace NetworkLibrary.UDP
 {
-    public class AsyncUdpServerLite
+    public class AsyncUdpServerLite:IDisposable
     {
         public delegate void BytesRecieved(IPEndPoint adress, byte[] bytes, int offset, int count);
         public BytesRecieved OnBytesRecieved;
         public int ClientReceiveBufferSize = 65000;
         bool isConnected = false;
         IPEndPoint adress;
+        private int disposed = 0;
         public int SocketReceiveBufferSize
         {
             get => receiveBufferSize;
@@ -41,6 +42,7 @@ namespace NetworkLibrary.UDP
 
         protected EndPoint serverEndpoint;
         protected EndPoint multicastEndpoint;
+        private bool isDispoed=>Interlocked.CompareExchange(ref disposed,0,0)==1;
 
         public AsyncUdpServerLite(int port)
         {
@@ -72,6 +74,7 @@ namespace NetworkLibrary.UDP
 
         public void StartServer()
         {
+            CheckDisposedAndThrow();
             for (int i = 0; i < Environment.ProcessorCount; i++)
             {
                 StartReceiveSentinel();
@@ -79,6 +82,7 @@ namespace NetworkLibrary.UDP
         }
         public void StartAsClient(IPEndPoint ep)
         {
+            CheckDisposedAndThrow();
             ServerSocket.Connect(ep);
             adress = ep;
             isConnected = true;
@@ -99,10 +103,15 @@ namespace NetworkLibrary.UDP
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Receive(SocketAsyncEventArgs e)
         {
-            if (!ServerSocket.ReceiveFromAsync(e))
+            try
             {
-                ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e), null);
+                if (!ServerSocket.ReceiveFromAsync(e))
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e), null);
+                }
             }
+            catch (Exception ex) when (ex is ObjectDisposedException) { }
+           
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -110,6 +119,8 @@ namespace NetworkLibrary.UDP
         {
             if (e.SocketError != SocketError.Success)
             {
+                if (isDispoed)
+                    return;
                 StartReceiveSentinel();
                 e.Dispose();
                 return;
@@ -178,6 +189,7 @@ namespace NetworkLibrary.UDP
 
         public void SendBytesToClient(IPEndPoint clientEndpoint, byte[] bytes, int offset, int count)
         {
+            CheckDisposedAndThrow();
             try
             {
                 if (isConnected)
@@ -191,6 +203,22 @@ namespace NetworkLibrary.UDP
             }
         }
 
+        private void CheckDisposedAndThrow()
+        {
+            if(Interlocked.CompareExchange(ref disposed, 0, 0) == 1)
+            {
+                throw new ObjectDisposedException(nameof(AsyncUdpServerLite));
+            }
+        }
+
+        public void Dispose()
+        {
+            if(Interlocked.CompareExchange(ref disposed, 1, 0) == 0)
+            {
+                OnBytesRecieved = null;
+                ServerSocket?.Dispose();
+            }
+        }
     }
 
 }

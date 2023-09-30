@@ -28,13 +28,11 @@ namespace NetworkLibrary.MessageProtocol.Fast
         public GenericSecureMessageServerWrapper(int port, X509Certificate2 cerificate)
         {
             server = new SecureMessageServer<S>(port, cerificate);
-            server.DeserializeMessages = false;
 
             server.OnClientAccepted += HandleClientAccepted;
-            server.OnBytesReceived += OnBytesReceived;
-
             server.OnClientDisconnected += HandleClientDisconnected;
             server.RemoteCertificateValidationCallback += DefaultValidationCallback;
+            server.OnMessageReceived = (guid, message) => OnMessageReceived?.Invoke(guid, message);
 
             server.MaxIndexedMemoryPerClient = 228000000;
            
@@ -105,14 +103,7 @@ namespace NetworkLibrary.MessageProtocol.Fast
         }
         #endregion
 
-        protected virtual void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)
-        {
-            MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-            if (!CheckAwaiter(message))
-            {
-                OnMessageReceived?.Invoke(guid, message);
-            }
-        }
+       
 
         protected virtual void HandleClientAccepted(Guid clientId)
         {
@@ -124,16 +115,6 @@ namespace NetworkLibrary.MessageProtocol.Fast
             OnClientDisconnected?.Invoke(guid);
         }
 
-        protected bool CheckAwaiter(MessageEnvelope message)
-        {
-            if (server.awaiter.IsWaiting(message.MessageId))
-            {
-                message.LockBytes();
-                server.awaiter.ResponseArrived(message);
-                return true;
-            }
-            return false;
-        }
 
         public void Shutdown() => server.ShutdownServer();
     }

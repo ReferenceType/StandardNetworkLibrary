@@ -120,7 +120,7 @@ namespace NetworkLibrary.TCP.Base
             session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
-            session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
+            //session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)
                 session.UseQueue = true;
@@ -162,6 +162,7 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void HandleDeadSession(Guid sessionId)
         {
+            OnClientDisconnected?.Invoke(sessionId);
             Sessions.TryRemove(sessionId, out _);
         }
 

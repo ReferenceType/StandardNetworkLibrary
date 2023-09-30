@@ -64,13 +64,16 @@ namespace NetworkLibrary.Components
 
         }
 
+        /// <summary>
+        /// Reduces the inner buffer size, if its more than 65537, to save memory
+        /// </summary>
         public void Clear()
         {
             position = 0;
-            if (bufferInternal.Length > 65537)
+            if (bufferInternal.Length > 128000)
             {
                 BufferPool.ReturnBuffer(bufferInternal);
-                bufferInternal = BufferPool.RentBuffer(64000);
+                bufferInternal = BufferPool.RentBuffer(128000);
             }
         }
         public override int Read(byte[] buffer, int offset, int count)
@@ -128,6 +131,10 @@ namespace NetworkLibrary.Components
 
         }
 
+        /// <summary>
+        /// Sets the length of current stream, allocates more memory if length exceeds current inner buffer size.
+        /// </summary>
+        /// <param name="value">The desired length of the current stream in bytes.</param>
         public override void SetLength(long value)
         {
             if (_capacity < value)
@@ -191,6 +198,11 @@ namespace NetworkLibrary.Components
             bufferInternal = newBuf;
         }
 
+        /// <summary>
+        /// Reserves a stream buffer capacity by at least the specified count.
+        /// </summary>
+        /// <param name="count">The count.</param>
+        /// <exception cref="System.InvalidOperationException">Cannot expand internal buffer to more than max amount: {BufferPool.MaxBufferSize}</exception>
         public void Reserve(int count)
         {
             if (bufferInternal.Length - position < count)
@@ -218,6 +230,7 @@ namespace NetworkLibrary.Components
             if (length < position)
                 length = position;
         }
+
         public override int ReadByte()
         {
             if (position >= length) return -1;
@@ -236,6 +249,11 @@ namespace NetworkLibrary.Components
 
         }
 
+        /// <summary>
+        /// Writes int32 value to stream.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <exception cref="System.InvalidOperationException">Cannot expand internal buffer to more than max amount</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteInt(int value)
         {
@@ -268,6 +286,12 @@ namespace NetworkLibrary.Components
             position += 2;
 
         }
+
+        /// <summary>
+        /// Writes the ushort value to the stream.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <exception cref="System.InvalidOperationException">Cannot expand internal buffer to more than max amount</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUshort(ushort value)
         {
@@ -287,6 +311,7 @@ namespace NetworkLibrary.Components
             position += 2;
 
         }
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteTwoZerosUnchecked()
@@ -324,6 +349,7 @@ namespace NetworkLibrary.Components
             offst = (int)position;
             cnt = sizeHint;
         }
+
 
         internal void Advance(int amount)
         {

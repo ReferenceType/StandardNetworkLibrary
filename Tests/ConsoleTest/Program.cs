@@ -817,7 +817,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
                         //client.SendAsyncMessage(peer, testMessage_); 
 
-                        client.SendUdpMesssage(peer, testMessage);
+                        client.SendUdpMessage(peer, testMessage);
                     }
                 }
 
@@ -836,7 +836,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 for (int i = 0; i < 1; i++)
                 {
                     client.SendAsyncMessage(peerId, testMessage);
-                    client.SendUdpMesssage(peerId, testMessage);
+                    client.SendUdpMessage(peerId, testMessage);
                 }
 
             }
@@ -854,7 +854,7 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
                 //client.SendUpMesssage(reply.From, reply);
                 //reply.Payload = new byte[randomG.Next(500, 32000)];
-                client.SendUdpMesssage(client.Peers.Keys.First(), reply);
+                client.SendUdpMessage(client.Peers.Keys.First(), reply);
                 //Task.Run(() =>
                 //{
                 //    client.SendUdpMesssage(client.Peers.First(), reply);

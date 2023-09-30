@@ -82,7 +82,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 if (!IsSessionClosing())
                     MiniLogger.Log(MiniLogger.LogLevel.Error, 
-                        "Unexcpected error while sending async with ssl session" + e.Message+"Trace " +e.StackTrace);
+                        "Unexpected error while sending async with ssl session" + e.Message+"Trace " +e.StackTrace);
             }
         }
         private void SendAsync_(byte[] buffer, int offset, int count)
@@ -132,7 +132,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 if (!IsSessionClosing())
                     MiniLogger.Log(MiniLogger.LogLevel.Error,
-                        "Unexcpected error while sending async with ssl session" + e.Message + "Trace " + e.StackTrace);
+                        "Unexpected error while sending async with ssl session" + e.Message + "Trace " + e.StackTrace);
             }
         }
         private void SendAsync_(byte[] buffer)
@@ -265,7 +265,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
             catch (Exception ex)
             {
-                HandleError("White receiving from SSL socket an error occured", ex);
+                HandleError("White receiving from SSL socket an error occurred", ex);
                 ReleaseReceiveResourcesIdempotent();
             }
         }
@@ -286,7 +286,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
             catch (Exception e)
             {
-                HandleError("While receiving from SSL socket an exception occured ", e);
+                HandleError("While receiving from SSL socket an exception occurred ", e);
                 ReleaseReceiveResourcesIdempotent();
                 return;
             }
@@ -375,8 +375,8 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected virtual void ReleaseReceiveResources()
         {
             BufferPool.ReturnBuffer(receiveBuffer);
-
         }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -393,8 +393,10 @@ namespace NetworkLibrary.TCP.SSL.Base
 
                 if (!SendSemaphore.IsTaken())
                     ReleaseSendResourcesIdempotent();
+
                 if (!SendSemaphore.IsTaken())
                     ReleaseSendResourcesIdempotent();
+
                 enqueueLock.Release();
                 SendSemaphore.Release();
             }

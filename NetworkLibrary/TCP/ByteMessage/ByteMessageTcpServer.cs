@@ -16,7 +16,7 @@ namespace NetworkLibrary.TCP.ByteMessage
             session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
-            session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
+            //session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
 
 
             if (GatherConfig == ScatterGatherConfig.UseQueue)

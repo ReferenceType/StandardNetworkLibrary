@@ -15,7 +15,6 @@ namespace MessageProtocol
          where S : ISerializer, new()
     {
         public Action<Guid, E> OnMessageReceived;
-        public bool DeserializeMessages = true;
         internal GenericMessageAwaiter<E> awaiter = new GenericMessageAwaiter<E>();
 
         private GenericMessageSerializer<E, S> serializer;
@@ -23,19 +22,12 @@ namespace MessageProtocol
         {
             RemoteCertificateValidationCallback += ValidateCert;
             GatherConfig = ScatterGatherConfig.UseBuffer;
+            MapReceivedBytes();
         }
 
         protected virtual bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;
-        }
-
-        public override void StartServer()
-        {
-            if (DeserializeMessages)
-                MapReceivedBytes();
-
-            base.StartServer();
         }
 
         protected virtual GenericMessageSerializer<E, S> CreateMessageSerializer()

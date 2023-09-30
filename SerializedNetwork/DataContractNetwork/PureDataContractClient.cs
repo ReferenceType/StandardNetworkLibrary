@@ -1,5 +1,5 @@
 ﻿using DataContractNetwork.Components;
-using NetworkLibrary.Generic;
+using NetworkLibrary.TCP.Generic;
 
 namespace DataContractNetwork
 {

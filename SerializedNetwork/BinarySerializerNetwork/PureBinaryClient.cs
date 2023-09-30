@@ -1,5 +1,5 @@
 ﻿using BinarySerializerNetwork.Components;
-using NetworkLibrary.Generic;
+using NetworkLibrary.TCP.Generic;
 
 namespace BinarySerializerNetwork
 {

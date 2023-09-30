@@ -1,5 +1,5 @@
 ﻿using JsonMessageNetwork.Components;
-using NetworkLibrary.Generic;
+using NetworkLibrary.TCP.Generic;
 
 namespace JsonMessageNetwork
 {

@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using static NetworkLibrary.TCP.Base.TcpClientBase;
 
-namespace NetworkLibrary.Generic
+namespace NetworkLibrary.TCP.Generic
 {
     public class GenericClient<S> where S : ISerializer, new()
     {

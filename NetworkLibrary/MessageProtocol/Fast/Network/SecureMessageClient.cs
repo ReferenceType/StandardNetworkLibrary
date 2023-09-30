@@ -14,7 +14,6 @@ namespace NetworkLibrary.MessageProtocol
     where S : ISerializer, new()
     {
         public Action<MessageEnvelope> OnMessageReceived;
-        public bool DeserializeMessages = true;
         private GenericMessageSerializer<S> serializer;
         private SecureMessageSession<S> messageSession;
         internal GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
@@ -28,6 +27,7 @@ namespace NetworkLibrary.MessageProtocol
             {
                 MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
             }
+            MapReceivedBytes();
         }
 
         protected virtual bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -38,7 +38,7 @@ namespace NetworkLibrary.MessageProtocol
         protected virtual void MapReceivedBytes()
         {
             serializer = new GenericMessageSerializer<S>();
-            OnBytesReceived += HandleBytes;
+            OnBytesReceived = HandleBytes;
         }
         private void HandleBytes(byte[] bytes, int offset, int count)
         {
@@ -46,7 +46,6 @@ namespace NetworkLibrary.MessageProtocol
 
             if (Awaiter.IsWaiting(message.MessageId))
             {
-                message.LockBytes();
                 Awaiter.ResponseArrived(message);
             }
             else
@@ -63,8 +62,7 @@ namespace NetworkLibrary.MessageProtocol
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.RemoteEndpoint = tuple.Item2;
             messageSession = session;
-            if (DeserializeMessages)
-                MapReceivedBytes();
+            
             return session;
         }
 
@@ -132,6 +130,11 @@ namespace NetworkLibrary.MessageProtocol
         public new Task<bool> ConnectAsync(string host, int port)
         {
             return ConnectAsyncAwaitable(host, port);
+        }
+
+        public override void Dispose()
+        {
+            OnMessageReceived = null;
         }
     }
 

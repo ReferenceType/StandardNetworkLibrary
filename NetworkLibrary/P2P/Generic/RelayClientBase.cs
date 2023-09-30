@@ -16,8 +16,10 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,67 +31,79 @@ namespace NetworkLibrary.P2P.Generic
         Ch2 = 1,
         Realtime = 2
     }
+    class EndpointGroup
+    {
+        public IPEndPoint ToSend;
+        public IPEndPoint ToReceive;
+    }
+    public class PeerInformation
+    {
+        public string IP;
+        public int Port;
+        public IPAddress IPAddress;
+
+        public PeerInformation(PeerInfo info)
+        {
+            IPAddress = new IPAddress(info.Address);
+            IP = IPAddress.ToString();
+            Port = info.Port;
+        }
+
+        public PeerInformation() { }
+    }
+    public class ServerInfo
+    {
+        public IPEndPoint Endpoint;
+        public string Name;
+    }
+
     public class RelayClientBase<S> : INetworkNode
         where S : ISerializer, new()
     {
-        public class PeerInformation
-        {
-            public string IP;
-            public int Port;
-            public IPAddress IPAddress;
-            public PeerInformation(PeerInfo info)
-            {
-                IPAddress = new IPAddress(info.Address);
-                IP = IPAddress.ToString();
-                Port = info.Port;
-            }
-            public PeerInformation() { }
-        }
-        class EndpointGroup
-        {
-            public IPEndPoint ToSend;
-            public IPEndPoint ToReceive;
-        }
-
         public Action<Guid> OnPeerRegistered;
         public Action<Guid> OnPeerUnregistered;
         public Action<MessageEnvelope> OnUdpMessageReceived;
         public Action<MessageEnvelope> OnMessageReceived;
         public Action OnDisconnected;
-        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
-        GenericMessageAwaiter<MessageEnvelope> Awaiter => tcpMessageClient.Awaiter;//= new GenericMessageAwaiter<MessageEnvelope>();
-        const ushort AbsUdpPackageMax = 62400;
-        public ushort MaxUdpPackageSize { get => maxUdpPackageSize; set { maxUdpPackageSize = value > AbsUdpPackageMax ? AbsUdpPackageMax : value;
-                udpServer.MaxUdpPackageSize = maxUdpPackageSize; JumboModule.Fragmentsize = maxUdpPackageSize;} }
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;       
 
-        private Guid sessionId;
         public Guid SessionId => sessionId;
 
-        public bool IsConnected { get => isConnected; private set => isConnected = value; }
+        public bool IsConnected { 
+            get => Interlocked.CompareExchange(ref isConnected,0,0) == 1; 
+            private set 
+            {
+                if(value)
+                    Interlocked.Exchange(ref isConnected, 1);
+                else
+                    Interlocked.Exchange(ref isConnected, 0);
+            } 
+        }
+
         public ConcurrentDictionary<Guid, bool> Peers = new ConcurrentDictionary<Guid, bool>();
-        public bool EnableJumboUdpRateControl{ set { JumboModule.ControlSends = value; } }
+        internal ConcurrentDictionary<Guid, PeerInformation> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInformation>();
         internal ConcurrentDictionary<Guid, List<ReliableUdpModule>> RUdpModules = new ConcurrentDictionary<Guid, List<ReliableUdpModule>>();
         internal ConcurrentDictionary<Guid, JumboModule> JumboUdpModules = new ConcurrentDictionary<Guid, JumboModule>();
-        internal ConcurrentDictionary<Guid, PeerInformation> PeerInfos { get; private set; } = new ConcurrentDictionary<Guid, PeerInformation>();
-
-
         internal string connectHost;
         internal int connectPort;
-        private ushort maxUdpPackageSize = 64200;
         internal ClientUdpModule<S> udpServer;
-
         internal IPEndPoint relayServerEndpoint;
         internal SecureMessageClient<S> tcpMessageClient;
-        private ConcurrentAesAlgorithm udpEncriptor;
 
+        private GenericMessageAwaiter<MessageEnvelope> Awaiter => tcpMessageClient.Awaiter;
+        private ConcurrentAesAlgorithm udpEncryiptor;
         private object registeryLocker = new object();
-        private bool isConnected;
-        private bool connecting;
+        private ushort maxUdpPackageSize = 64200;
+        private int isConnected;
+        private int connecting;
+        private int disposed = 0;
+        private Guid sessionId;
         private PingHandler pinger = new PingHandler();
         private GenericMessageSerializer<S> serialiser = new GenericMessageSerializer<S>();
         private ConcurrentDictionary<Guid, EndpointGroup> punchedEndpoints = new ConcurrentDictionary<Guid, EndpointGroup>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> peerCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
         private ClientStateManager<S> clientStateManager;
+
         public RelayClientBase(X509Certificate2 clientCert, int udpPort = 0)
         {
             clientStateManager = new ClientStateManager<S>(this);
@@ -114,30 +128,80 @@ namespace NetworkLibrary.P2P.Generic
         }
 
         #region Connect & Disconnect
+        /// <summary>
+        /// Searches local network for relay server in provided port
+        /// </summary>
+        /// <param name="port"></param>
+        /// <returns></returns>
+        public async Task<List<ServerInfo>> TryFindRelayServer(int port)
+        {
+            List<ServerInfo> servers = new List<ServerInfo>();
+            using (var udpClient = new UdpClient())
+            {
+                udpClient.EnableBroadcast = true;
 
+                if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    udpClient.AllowNatTraversal(true);
+
+                var broadcastAddress = new IPEndPoint(IPAddress.Broadcast, port);
+
+                var request = new byte[1] { 91 };
+                udpClient.Send(request, request.Length, broadcastAddress);
+                bool again = false;
+                do
+                {
+                    var receiveTask = udpClient.ReceiveAsync();
+
+                    var result = await Task.WhenAny(receiveTask, Task.Delay(1000));
+                    if (result == receiveTask)
+                    {
+                        var remoteEp = receiveTask.Result.RemoteEndPoint;
+                       servers.Add(new ServerInfo() { Endpoint = remoteEp,
+                       Name = Encoding.UTF8.GetString(receiveTask.Result.Buffer)});
+                       again = true;
+                    }
+                    else
+                    {
+                        again = false;
+                    }
+                }
+                while (again);
+               
+                return servers;
+            }
+        }
+        /// <summary>
+        /// Connects Async
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <returns></returns>
         public async Task<bool> ConnectAsync(string host, int port)
         {
-            if (connecting || IsConnected) return false;
-
-            connectHost = host;
-            connectPort = port;
-            connecting = true;
+            CheckDisposedAndThrow();
             try
             {
+                connectHost = host;
+                connectPort = port;
+
+                if (Interlocked.CompareExchange(ref connecting, 1, 0) == 1)
+                    return false;
+
+                if (IsConnected) return false;
+
                 relayServerEndpoint = new IPEndPoint(IPAddress.Parse(connectHost), connectPort);
 
                 await tcpMessageClient.ConnectAsync(host, port).ConfigureAwait(false);
-                Console.WriteLine("Connected");
 
                 var stateCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 clientStateManager.CreateConnectionState()
-                .Completed += (Istate) =>
+                .Completed += (IState) =>
                 {
-                    if (Istate.Status == StateStatus.Completed)
+                    if (IState.Status == StateStatus.Completed)
                     {
-                        var state = Istate as ClientConnectionState;
+                        var state = IState as ClientConnectionState;
                         sessionId = state.SessionId;
-                        udpEncriptor = state.udpEncriptor;
+                        udpEncryiptor = state.udpEncriptor;
                         tcpMessageClient.SendAsyncMessage(new MessageEnvelope()
                         {
                             IsInternal = true,
@@ -145,9 +209,9 @@ namespace NetworkLibrary.P2P.Generic
                             MessageId = state.StateId
                         });
 
-                        peerCryptos.TryAdd(relayServerEndpoint, udpEncriptor);
+                        peerCryptos.TryAdd(relayServerEndpoint, udpEncryiptor);
 
-                        Volatile.Write(ref isConnected, true);
+                        IsConnected = true;
                         pinger.PeerRegistered(sessionId);
 
                         stateCompletion.SetResult(true);
@@ -162,7 +226,7 @@ namespace NetworkLibrary.P2P.Generic
             catch { throw; }
             finally
             {
-                connecting = false;
+                Interlocked.Exchange(ref connecting, 0);
             }
         }
 
@@ -197,6 +261,7 @@ namespace NetworkLibrary.P2P.Generic
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Disconnect()
         {
+            CheckDisposedAndThrow();
             tcpMessageClient?.Disconnect();
 
         }
@@ -205,6 +270,8 @@ namespace NetworkLibrary.P2P.Generic
         {
             lock (registeryLocker)
             {
+                IsConnected = false;
+
                 foreach (var peer in PeerInfos)
                 {
                     OnPeerUnregistered?.Invoke(peer.Key);
@@ -215,8 +282,6 @@ namespace NetworkLibrary.P2P.Generic
                 peerCryptos.Clear();
                 punchedEndpoints.Clear();
 
-                OnDisconnected?.Invoke();
-                IsConnected = false;
                 foreach (var item in RUdpModules)
                 {
                     foreach (var m in item.Value)
@@ -230,6 +295,9 @@ namespace NetworkLibrary.P2P.Generic
                     item.Value?.Release();
                 }
                 JumboUdpModules.Clear();
+
+                OnDisconnected?.Invoke();
+
             }
 
         }
@@ -238,6 +306,13 @@ namespace NetworkLibrary.P2P.Generic
 
         #region Ping
         CancellationTokenSource cts;
+        /// <summary>
+        /// Starts a ping service where this peer pings all other peers periodically.
+        /// </summary>
+        /// <param name="intervalMs"></param>
+        /// <param name="sendToServer"></param>
+        /// <param name="sendTcpToPeers"></param>
+        /// <param name="sendUdpToPeers"></param>
         public void StartPingService(int intervalMs = 1000,
                                      bool sendToServer = true,
                                      bool sendTcpToPeers = true,
@@ -245,7 +320,11 @@ namespace NetworkLibrary.P2P.Generic
         {
             cts?.Cancel();
             cts = new CancellationTokenSource();
-            Task.Run(() => SendPing(intervalMs, sendToServer, sendTcpToPeers, sendUdpToPeers, cts.Token));
+            try
+            {
+                Task.Run(() => SendPing(intervalMs, sendToServer, sendTcpToPeers, sendUdpToPeers, cts.Token));
+            }
+            catch(Exception e) when (e is TaskCanceledException) { };
         }
         public void StopPingService()
         {
@@ -274,7 +353,7 @@ namespace NetworkLibrary.P2P.Generic
                         tcpMessageClient.SendAsyncMessage(msg);
                         pinger.NotifyTcpPingSent(sessionId, time);
 
-                        SendUdpMesssage(sessionId, msg);
+                        SendUdpMessage(sessionId, msg);
                         pinger.NotifyUdpPingSent(sessionId, time);
                     }
 
@@ -319,7 +398,7 @@ namespace NetworkLibrary.P2P.Generic
                     tcpMessageClient.SendAsyncMessage(message);
                 }
                 else
-                    SendUdpMesssage(message.From, message);
+                    SendUdpMessage(message.From, message);
             }
 
 
@@ -330,11 +409,19 @@ namespace NetworkLibrary.P2P.Generic
             if (isTcp) pinger.HandleTcpPongMessage(message);
             else pinger.HandleUdpPongMessage(message);
         }
-
+        /// <summary>
+        /// Gets Tcp Ping status per peer
+        /// </summary>
+        /// <returns>Dictionary of peer id and latency</returns>
         public Dictionary<Guid, double> GetTcpPingStatus()
         {
             return pinger.GetTcpLatencies();
         }
+
+        /// <summary>
+        /// Gets Udp Ping status per peer
+        /// </summary>
+        /// <returns>Dictionary of peer id and latency</returns>
         public Dictionary<Guid, double> GetUdpPingStatus()
         {
             return pinger.GetUdpLatencies();
@@ -352,19 +439,19 @@ namespace NetworkLibrary.P2P.Generic
             {
                 endpoint = endpoints.ToSend;
                 algo = peerCryptos[endpoint];
-
             }
             else
             {
                 endpoint = relayServerEndpoint;
-                algo = udpEncriptor;
-
+                algo = udpEncryiptor;
             }
-            if (message.PayloadCount > MaxUdpPackageSize)
+
+            if (message.PayloadCount > maxUdpPackageSize)
             {
                 SendLargeUdpMessage(toId,message);
                 return;
             }
+
             if (!udpServer.TrySendAsync(endpoint, message, algo, out var excessStream))
             {
 
@@ -374,6 +461,7 @@ namespace NetworkLibrary.P2P.Generic
                     MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable To find jumbo module with Id: " + toId + " in session " + sessionId);
             }
         }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private unsafe void SendLargeUdpMessage(Guid toId, MessageEnvelope message)
         {
@@ -414,7 +502,7 @@ namespace NetworkLibrary.P2P.Generic
             else
             {
                 endpoint = relayServerEndpoint;
-                algo = udpEncriptor;
+                algo = udpEncryiptor;
 
             }
 
@@ -441,7 +529,7 @@ namespace NetworkLibrary.P2P.Generic
             else
             {
                 endpoint = relayServerEndpoint;
-                algo = udpEncriptor;
+                algo = udpEncryiptor;
 
             }
 
@@ -457,8 +545,12 @@ namespace NetworkLibrary.P2P.Generic
         }
 
 
-
-        public void SendUdpMesssage(Guid toId, MessageEnvelope message)
+        /// <summary>
+        /// Sends the UDP message with bytes provided in envelope payload.
+        /// </summary>
+        /// <param name="toId">To PeerId.</param>
+        /// <param name="message">The message envelope.</param>
+        public void SendUdpMessage(Guid toId, MessageEnvelope message)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
@@ -469,7 +561,14 @@ namespace NetworkLibrary.P2P.Generic
 
         }
 
-        public void SendUdpMesssage(Guid toId, MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
+        /// <summary>
+        /// Sends the UDP message with callback. Right after envelope bytes are serialized,
+        /// Callback brings serialization stream for custom payload, this is to avoid extra copy.
+        /// </summary>
+        /// <param name="toId">To PeerId.</param>
+        /// <param name="message">The message envelope.</param>
+        /// <param name="serializationCallback">The serialization callback.</param>
+        public void SendUdpMessage(Guid toId, MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
@@ -480,7 +579,14 @@ namespace NetworkLibrary.P2P.Generic
 
         }
 
-        public void SendUdpMesssage<T>(Guid toId, MessageEnvelope message, T innerMessage)
+        /// <summary>
+        /// Sends the UDP message.
+        /// </summary>
+        /// <typeparam name="T">The secondary message to be serialized</typeparam>
+        /// <param name="toId">To PeerId.</param>
+        /// <param name="message">The message envelope.</param>
+        /// <param name="innerMessage">The inner message.</param>
+        public void SendUdpMessage<T>(Guid toId, MessageEnvelope message, T innerMessage)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
                 return;
@@ -492,22 +598,12 @@ namespace NetworkLibrary.P2P.Generic
             SendUdpMesssageInternal(toId, message, innerMessage);
         }
 
-        public void SendUdpMesssage(Guid toId, byte[] data, int offset, int count, string dataName)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
 
-            MessageEnvelope env = new MessageEnvelope();
-            env.From = sessionId;
-            env.To = toId;
-            env.Header = dataName;
-            env.SetPayload(data, offset, count);
-
-
-            SendUdpMesssageInternal(toId, env);
-
-        }
-        #region Broadcast/Multicast Udp
+        #region Broadcast/Multicast Udp        
+        /// <summary>
+        /// Broadcasts the UDP message to all connected peers.
+        /// </summary>
+        /// <param name="message">The message.</param>
         public void BroadcastUdpMessage(MessageEnvelope message)
         {
             if (Peers.Count > 0)
@@ -530,7 +626,7 @@ namespace NetworkLibrary.P2P.Generic
                 if (sendToRelay)
                 {
                     message.To = Guid.Empty;
-                    if (!udpServer.TrySendAsync(relayServerEndpoint, message, udpEncriptor, out _))
+                    if (!udpServer.TrySendAsync(relayServerEndpoint, message, udpEncryiptor, out _))
                     {
                         // unicast, message is too large.
                         foreach (var item in Peers)
@@ -547,7 +643,12 @@ namespace NetworkLibrary.P2P.Generic
         }
 
 
-
+        /// <summary>
+        /// Broadcasts the UDP message to all connected peers.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="message">The message.</param>
+        /// <param name="innerMessage">The inner message.</param>
         public void BroadcastUdpMessage<T>(MessageEnvelope message, T innerMessage)
         {
             if (Peers.Count > 0)
@@ -570,7 +671,7 @@ namespace NetworkLibrary.P2P.Generic
                 if (sendToRelay)
                 {
                     message.To = Guid.Empty;
-                    if (!udpServer.TrySendAsync(relayServerEndpoint, message, innerMessage, udpEncriptor, out _))
+                    if (!udpServer.TrySendAsync(relayServerEndpoint, message, innerMessage, udpEncryiptor, out _))
                     {
                         // unicast, message is too large.
                         foreach (var item in Peers)
@@ -607,7 +708,7 @@ namespace NetworkLibrary.P2P.Generic
             if (sendToRelay)
             {
                 message.To = Guid.Empty;
-                if (!udpServer.TrySendAsync(relayServerEndpoint, message, udpEncriptor, out _))  
+                if (!udpServer.TrySendAsync(relayServerEndpoint, message, udpEncryiptor, out _))  
                 {
                     // unicast if too large
                     foreach (var target in targets)
@@ -646,7 +747,7 @@ namespace NetworkLibrary.P2P.Generic
             if (sendToRelay)
             {
                 message.To = Guid.Empty;
-                if (!udpServer.TrySendAsync(relayServerEndpoint, message, innerMessage, udpEncriptor, out _))
+                if (!udpServer.TrySendAsync(relayServerEndpoint, message, innerMessage, udpEncryiptor, out _))
                 {
                     foreach (var target in targets)
                     {
@@ -666,6 +767,10 @@ namespace NetworkLibrary.P2P.Generic
         }
         #endregion
 
+        /// <summary>
+        /// Broadcasts Tcp message to all connected peers.
+        /// </summary>
+        /// <param name="message">The message.</param>
         public void BroadcastMessage(MessageEnvelope message)
         {
             if (Peers.Count > 0)
@@ -676,6 +781,12 @@ namespace NetworkLibrary.P2P.Generic
             }
         }
 
+        /// <summary>
+        /// Broadcasts Tcp message.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="message">The message.</param>
+        /// <param name="innerMessage">The inner message.</param>
         public void BroadcastMessage<T>(MessageEnvelope message, T innerMessage)
         {
             if (Peers.Count > 0)
@@ -686,6 +797,11 @@ namespace NetworkLibrary.P2P.Generic
             }
         }
 
+        /// <summary>
+        /// Sends the asynchronous TCP message.
+        /// </summary>
+        /// <param name="toId">To PeerId.</param>
+        /// <param name="message">The message envelope.</param>
         public void SendAsyncMessage(Guid toId, MessageEnvelope message)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -696,7 +812,13 @@ namespace NetworkLibrary.P2P.Generic
             tcpMessageClient.SendAsyncMessage(message);
         }
 
-
+        /// <summary>
+        /// Sends the asynchronous TCP message.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="toId">To PeerId.</param>
+        /// <param name="envelope">The message envelope.</param>
+        /// <param name="message">The message.</param>
         public void SendAsyncMessage<T>(Guid toId, MessageEnvelope envelope, T message)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -707,6 +829,12 @@ namespace NetworkLibrary.P2P.Generic
             tcpMessageClient.SendAsyncMessage(envelope, message);
         }
 
+        /// <summary>
+        /// Sends the asynchronous message.
+        /// </summary>
+        /// <param name="toId">To PeerId.</param>
+        /// <param name="envelope">The message envelope.</param>
+        /// <param name="serializationCallback">The serialization callback.</param>
         public void SendAsyncMessage(Guid toId, MessageEnvelope envelope, Action<PooledMemoryStream> serializationCallback)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -717,6 +845,13 @@ namespace NetworkLibrary.P2P.Generic
             tcpMessageClient.SendAsyncMessage(envelope, serializationCallback);
         }
 
+        /// <summary>
+        /// Sends the asynchronous TCP message.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="toId">To identifier.</param>
+        /// <param name="message">The message envelope.</param>
+        /// <param name="messageHeader">The message header.</param>
         public void SendAsyncMessage<T>(Guid toId, T message, string messageHeader = null)
         {
             if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
@@ -732,34 +867,16 @@ namespace NetworkLibrary.P2P.Generic
             tcpMessageClient.SendAsyncMessage(envelope, message);
         }
 
-        public void SendAsyncMessage(Guid toId, byte[] data, string dataName)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            var envelope = new MessageEnvelope()
-            {
-                From = sessionId,
-                To = toId,
-                Header = dataName
-            };
-            tcpMessageClient.SendAsyncMessage(envelope, data, 0, data.Length);
-        }
-
-        public void SendAsyncMessage(Guid toId, byte[] data, int offset, int count, string dataName)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-
-            var envelope = new MessageEnvelope()
-            {
-                From = sessionId,
-                To = toId,
-                Header = dataName
-            };
-            tcpMessageClient.SendAsyncMessage(envelope, data, offset, count);
-        }
-
+        /// <summary>
+        /// Sends a TCP message and wait response with a timeout.
+        /// Receiving end must send reply with same MessageId.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="toId">To identifier.</param>
+        /// <param name="message">The message.</param>
+        /// <param name="messageHeader">The message header.</param>
+        /// <param name="timeoutMs">The timeout ms.</param>
+        /// <returns></returns>
         public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, T message, string messageHeader = null, int timeoutMs = 10000)
         {
             var envelope = new MessageEnvelope()
@@ -774,19 +891,14 @@ namespace NetworkLibrary.P2P.Generic
             return task;
         }
 
-        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, byte[] data, string dataName, int timeoutMs = 10000)
-        {
-            var envelope = new MessageEnvelope()
-            {
-                From = sessionId,
-                To = toId,
-                MessageId = Guid.NewGuid(),
-                Header = dataName
-            };
-
-            var response = tcpMessageClient.SendMessageAndWaitResponse(envelope, data, 0, data.Length, timeoutMs);
-            return response;
-        }
+        /// <summary>
+        /// Sends a TCP message and wait response with a timeout.
+        /// Receiving end must send reply with same MessageId.
+        /// </summary>
+        /// <param name="toId">To identifier.</param>
+        /// <param name="message">The message.</param>
+        /// <param name="timeoutMs">The timeout ms.</param>
+        /// <returns></returns>
         public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, int timeoutMs = 10000)
         {
             message.From = sessionId;
@@ -795,15 +907,17 @@ namespace NetworkLibrary.P2P.Generic
             var response = tcpMessageClient.SendMessageAndWaitResponse(message, timeoutMs);
             return response;
         }
-        public Task<MessageEnvelope> SendRequestAndWaitResponse(Guid toId, MessageEnvelope message, byte[] buffer, int offset, int count, int timeoutMs = 10000)
-        {
-            message.From = sessionId;
-            message.To = toId;
 
-            var response = tcpMessageClient.SendMessageAndWaitResponse(message, buffer, offset, count, timeoutMs);
-            return response;
-        }
-
+        /// <summary>
+        /// Sends a TCP message and wait response with a timeout.
+        /// Receiving end must send reply with same MessageId.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="toId">To identifier.</param>
+        /// <param name="envelope">The envelope.</param>
+        /// <param name="message">The message.</param>
+        /// <param name="timeoutMs">The timeout ms.</param>
+        /// <returns></returns>
         public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid toId, MessageEnvelope envelope, T message, int timeoutMs = 10000)
         {
             envelope.From = sessionId;
@@ -827,6 +941,7 @@ namespace NetworkLibrary.P2P.Generic
             }
             return udpReceiveBuffer;
         }
+
         private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
             if (peerCryptos.TryGetValue(adress, out var crypto))
@@ -866,6 +981,7 @@ namespace NetworkLibrary.P2P.Generic
 
                 }
             }
+            
 
         }
         private void HandleUdpMessageReceived(MessageEnvelope message)
@@ -936,6 +1052,7 @@ namespace NetworkLibrary.P2P.Generic
                 if (Awaiter.IsWaiting(message.MessageId))
                 {
                     Awaiter.ResponseArrived(message);
+                    return;
                 }
                 switch (message.Header)
                 {
@@ -964,12 +1081,26 @@ namespace NetworkLibrary.P2P.Generic
 
         #endregion
 
-        #region Hole Punch
+        #region Hole Punch        
+        /// <summary>
+        /// Requests Udp hole punch between this and target peer.
+        /// </summary>
+        /// <param name="peerId">The peer target.</param>
+        /// <param name="timeOut">The time out.</param>
+        /// <param name="encrypted">if set to <c>true</c> [encrypted].</param>
+        /// <returns></returns>
         public bool RequestHolePunch(Guid peerId, int timeOut = 10000, bool encrypted = true)
         {
             return RequestHolePunchAsync(peerId, timeOut, encrypted).Result;
         }
 
+        /// <summary>
+        /// Requests Udp hole punch between this and target peer.
+        /// </summary>
+        /// <param name="peerId">The peer identifier.</param>
+        /// <param name="timeOut">The time out.</param>
+        /// <param name="encrypted">if set to <c>true</c> [encrypted].</param>
+        /// <returns></returns>
         public Task<bool> RequestHolePunchAsync(Guid peerId, int timeOut, bool encrypted = true)
         {
             if (clientStateManager.IsHolepunchStatePending(peerId) )
@@ -1022,7 +1153,6 @@ namespace NetworkLibrary.P2P.Generic
                     continue;
                 }
                 peerCryptos.TryRemove(ipEp, out _);
-                Console.WriteLine(ipEp + "removed");
             }
             if (!peerCryptos.ContainsKey(state.succesfulEpToReceive))
             {
@@ -1081,14 +1211,6 @@ namespace NetworkLibrary.P2P.Generic
                 {
                     if (!serverPeerInfo.PeerIds.ContainsKey(peer))
                     {
-                        //Peers.TryRemove(peer, out _);
-
-                        //if(punchedEndpoints.TryRemove(peer, out var ep) && ep !=null)
-                        //    peerCryptos.TryRemove(ep, out _);
-
-                        //RemoveRudpModule(peer);
-                        //pinger.PeerUnregistered(peer);
-                        //PeerInfos.TryRemove(peer, out _);
                         HandleUnRegistered(peer);
                         unregistered.Add(peer);
                     }
@@ -1098,10 +1220,6 @@ namespace NetworkLibrary.P2P.Generic
                 {
                     if (!Peers.TryGetValue(peer, out _))
                     {
-                        //Peers.TryAdd(peer, true);
-                        //CreateRudpModule(peer);
-                        //pinger.PeerRegistered(peer);
-                        //PeerInfos.TryAdd(peer, new PeerInformation(serverPeerInfo.PeerIds[peer
                         HandleRegistered(peer, serverPeerInfo.PeerIds);
                         registered.Add(peer);
                     }
@@ -1149,49 +1267,6 @@ namespace NetworkLibrary.P2P.Generic
         }
         #endregion
 
-        [ThreadStatic]
-        private static byte[] buffer;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static byte[] GetBuffer2()
-        {
-            if (buffer == null)
-            {
-                buffer = ByteCopy.GetNewArray(65000, true);
-            }
-            return buffer;
-        }
-        private void SendUdpRaw(Guid toId, MessageEnvelope message, byte[] b, int o, int c)
-        {
-            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
-                return;
-            message.From = sessionId;
-            message.To = toId;
-
-            o = 0;
-            serialiser.EnvelopeMessageWithBytesDontWritePayload(b, ref o, message, message.PayloadCount);
-            o = 0;
-
-            ConcurrentAesAlgorithm algo;
-            IPEndPoint endpoint;
-            if (punchedEndpoints.TryGetValue(toId, out var endpoints))
-            {
-                endpoint = endpoints.ToSend;
-                algo = peerCryptos[endpoint];
-
-            }
-            else
-            {
-                endpoint = relayServerEndpoint;
-                algo = udpEncriptor;
-
-            }
-            var buff = GetBuffer2();
-            int amountEncypted = algo.EncryptInto(b, 0, c, buff, 0);
-            udpServer.SendBytesToClient(endpoint, buff, 0, amountEncypted);
-         
-        }
-
         #region Jumbo
         private void RemoveJudpModule(Guid peerId)
         {
@@ -1225,6 +1300,51 @@ namespace NetworkLibrary.P2P.Generic
             var msg = serialiser.DeserialiseEnvelopedMessage(arg1, arg2, arg3);
             HandleUdpMessageReceived(msg);
         }
+
+        [ThreadStatic]
+        private static byte[] buffer;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static byte[] GetBuffer2()
+        {
+            if (buffer == null)
+            {
+                buffer = ByteCopy.GetNewArray(65000, true);
+            }
+            return buffer;
+        }
+
+        private void SendUdpRaw(Guid toId, MessageEnvelope message, byte[] b, int o, int c)
+        {
+            if (!Peers.TryGetValue(toId, out _) && toId != sessionId)
+                return;
+            message.From = sessionId;
+            message.To = toId;
+
+            o = 0;
+            serialiser.EnvelopeMessageWithBytesDontWritePayload(b, ref o, message, message.PayloadCount);
+            o = 0;
+
+            ConcurrentAesAlgorithm algo;
+            IPEndPoint endpoint;
+            if (punchedEndpoints.TryGetValue(toId, out var endpoints))
+            {
+                endpoint = endpoints.ToSend;
+                algo = peerCryptos[endpoint];
+
+            }
+            else
+            {
+                endpoint = relayServerEndpoint;
+                algo = udpEncryiptor;
+
+            }
+            var buff = GetBuffer2();
+            int amountEncypted = algo.EncryptInto(b, 0, c, buff, 0);
+            udpServer.SendBytesToClient(endpoint, buff, 0, amountEncypted);
+
+        }
+
         #endregion
 
         #region Rudp
@@ -1322,6 +1442,12 @@ namespace NetworkLibrary.P2P.Generic
 
         }
 
+        /// <summary>
+        /// Sends Reliable Udp message.
+        /// </summary>
+        /// <param name="to">To.</param>
+        /// <param name="msg">The Message.</param>
+        /// <param name="channel">The channel.</param>
         public void SendRudpMessage(Guid to, MessageEnvelope msg, RudpChannel channel = RudpChannel.Ch1)
         {
             if (RUdpModules.TryGetValue(to, out var mod))
@@ -1335,16 +1461,25 @@ namespace NetworkLibrary.P2P.Generic
 
                 var first = new Segment(stream.GetBuffer(), 0, stream.Position32);
                 Segment second;
+
                 if (msg.Payload == null)
                     second = new Segment(new byte[0], 0, 0);
                 else
                     second = new Segment(msg.Payload, msg.PayloadOffset, msg.PayloadCount);
-                mod[(int)channel].Send(first, second);
 
+                mod[(int)channel].Send(first, second);
                 SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
         }
 
+        /// <summary>
+        /// Sends Reliable Udp message.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="to">To.</param>
+        /// <param name="msg">The MSG.</param>
+        /// <param name="innerMessage">The inner message.</param>
+        /// <param name="channel">The channel.</param>
         public void SendRudpMessage<T>(Guid to, MessageEnvelope msg, T innerMessage, RudpChannel channel = RudpChannel.Ch1)
         {
             if (RUdpModules.TryGetValue(to, out var mod))
@@ -1359,7 +1494,16 @@ namespace NetworkLibrary.P2P.Generic
                 SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
         }
-      
+
+        /// <summary>
+        /// Sends the reliable message and wait response.
+        /// Receiving end must reply with same message id.
+        /// </summary>
+        /// <param name="to">To.</param>
+        /// <param name="msg">The MSG.</param>
+        /// <param name="timeoutMs">The timeout ms.</param>
+        /// <param name="channel">The channel.</param>
+        /// <returns></returns>
         public Task<MessageEnvelope> SendRudpMessageAndWaitResponse(Guid to, MessageEnvelope msg, int timeoutMs = 10000, RudpChannel channel = RudpChannel.Ch1)
         {
             if (RUdpModules.TryGetValue(to, out var mod))
@@ -1387,6 +1531,18 @@ namespace NetworkLibrary.P2P.Generic
             return Task.FromResult(new MessageEnvelope() { Header = MessageEnvelope.RequestCancelled });
         }
 
+
+        /// <summary>
+        /// Sends the reliable message and wait response.
+        /// Receiving end must reply with same message id.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="to">To.</param>
+        /// <param name="msg">The MSG.</param>
+        /// <param name="innerMessage">The inner message.</param>
+        /// <param name="timeoutMs">The timeout ms.</param>
+        /// <param name="channel">The channel.</param>
+        /// <returns></returns>
         public Task<MessageEnvelope> SendRudpMessageAndWaitResponse<T>(Guid to, MessageEnvelope msg, T innerMessage, int timeoutMs = 10000, RudpChannel channel = RudpChannel.Ch1)
         {
             if (RUdpModules.TryGetValue(to, out var mod))
@@ -1429,7 +1585,42 @@ namespace NetworkLibrary.P2P.Generic
             //SendAsyncMessage(destinatioinId, message);
         }
 
+        private void CheckDisposedAndThrow()
+        {
+            if (Interlocked.CompareExchange(ref disposed, 0, 0) == 1)
+            {
+                throw new ObjectDisposedException(nameof(RelayClientBase<S>));
+            }
+        }
+        public void Dispose()
+        {
+            if (Interlocked.CompareExchange(ref disposed, 1, 0) == 0)
+            {
+                udpServer.Dispose();
+                tcpMessageClient.Dispose();
+                OnPeerRegistered = null;
+                OnPeerUnregistered = null;
+                OnUdpMessageReceived = null;
+                OnMessageReceived = null;
+                OnDisconnected = null;
 
+                foreach (var item in RUdpModules)
+                {
+                    foreach (var m in item.Value)
+                    {
+                        m?.Release();
+                    }
+                }
+                RUdpModules.Clear();
+                foreach (var item in JumboUdpModules)
+                {
+                    item.Value?.Release();
+                }
+                JumboUdpModules.Clear();
+
+            }    
+        }
+       
 
 
         #endregion

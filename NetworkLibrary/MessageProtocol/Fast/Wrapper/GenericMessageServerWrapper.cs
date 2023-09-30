@@ -25,9 +25,8 @@ namespace NetworkLibrary.MessageProtocol.Fast
         public GenericMessageServerWrapper(int port)
         {
             server = new MessageServer<S>(port);
-            server.DeserializeMessages = false;
             server.OnClientAccepted += HandleClientAccepted;
-            server.OnBytesReceived += OnBytesReceived;
+            server.OnMessageReceived  = (guid,message)=>OnMessageReceived?.Invoke(guid,message);
             server.OnClientDisconnected += HandleClientDisconnected;
 
             server.MaxIndexedMemoryPerClient = 128000000;
@@ -35,26 +34,6 @@ namespace NetworkLibrary.MessageProtocol.Fast
 
         public void StartServer() => server.StartServer();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected virtual void OnBytesReceived(Guid guid, byte[] bytes, int offset, int count)
-        {
-            MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-            if (!CheckAwaiter(message))
-            {
-                OnMessageReceived?.Invoke(guid, message);
-            }
-        }
-
-        protected bool CheckAwaiter(MessageEnvelope message)
-        {
-            if (server.Awaiter.IsWaiting(message.MessageId))
-            {
-                message.LockBytes();
-                server.Awaiter.ResponseArrived(message);
-                return true;
-            }
-            return false;
-        }
 
         public void GetStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
            => server.GetStatistics(out generalStats, out sessionStats);

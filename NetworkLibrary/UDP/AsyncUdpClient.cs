@@ -29,7 +29,17 @@ namespace NetworkLibrary.UDP
                 clientSocket.SendBufferSize = value; socketSendBufferSize = value;
             }
         }
-
+        public bool EnableBroadcast
+        {
+            get
+            {
+                return clientSocket.EnableBroadcast;
+            }
+            set
+            {
+                clientSocket.EnableBroadcast = value;
+            }
+        }
         public EndPoint LocalEndpoint => clientSocket.LocalEndPoint;
 
         public EndPoint RemoteEndPoint { get => remoteEndPoint; private set => remoteEndPoint = value; }

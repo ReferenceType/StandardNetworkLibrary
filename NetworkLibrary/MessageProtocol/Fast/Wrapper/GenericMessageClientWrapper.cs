@@ -19,9 +19,7 @@ namespace NetworkLibrary.MessageProtocol.Fast
         public GenericMessageClientWrapper()
         {
             client = new MessageClient<S>();
-            client.OnBytesReceived += BytesReceived;
-            client.DeserializeMessages = false;
-            //client.OnMessageReceived += HandleMessageReceived;
+            client.OnMessageReceived += HandleMessageReceived;
             client.OnDisconnected += Disconnected;
             client.MaxIndexedMemory = 128000000;
 
@@ -33,19 +31,7 @@ namespace NetworkLibrary.MessageProtocol.Fast
         {
             OnMessageReceived?.Invoke(message);
         }
-        private void BytesReceived(byte[] bytes, int offset, int count)
-        {
-            MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-
-            if (client.Awaiter.IsWaiting(message.MessageId))
-            {
-                message.LockBytes();
-                client.Awaiter.ResponseArrived(message);// maybe consolidate bytes here
-            }
-            else
-                OnMessageReceived?.Invoke(message);
-
-        }
+      
         public void Connect(string host, int port)
         {
             client.Connect(host, port);

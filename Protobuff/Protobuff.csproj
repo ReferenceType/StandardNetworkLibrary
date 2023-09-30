@@ -11,7 +11,7 @@
     <Copyright>Apache-2.0</Copyright>
     <Product>ProtobufNetworkLibrary</Product>
     <AssemblyVersion>2.01</AssemblyVersion>
-    <Version>2.0.2</Version>
+    <Version>2.1.0</Version>
     <FileVersion>2.0.1</FileVersion>
     <PackageReleaseNotes>Relay Server and Room Server is moved to NetworkLibrary.P2P and its deprecated on this assembly.
 Minor fixes</PackageReleaseNotes>

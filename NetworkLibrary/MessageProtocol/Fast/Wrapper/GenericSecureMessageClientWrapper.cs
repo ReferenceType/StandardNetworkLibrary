@@ -24,8 +24,7 @@ namespace NetworkLibrary.MessageProtocol.Fast
         public GenericSecureMessageClientWrapper(X509Certificate2 certificate)
         {
             client = new SecureMessageClient<S>(certificate);
-            client.DeserializeMessages = false;
-            client.OnBytesReceived += BytesReceived;
+            client.OnMessageReceived = (m)=>OnMessageReceived?.Invoke(m);
             client.OnDisconnected += Disconnected;
             client.MaxIndexedMemory = 128000000;
 
@@ -33,17 +32,7 @@ namespace NetworkLibrary.MessageProtocol.Fast
 
         }
 
-        private void BytesReceived(byte[] bytes, int offset, int count)
-        {
-            MessageEnvelope message = serialiser.DeserialiseEnvelopedMessage(bytes, offset, count);
-            if (client.Awaiter.IsWaiting(message.MessageId))
-            {
-                message.LockBytes();
-                client.Awaiter.ResponseArrived(message);
-            }
-            else
-                OnMessageReceived?.Invoke(message);
-        }
+        
 
         private bool DefaultValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {

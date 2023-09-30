@@ -1,7 +1,7 @@
 ﻿using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.MessageProtocol;
 using System;
-namespace NetworkLibrary.Generic
+namespace NetworkLibrary.TCP.Generic
 {
     internal class GenericBuffer<S> : MessageBuffer where S : ISerializer, new()
     {

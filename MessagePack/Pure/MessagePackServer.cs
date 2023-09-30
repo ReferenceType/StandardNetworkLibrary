@@ -1,6 +1,6 @@
 ﻿using MessagePack;
 using MessagePackNetwork.Components;
-using NetworkLibrary.Generic;
+using NetworkLibrary.TCP.Generic;
 using System;
 using System.Collections.Generic;
 using System.Linq;

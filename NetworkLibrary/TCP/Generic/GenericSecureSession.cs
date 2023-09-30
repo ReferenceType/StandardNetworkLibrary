@@ -1,19 +1,21 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.TCP.Base;
+using NetworkLibrary.TCP.SSL.Base;
 using System;
-using System.Net.Sockets;
+using System.Net.Security;
 using System.Runtime.CompilerServices;
 
-namespace NetworkLibrary.Generic
+namespace NetworkLibrary.TCP.Generic
 {
-    internal class GenericSession<S> : TcpSession
-       where S : ISerializer, new()
+    internal class GenericSecureSession<S> : SslSession
+        where S : ISerializer, new()
     {
         protected GenericBuffer<S> mq;
         private ByteMessageReader reader;
         private readonly bool writeMsgLenghtPrefix;
-        public GenericSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, bool writeMsgLenghtPrefix = true) : base(acceptedArg, sessionId)
+
+        public GenericSecureSession(Guid sessionId, SslStream sessionStream, bool writeMsgLenghtPrefix = true)
+            : base(sessionId, sessionStream)
         {
             this.writeMsgLenghtPrefix = writeMsgLenghtPrefix;
             reader = new ByteMessageReader(sessionId);
@@ -84,7 +86,7 @@ namespace NetworkLibrary.Generic
             // you have to push it to queue because queue also does the processing.
             mq.TryEnqueueMessage(message);
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            FlushSendBuffer(0, amountWritten);
+            WriteOnSessionStream(amountWritten);
 
         }
 

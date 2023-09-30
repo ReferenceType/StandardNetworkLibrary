@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
-    public class SslClient : TcpClientBase
+    public class SslClient : TcpClientBase, IDisposable
     {
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         protected Socket clientSocket;
@@ -59,41 +59,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                 var clientSocket = GetSocket();
 
                 // this shit is terrible..
-                // await clientSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ip), port)).ConfigureAwait(false);
-
-
-                /* Unmerged change from project 'NetworkLibrary (net6.0)'
-                Before:
-                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                                var earg = new SocketAsyncEventArgs();
-                After:
-                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                                var earg = new SocketAsyncEventArgs();
-                */
-
-                /* Unmerged change from project 'NetworkLibrary (net7.0)'
-                Before:
-                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                                var earg = new SocketAsyncEventArgs();
-                After:
-                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                                var earg = new SocketAsyncEventArgs();
-                */
-
-                /* Unmerged change from project 'NetworkLibrary (netstandard2.0)'
-                Before:
-                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                                var earg = new SocketAsyncEventArgs();
-                After:
-                                var tcs =  new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                                var earg = new SocketAsyncEventArgs();
-                */
+                
                 var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
                 var earg = new SocketAsyncEventArgs();
@@ -155,7 +121,8 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
             sslStream.AuthenticateAsClient(domainName,
-            new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
+                new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
+
             this.clientSocket = clientSocket;
             var Id = Guid.NewGuid();
 
@@ -224,6 +191,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         public override void GetStatistics(out TcpStatistics generalStats)
         {
             statisticsPublisher.GetStatistics(out generalStats);
+        }
+
+        public virtual void Dispose()
+        {
+            clientSession?.EndSession();
         }
     }
 }

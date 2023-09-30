@@ -1,39 +1,49 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.TCP.Base;
+using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Sockets;
+using System.Net.Security;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 using static NetworkLibrary.TCP.Base.TcpServerBase;
 
-namespace NetworkLibrary.Generic
+namespace NetworkLibrary.TCP.Generic
 {
-    public class GenericServer<S> where S : ISerializer, new()
+    public class GenericSecureServer<S> where S : ISerializer, new()
 
     {
-        private GenericServerInternal<S> server;
+        private GenericSecureServerInternal<S> server;
         public BytesRecieved BytesReceived;
         public ClientAccepted ClientAccepted;
         public ClientDisconnected ClientDisconnected;
-        public S Serializer =  new S();
-
-        public GenericServer(int port, bool writeLenghtPrefix = true)
+        public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
+        public S Serializer = new S();
+        public GenericSecureServer(int port, X509Certificate2 certificate, bool writeLenghtPrefix = true)
         {
-            server = new GenericServerInternal<S>(port, writeLenghtPrefix);
+            server = new GenericSecureServerInternal<S>(port, certificate, writeLenghtPrefix);
             server.GatherConfig = ScatterGatherConfig.UseBuffer;
             server.OnBytesReceived += OnBytesReceived;
-            server.OnClientAccepted += OnClientAccepted_;
-            server.OnClientDisconnected += OnClientDisconnected_;
+            server.OnClientAccepted += OnClientAccepted;
+            server.OnClientDisconnected += OnClientDisconnected;
+            server.RemoteCertificateValidationCallback += OnValidationCallback;
         }
 
-        private void OnClientDisconnected_(Guid guid)
+        private bool OnValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (RemoteCertificateValidationCallback == null)
+                return true;
+            return RemoteCertificateValidationCallback.Invoke(sender, certificate, chain, sslPolicyErrors);
+        }
+
+        private void OnClientDisconnected(Guid guid)
         {
             ClientDisconnected?.Invoke(guid);
         }
 
-        private void OnClientAccepted_(Guid guid)
+        private void OnClientAccepted(Guid guid)
         {
             ClientAccepted?.Invoke(guid);
         }
@@ -58,41 +68,41 @@ namespace NetworkLibrary.Generic
             => server.GetSessionEndpoint(cliendId);
     }
 
-    internal class GenericServerInternal<S> : AsyncTcpServer
-     where S : ISerializer, new()
+    internal class GenericSecureServerInternal<S> : SslServer
+    where S : ISerializer, new()
     {
         public readonly S serializer = new S();
         private readonly bool writeLenghtPrefix;
-        public GenericServerInternal(int port, bool writeLenghtPrefix = true) : base(port)
+
+        public GenericSecureServerInternal(int port, X509Certificate2 certificate, bool writeLenghtPrefix = true) : base(port, certificate)
         {
             this.writeLenghtPrefix = writeLenghtPrefix;
         }
+
 
         public override void StartServer()
         {
             base.StartServer();
         }
 
-        private GenericSession<S> MakeSession(SocketAsyncEventArgs e, Guid sessionId)
+        private GenericSecureSession<S> MakeSession(Guid sessionId, SslStream sslStream)
         {
-            return new GenericSession<S>(e, sessionId, writeLenghtPrefix);
+            return new GenericSecureSession<S>(sessionId, sslStream, writeLenghtPrefix);
         }
-
-        private protected sealed override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)
+        private protected sealed override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
-            var session = MakeSession(e, sessionId);//new GenericMessageSession(e, sessionId);
-            session.SocketRecieveBufferSize = ClientReceiveBufsize;
+            var session = MakeSession(guid, tuple.Item1);
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
-            session.DropOnCongestion = DropOnBackPressure;
-            session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
+            session.RemoteEndpoint = tuple.Item2;
             return session;
         }
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SendAsync<T>(Guid clientId, T message)
         {
             if (Sessions.TryGetValue(clientId, out var session))
-                ((GenericSession<S>)session).SendAsync(message);
+                ((GenericSecureSession<S>)session).SendAsync(message);
 
         }
 
@@ -102,5 +112,4 @@ namespace NetworkLibrary.Generic
         }
 
     }
-
 }

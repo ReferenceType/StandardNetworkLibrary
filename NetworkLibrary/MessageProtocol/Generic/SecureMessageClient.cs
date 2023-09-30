@@ -15,7 +15,6 @@ namespace MessageProtocol
         where S : ISerializer, new()
     {
         public Action<E> OnMessageReceived;
-        public bool DeserializeMessages = true;
         private GenericMessageSerializer<E, S> serializer;
         private SecureMessageSession<E, S> messageSession;
         internal GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
@@ -25,6 +24,7 @@ namespace MessageProtocol
         {
             RemoteCertificateValidationCallback += ValidateCert;
             GatherConfig = ScatterGatherConfig.UseBuffer;
+            MapReceivedBytes();
         }
 
         protected virtual bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -60,8 +60,7 @@ namespace MessageProtocol
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.RemoteEndpoint = tuple.Item2;
             messageSession = session;
-            if (DeserializeMessages)
-                MapReceivedBytes();
+          
             return session;
         }
 

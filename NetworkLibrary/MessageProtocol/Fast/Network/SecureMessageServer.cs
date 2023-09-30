@@ -14,7 +14,6 @@ namespace NetworkLibrary.MessageProtocol
      where S : ISerializer, new()
     {
         public Action<Guid, MessageEnvelope> OnMessageReceived;
-        public bool DeserializeMessages = true;
         internal GenericMessageAwaiter<MessageEnvelope> awaiter = new GenericMessageAwaiter<MessageEnvelope>();
 
         private GenericMessageSerializer<S> serializer;
@@ -26,6 +25,7 @@ namespace NetworkLibrary.MessageProtocol
             {
                 MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
             }
+            MapReceivedBytes();
         }
 
         protected virtual bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -33,13 +33,6 @@ namespace NetworkLibrary.MessageProtocol
             return true;
         }
 
-        public override void StartServer()
-        {
-            if (DeserializeMessages)
-                MapReceivedBytes();
-
-            base.StartServer();
-        }
 
         protected virtual GenericMessageSerializer<S> CreateMessageSerializer()
         {
@@ -49,10 +42,10 @@ namespace NetworkLibrary.MessageProtocol
         protected virtual void MapReceivedBytes()
         {
             serializer = CreateMessageSerializer();
-            OnBytesReceived += HandleBytes;
+            OnBytesReceived = HandleBytes;
         }
 
-        private void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
+        protected virtual void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
         {
             MessageEnvelope message = serializer.DeserialiseEnvelopedMessage(bytes, offset, count);
             if (!CheckAwaiter(message))

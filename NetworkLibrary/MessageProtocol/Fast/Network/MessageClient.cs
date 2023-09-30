@@ -10,7 +10,6 @@ namespace NetworkLibrary.MessageProtocol
         where S : ISerializer, new()
     {
         public Action<MessageEnvelope> OnMessageReceived;
-        public bool DeserializeMessages = true;
         internal GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
         private GenericMessageSerializer<S> serializer;
         private new MessageSession<S> session;
@@ -20,12 +19,13 @@ namespace NetworkLibrary.MessageProtocol
             {
                 MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
             }
+            MapReceivedBytes();
         }
 
         protected virtual void MapReceivedBytes()
         {
             serializer = new GenericMessageSerializer<S>();
-            OnBytesReceived += HandleBytes;
+            OnBytesReceived = HandleBytes;
         }
 
         private void HandleBytes(byte[] bytes, int offset, int count)
@@ -54,8 +54,7 @@ namespace NetworkLibrary.MessageProtocol
             ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
             session = ses;
 
-            if (DeserializeMessages)
-                MapReceivedBytes();
+            
             return ses;
         }
 

@@ -13,22 +13,14 @@ namespace MessageProtocol
         where S : ISerializer, new()
     {
         public Action<Guid, E> OnMessageReceived;
-        public bool DeserializeMessages = true;
 
         private GenericMessageSerializer<E, S> serializer;
         public GenericMessageAwaiter<E> Awaiter = new GenericMessageAwaiter<E>();
         public MessageServer(int port) : base(port)
         {
-
+            MapReceivedBytes();
         }
 
-        public override void StartServer()
-        {
-            if (DeserializeMessages)
-                MapReceivedBytes();
-
-            base.StartServer();
-        }
         protected virtual GenericMessageSerializer<E, S> CreateMessageSerializer()
         {
             return new GenericMessageSerializer<E, S>();
@@ -58,7 +50,7 @@ namespace MessageProtocol
             session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
-            session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
+            //session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
             return session;
         }
 

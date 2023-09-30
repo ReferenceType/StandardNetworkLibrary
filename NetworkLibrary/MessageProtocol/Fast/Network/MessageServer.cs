@@ -11,7 +11,6 @@ namespace NetworkLibrary.MessageProtocol
         where S : ISerializer, new()
     {
         public Action<Guid, MessageEnvelope> OnMessageReceived;
-        public bool DeserializeMessages = true;
 
         private GenericMessageSerializer<S> serializer;
         internal GenericMessageAwaiter<MessageEnvelope> Awaiter = new GenericMessageAwaiter<MessageEnvelope>();
@@ -21,15 +20,9 @@ namespace NetworkLibrary.MessageProtocol
             {
                 MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
             }
+            MapReceivedBytes();
         }
 
-        public override void StartServer()
-        {
-            if (DeserializeMessages)
-                MapReceivedBytes();
-
-            base.StartServer();
-        }
         protected virtual GenericMessageSerializer<S> CreateMessageSerializer()
         {
             return new GenericMessageSerializer<S>();
@@ -37,7 +30,7 @@ namespace NetworkLibrary.MessageProtocol
         protected virtual void MapReceivedBytes()
         {
             serializer = CreateMessageSerializer();
-            OnBytesReceived += HandleBytes;
+            OnBytesReceived = HandleBytes;
         }
 
         private void HandleBytes(Guid guid, byte[] bytes, int offset, int count)
@@ -59,7 +52,7 @@ namespace NetworkLibrary.MessageProtocol
             session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
-            session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
+            //session.OnSessionClosed += (id) => OnClientDisconnected?.Invoke(id);
             return session;
         }
 

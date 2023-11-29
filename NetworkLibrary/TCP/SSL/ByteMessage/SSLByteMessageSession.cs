@@ -13,7 +13,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
 
         public SslByteMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
         }
 

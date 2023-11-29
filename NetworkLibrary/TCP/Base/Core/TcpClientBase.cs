@@ -66,7 +66,7 @@ namespace NetworkLibrary.TCP.Base
         /// Maximum amount of indexed memory to be held inside the message queue.
         /// it is the cumulative message lengths that are queued.
         /// </summary>
-        public int MaxIndexedMemory { get; set; } = 128000;
+        public int MaxIndexedMemory { get; set; } = 128000000;
 
         /// <summary>
         /// Indicates whether if we should drop the messages on congestion pressure

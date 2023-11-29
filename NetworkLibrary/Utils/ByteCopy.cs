@@ -58,5 +58,13 @@ namespace NetworkLibrary.Utils
                 buffer[offset] = (byte)(value >> 24);
             }
         }
+
+        internal static byte[] Merge(byte[] b1, byte[] b2)
+        {
+            var bf=GetNewArray(b1.Length + b2.Length);
+            BlockCopy(b1, 0, bf, 0, b1.Length);
+            BlockCopy(b2, 0, bf, b1.Length, b2.Length);
+            return bf;
+        }
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace NetworkLibrary.Components
+﻿using NetworkLibrary.Components.Crypto.Algorithms;
+
+namespace NetworkLibrary.Components
 {
 
     public class AesMessageEncryptor : IMessageProcessor
@@ -13,10 +15,10 @@
         int pendingMessageOffset;
         int pendingRemaining;
         private bool writeHeaderOnflush;
-        private AesAlgorithm algorithm;
+        private AesCbcAlgorithm algorithm;
         private int originalOffset;
 
-        public AesMessageEncryptor(AesAlgorithm algorithm)
+        public AesMessageEncryptor(AesCbcAlgorithm algorithm)
         {
             this.algorithm = algorithm;
         }

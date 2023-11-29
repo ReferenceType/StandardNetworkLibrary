@@ -15,7 +15,7 @@ namespace UnitTests
         {
             Stopwatch sw = new Stopwatch();
             int NumMsg = 0;
-            ByteMessageReader msgMan = new ByteMessageReader(new Guid(), 128000);
+            ByteMessageReader msgMan = new ByteMessageReader( 128000);
             msgMan.OnMessageReady += (byte[] msg, int off, int ct) => NumMsg++;
 
             byte[] data = new byte[108];

@@ -11,7 +11,7 @@ using System.Threading;
 namespace NetworkLibrary.TCP.Base
 {
 
-    public class TcpSession : IAsyncSession
+    internal class TcpSession : IAsyncSession
     {
         #region Fields & Props
 
@@ -56,6 +56,11 @@ namespace NetworkLibrary.TCP.Base
         {
             SessionId = sessionId;
             sessionSocket = acceptedArg.AcceptSocket;
+        }
+        public TcpSession(Socket sessionSockt, Guid sessionId)
+        {
+            SessionId = sessionId;
+            sessionSocket = sessionSockt;
         }
 
         #region Initialisation

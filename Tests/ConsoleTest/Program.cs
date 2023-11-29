@@ -58,6 +58,18 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            var ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+          //  ServerSocket.ExclusiveAddressUse = false;
+           // ServerSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            ServerSocket.Bind(new IPEndPoint(IPAddress.Any, 11111));
+            ServerSocket.Listen(1000);
+            var ep = ServerSocket.LocalEndPoint;
+            ServerSocket.Dispose();
+            var ServerSocket1 = new Socket(SocketType.Stream, ProtocolType.Tcp);
+          //  ServerSocket1.ExclusiveAddressUse = false;
+           // ServerSocket1.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            ServerSocket1.Bind(ep);
+
             TestLobby();
             //TestReliableModules();
             Console.ReadLine();
@@ -602,8 +614,8 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             rng.GetNonZeroBytes(random);
             rng.Dispose();
 
-            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(random, random);
-            ConcurrentAesAlgorithm algo2 = new ConcurrentAesAlgorithm(random, random);
+            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(random,NetworkLibrary.Components.Crypto.AesMode.CBCRandomIV);
+            ConcurrentAesAlgorithm algo2 = new ConcurrentAesAlgorithm(random, NetworkLibrary.Components.Crypto.AesMode.CBCRandomIV);
 
             EncryptedUdpProtoClient client1 = new EncryptedUdpProtoClient(algo);
             EncryptedUdpProtoClient client2 = new EncryptedUdpProtoClient(algo2);
@@ -985,8 +997,26 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 Buffer.BlockCopy(bytes, 0, result, 0, 32);
                 return result;
             }
+            ConcurrentDictionary<Guid,bool> messageTracker = new ConcurrentDictionary<Guid, bool>();
+            Task.Run(async () =>
+            {
 
-
+                while (true)
+                {
+                    await Task.Delay(1000);
+                    foreach (var entry in messageTracker)
+                    {
+                        if (entry.Value == true)
+                        {
+                            // Drop Client.
+                        }
+                        else
+                        {
+                            messageTracker[entry.Key] = false;
+                        }
+                    }
+                }
+            });
 
 
         }

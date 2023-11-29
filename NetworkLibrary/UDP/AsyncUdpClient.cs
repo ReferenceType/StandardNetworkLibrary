@@ -47,7 +47,7 @@ namespace NetworkLibrary.UDP
 
         private int receiveBufferSize = 12800000;
         private int socketSendBufferSize = 128000000;
-        private Socket clientSocket;
+        internal Socket clientSocket;
         private IAsyncResult activeRec;
         private EndPoint remoteEndPoint;
 
@@ -84,6 +84,12 @@ namespace NetworkLibrary.UDP
         {
             var bindPoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), port);
             clientSocket.Bind(bindPoint);
+
+        }
+
+        public void Bind(IPEndPoint ep)
+        {
+            clientSocket.Bind(ep);
 
         }
         public void SetRemoteEnd(string ip, int port, bool receive = true)

@@ -16,16 +16,14 @@ namespace NetworkLibrary.Components
         private int currentExpectedByteLenght;
         private int originalCapacity;
 
-        private readonly Guid Guid;
         public event Action<byte[], int, int> OnMessageReady;
 
         private bool awaitingHeader;
 
-        public ByteMessageReader(Guid guid, int bufferSize = 256000)
+        public ByteMessageReader( int bufferSize = 256000)
         {
             awaitingHeader = true;
             currentExpectedByteLenght = 4;
-            Guid = guid;
 
             headerBuffer = new byte[HeaderLenght];
             originalCapacity = bufferSize;

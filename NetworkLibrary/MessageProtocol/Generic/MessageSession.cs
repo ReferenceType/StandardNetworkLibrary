@@ -15,7 +15,7 @@ namespace MessageProtocol
         private ByteMessageReader reader;
         public MessageSession(SocketAsyncEventArgs acceptedArg, Guid sessionId) : base(acceptedArg, sessionId)
         {
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }

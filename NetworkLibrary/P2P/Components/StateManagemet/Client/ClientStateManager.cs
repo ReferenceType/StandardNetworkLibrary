@@ -1,11 +1,12 @@
-﻿using NetworkLibrary.MessageProtocol;
+﻿using NetworkLibrary.Components.Crypto;
+using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.P2P.Generic;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Threading;
 
-namespace NetworkLibrary.P2P.Components.StateManagemet.Client
+namespace NetworkLibrary.P2P.Components.StateManagement.Client
 {
     internal class ClientStateManager<S> : StateManager where S : ISerializer, new()
     {
@@ -27,6 +28,10 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                 case Constants.InitiateHolepunch:
                     AddState(CreateHolepunchState(message));
                     return true;
+                case Constants.InitTCPHPRemote:
+                    AddState(CreateTcpHolePunchStateRemote(message));
+                    return true;
+                   
                 default:
                     return base.HandleMessage(message);
             }
@@ -40,9 +45,9 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                 return null;
             }
 
-            var state = new ClientHolepunchState(message.From, message.MessageId, this, client.relayServerEndpoint);
+            var state = new ClientHolepunchState(message.From, message.MessageId, this, client.relayServerEndpoint, client.AESMode);
             state.Completed += (x) => { OnHolepunchComplete(state); };
-            state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints);
+            state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints, state.destinationId);
             state.InitiateByRemote(message);
             return state;
         }
@@ -51,9 +56,9 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         {
             pendingHolepunchStates.TryAdd(clientId, null);
 
-            var state = new ClientHolepunchState(clientId, stateId, this, client.relayServerEndpoint);
+            var state = new ClientHolepunchState(clientId, stateId, this, client.relayServerEndpoint, client.AESMode);
             state.Completed += (x) => { OnHolepunchComplete(state); };
-            state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints);
+            state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints, state.destinationId);
             AddState(state);
             state.Initiate();
             return state;
@@ -78,7 +83,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         // create a temp state bc we dont know state id yet
         public ClientConnectionState CreateConnectionState()
         {
-            pendingState = new ClientConnectionState(this);
+            pendingState = new ClientConnectionState(this,client.AESMode);
             pendingState.serverEndpoint = client.relayServerEndpoint;
             pendingState.localEndpoints = client.GetLocalEndpoints();
 
@@ -108,6 +113,29 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         internal bool IsHolepunchStatePending(Guid peerId)
         {
             return pendingHolepunchStates.TryGetValue(peerId, out _);
+        }
+
+        internal ClientTcpHolepunchState CreateTcpHolePunchState(Guid destinationId)
+        {
+            var state = new ClientTcpHolepunchState(this, client.relayServerEndpoint);
+            state.InitiateByLocal(client.SessionId, destinationId, Guid.NewGuid());
+            AddState(state);
+            return state;
+        }
+
+        private ClientTcpHolepunchState CreateTcpHolePunchStateRemote(MessageEnvelope msg)
+        {
+            var state = new ClientTcpHolepunchState(this, client.relayServerEndpoint);
+            state.InitiateByRemote(msg);
+
+            state.Completed += (Istate) =>
+            {
+                if(state.Status == StateStatus.Completed)
+                {
+                    client.RegisterTcpNode(Istate);
+                }
+            };
+            return state;
         }
     }
 }

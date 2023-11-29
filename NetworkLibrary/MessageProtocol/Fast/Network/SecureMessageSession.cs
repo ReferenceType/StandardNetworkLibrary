@@ -13,7 +13,7 @@ namespace NetworkLibrary.MessageProtocol
         private ByteMessageReader reader;
         public SecureMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }

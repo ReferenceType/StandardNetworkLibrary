@@ -19,15 +19,21 @@ namespace NetworkLibrary.TCP.Base
         public bool Stopping { get; private set; }
 
         protected Socket ServerSocket;
-        private protected ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; } = new ConcurrentDictionary<Guid, IAsyncSession>();
+        internal ConcurrentDictionary<Guid, IAsyncSession> Sessions { get; private set; } = new ConcurrentDictionary<Guid, IAsyncSession>();
 
         private TcpServerStatisticsPublisher statisticsPublisher;
-
-        public AsyncTcpServer(int port = 20008)
+        private IPEndPoint endpointToBind;
+        public IPEndPoint LocalEndpoint =>(IPEndPoint)ServerSocket.LocalEndPoint;
+        public AsyncTcpServer(int port)
         {
             ServerPort = port;
+            endpointToBind = new IPEndPoint(IPAddress.Any, ServerPort);
         }
-
+        public AsyncTcpServer(IPEndPoint endpointToBind)
+        {
+            ServerPort = endpointToBind.Port;
+            this.endpointToBind = endpointToBind;
+        }
 
         #region Start
         public override void StartServer()
@@ -35,7 +41,7 @@ namespace NetworkLibrary.TCP.Base
             ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             ServerSocket.NoDelay = NaggleNoDelay;
             ServerSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
-            ServerSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
+            ServerSocket.Bind(endpointToBind);
             ServerSocket.Listen(10000);
 
             for (int i = 0; i < Environment.ProcessorCount; i++)

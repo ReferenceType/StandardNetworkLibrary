@@ -2,13 +2,14 @@
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
-namespace NetworkLibrary.Components
+namespace NetworkLibrary.Components.Crypto.Algorithms
 {
-    public class AesAlgorithm : IDisposable
+    public class AesCbcAlgorithm
+        : IDisposable, IAesAlgorithm
     {
         private readonly SymmetricAlgorithm algorithm;
-        private readonly ICryptoTransform encryptor;
-        private readonly ICryptoTransform decryptor;
+        private ICryptoTransform encryptor;
+        private ICryptoTransform decryptor;
 
         public int EncryptorInputBlockSize { get => encryptor.InputBlockSize; }
         public int EncryptorOutputBlockSize { get => encryptor.OutputBlockSize; }
@@ -16,7 +17,7 @@ namespace NetworkLibrary.Components
         public int DecryptorOutputBlockSize { get => decryptor.OutputBlockSize; }
 
         private readonly byte[] finalBlock = new byte[0];
-        public AesAlgorithm(byte[] Key, byte[] IV, string algorithmName = null)
+        public AesCbcAlgorithm(byte[] Key, byte[] IV, string algorithmName = null)
         {
             if (algorithmName == null)
             {
@@ -25,8 +26,9 @@ namespace NetworkLibrary.Components
                 algorithm = new System.Security.Cryptography.RijndaelManaged();
 #else
                 // AES.create is not compatible with Unity... 
-                //algorithm = Aes.Create();
-                algorithm = new System.Security.Cryptography.RijndaelManaged();
+                // algorithm = Aes.Create();
+                algorithm = Aes.Create();
+                //algorithm = new System.Security.Cryptography.RijndaelManaged();
 
 #endif
             }
@@ -44,7 +46,7 @@ namespace NetworkLibrary.Components
 
         public int GetEncriptorOutputSize(int inputSize)
         {
-            return inputSize + (EncryptorOutputBlockSize - (inputSize % EncryptorOutputBlockSize));
+            return inputSize + (EncryptorOutputBlockSize - inputSize % EncryptorOutputBlockSize);
         }
 
         /// <summary>
@@ -195,10 +197,122 @@ namespace NetworkLibrary.Components
             return amountDecripted;
         }
 
+        public int EncryptInto(byte[] data1, int offset1, int count1, byte[] data2, int offset2, int count2, byte[] output, int outputOffset)
+        {
+            //if ((data1 == null))
+            //{
+            //    throw new ArgumentNullException(nameof(data1));
+            //}
+            //if ((data2 == null))
+            //{
+            //    throw new Exception ("data2");
+            //}
+            const int EncryptorOutputBlockSize = 16;
+            if (count1 < EncryptorOutputBlockSize)
+            {
+                if (count2 + count1 < EncryptorOutputBlockSize)
+                {
+                    var total = new byte[count1 + count2];
+                    Buffer.BlockCopy(data1, offset1, total, 0, count1);
+                    Buffer.BlockCopy(data2, offset2, total, count1, count2);
+                    var res = encryptor.TransformFinalBlock(total, 0, total.Length);
+                    Buffer.BlockCopy(res, 0, output, outputOffset, res.Length);
+                    return res.Length;
+                }
+                else
+                {
+                    var mid = new byte[EncryptorOutputBlockSize];
+                    Buffer.BlockCopy(data1, offset1, mid, 0, count1);
+                    int rem = EncryptorOutputBlockSize - count1;
+                    Buffer.BlockCopy(data2, offset2, mid, count1, rem);
+                    offset2 += rem;
+                    count2 -= rem;
+                    data1 = mid;
+                    offset1 = 0;
+                    count1 = EncryptorOutputBlockSize;
+                }
+            }
+
+            int amountEnc = 0;
+            int am = 0;
+
+            // first
+            int firstRemainder = count1 % EncryptorOutputBlockSize;
+            int amountToEnc1 = count1 - firstRemainder;
+            am = encryptor.TransformBlock(data1, offset1, amountToEnc1, output, outputOffset);
+            amountEnc += am;
+            outputOffset += am;
+
+            if (firstRemainder != 0)
+            {
+                // we dont know if we complete to EncryptorOutputBlockSize with 2nd
+                int rem = EncryptorOutputBlockSize - firstRemainder;
+                if (count2 >= rem)
+                {
+                    var mid = new byte[EncryptorOutputBlockSize];
+                    Buffer.BlockCopy(data1, offset1 + amountToEnc1, mid, 0, firstRemainder);
+                    Buffer.BlockCopy(data2, offset2, mid, firstRemainder, rem);
+                    offset2 += rem;
+                    count2 -= rem;
+
+                    am = encryptor.TransformBlock(mid, 0, EncryptorOutputBlockSize, output, outputOffset);
+                    amountEnc += am;
+                    outputOffset += am;
+                }
+                else// unable to create 16 block
+                {
+                    var mid = new byte[firstRemainder + count2];
+                    Buffer.BlockCopy(data1, offset1 + amountToEnc1, mid, 0, firstRemainder);
+                    Buffer.BlockCopy(data2, offset2, mid, firstRemainder, count2);
+
+                    var fin = encryptor.TransformFinalBlock(mid, 0, mid.Length);
+                    fin.CopyTo(output, outputOffset);
+                    return amountEnc + fin.Length;
+                }
+
+            }
+            // second
+            if (count2 < EncryptorOutputBlockSize)
+            {
+                byte[] last = encryptor.TransformFinalBlock(data2, offset2, count2);
+                Buffer.BlockCopy(last, 0, output, outputOffset, last.Length);
+                return amountEnc + last.Length;
+            }
+
+            int secondRemainder = count2 % EncryptorOutputBlockSize;
+            int amountToEnc2 = count2 - secondRemainder;
+            am = encryptor.TransformBlock(data2, offset2, amountToEnc2, output, outputOffset);
+            amountEnc += am;
+            outputOffset += am;
+
+
+            var final = encryptor.TransformFinalBlock(data2, offset2 + amountToEnc2, secondRemainder);
+            if (final.Length != 0)
+            {
+                Buffer.BlockCopy(final, 0, output, outputOffset, final.Length);
+                amountEnc += final.Length;
+            }
+
+            return amountEnc;
+        }
+
+
         public void Dispose()
         {
             encryptor.Dispose();
             decryptor.Dispose();
+        }
+
+        internal void ApplyIVEncryptor(byte[] iV)
+        {
+            encryptor.Dispose();
+            encryptor = algorithm.CreateEncryptor(algorithm.Key, iV);
+        }
+
+        internal void ApplyIVDecryptor(byte[] iV)
+        {
+            decryptor.Dispose();
+            decryptor = algorithm.CreateDecryptor(algorithm.Key, iV);
         }
     }
 }

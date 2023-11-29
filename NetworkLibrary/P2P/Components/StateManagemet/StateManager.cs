@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Threading.Tasks;
 
-namespace NetworkLibrary.P2P.Components.StateManagemet
+namespace NetworkLibrary.P2P.Components.StateManagement
 {
     internal interface INetworkNode
     {
@@ -12,6 +12,8 @@ namespace NetworkLibrary.P2P.Components.StateManagemet
         void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm);
         void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback);
         void SendAsyncMessage(Guid destinatioinId, MessageEnvelope message);
+        void SendAsyncMessage(Guid destinatioinId, MessageEnvelope message, Action<PooledMemoryStream> callback);
+
     }
 
     enum StateStatus
@@ -34,7 +36,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet
     {
         protected readonly ConcurrentDictionary<Guid, IState> activeStates = new ConcurrentDictionary<Guid, IState>();
         protected INetworkNode networkNode;
-
+        
         public StateManager(INetworkNode networkNode)
         {
             this.networkNode = networkNode;
@@ -85,19 +87,24 @@ namespace NetworkLibrary.P2P.Components.StateManagemet
                 state?.Release(false);
             }
         }
-        internal void SendAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm)
+        internal void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm)
         {
             networkNode.SendUdpAsync(ep, message, callback, aesAlgorithm);
         }
 
-        internal void SendAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback)
+        internal void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback)
         {
             networkNode.SendUdpAsync(ep, message, callback);
         }
 
-        internal void SendAsyncMessage(Guid destinatioinId, MessageEnvelope message)
+        internal void SendTcpMessage(Guid destinationId, MessageEnvelope message)
         {
-            networkNode.SendAsyncMessage(destinatioinId, message);
+            networkNode.SendAsyncMessage(destinationId, message);
+        }
+
+        internal void SendTcpMessage(Guid destinationId, MessageEnvelope message, Action<PooledMemoryStream> callback)
+        {
+            networkNode.SendAsyncMessage(destinationId, message,callback);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.P2P.Generic;
+﻿using NetworkLibrary.Components.Crypto;
+using NetworkLibrary.P2P.Generic;
 using Protobuff.Components.Serialiser;
 using System.Security.Cryptography.X509Certificates;
 

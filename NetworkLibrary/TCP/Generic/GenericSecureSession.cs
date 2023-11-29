@@ -18,7 +18,7 @@ namespace NetworkLibrary.TCP.Generic
             : base(sessionId, sessionStream)
         {
             this.writeMsgLenghtPrefix = writeMsgLenghtPrefix;
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }

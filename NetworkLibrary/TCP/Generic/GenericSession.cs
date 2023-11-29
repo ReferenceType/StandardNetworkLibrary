@@ -16,7 +16,7 @@ namespace NetworkLibrary.TCP.Generic
         public GenericSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, bool writeMsgLenghtPrefix = true) : base(acceptedArg, sessionId)
         {
             this.writeMsgLenghtPrefix = writeMsgLenghtPrefix;
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }

@@ -121,7 +121,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
             sslStream.AuthenticateAsClient(domainName,
-                new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.Tls12, true);
+                new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.None, true);
 
             this.clientSocket = clientSocket;
             var Id = Guid.NewGuid();

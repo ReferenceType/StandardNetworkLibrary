@@ -16,7 +16,7 @@ namespace NetworkLibrary.TCP.ByteMessage
 
         public override void StartSession()
         {
-            messageManager = new ByteMessageReader(SessionId, SocketRecieveBufferSize);
+            messageManager = new ByteMessageReader( SocketRecieveBufferSize);
             messageManager.OnMessageReady += HandleMessage;
 
             base.StartSession();

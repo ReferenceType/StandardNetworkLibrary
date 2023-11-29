@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Drawing;
 using System.Threading;
 
 namespace NetworkLibrary.Components.MessageBuffer
@@ -99,7 +100,30 @@ namespace NetworkLibrary.Components.MessageBuffer
 
 
         }
+        public bool TryEnqueueMessage(byte[] data1, int offset1, int count1, byte[] data2, int offset2, int count2)
+        {
+            lock (loki)
+            {
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
+                {
 
+                    TotalMessageDispatched++;
+
+                    if (writeLengthPrefix)
+                    {
+                        currentIndexedMemory += 4;
+                        writeStream.WriteInt(count1+count2);
+                    }
+
+                    writeStream.Write(data1, offset1, count1);
+                    writeStream.Write(data2, offset2, count2);
+                    currentIndexedMemory += count1+count2;
+                    return true;
+                }
+
+            }
+            return false;
+        }
         protected virtual void Dispose(bool disposing)
         {
             lock (loki)

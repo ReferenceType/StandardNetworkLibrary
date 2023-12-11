@@ -25,6 +25,13 @@ namespace MessageProtocol
             MapReceivedBytes();
         }
 
+        public SecureMessageServer(int port) : base(port)
+        {
+            RemoteCertificateValidationCallback += ValidateCert;
+            GatherConfig = ScatterGatherConfig.UseBuffer;
+            MapReceivedBytes();
+        }
+
         protected virtual bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;

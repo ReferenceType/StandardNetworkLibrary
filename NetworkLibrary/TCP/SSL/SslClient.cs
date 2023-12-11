@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components.Statistics;
+﻿using NetworkLibrary.Components.Crypto.Certificate;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
 using System;
 using System.Net;
@@ -20,7 +21,16 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         public SslClient(X509Certificate2 certificate)
         {
+            if(certificate == null)
+                certificate = CertificateGenerator.GenerateSelfSignedCertificate();
+
             this.certificate = certificate;
+            RemoteCertificateValidationCallback += DefaultValidationCallbackHandler;
+        }
+
+        public SslClient()
+        {
+            this.certificate = CertificateGenerator.GenerateSelfSignedCertificate();
             RemoteCertificateValidationCallback += DefaultValidationCallbackHandler;
         }
 

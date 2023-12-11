@@ -19,6 +19,23 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
 {
     internal class ClientTcpHolepunchState : IState
     {
+        enum Sts
+        {
+            Initiated,
+            Listening,
+            Connecting,
+            Awaiting,
+            SwappedToClient,
+            SendingUdp,
+            Finalising,
+            Idle,
+            ResendingUdp,
+            Finalised,
+            Releasing,
+            FinalisingClient,
+            AwaitingKey
+        }
+        private Sts internalState;
         public Guid destinationId;
         public Guid selfId;
         StateManager stateManager;
@@ -40,11 +57,23 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
         public event Action<IState> Completed;
         private bool isInitiator;
         int PortmapAcked =0;
-        public ClientTcpHolepunchState(StateManager stateManager, IPEndPoint relayUdpEp)
+        public ClientTcpHolepunchState(StateManager stateManager, IPEndPoint relayUdpEp,Guid stateId)
         {
-           
+           this.StateId = stateId;
             this.stateManager = stateManager;
             this.relayUdpEp = relayUdpEp;
+            Runt();
+        }
+
+        private async void Runt()
+        {
+            await Task.Delay(5000);
+
+            while (released == 0)
+            {
+                await Task.Delay(1000);
+                Console.WriteLine(internalState.ToString());
+            }
         }
 
         /*
@@ -58,10 +87,9 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
          * if listening socket gets something within the timeout notify succes
          * finalize(event etc)
          */
-        public void InitiateByLocal(Guid requesterId,Guid destinationId, Guid stateId)
+        public void InitiateByLocal(Guid requesterId,Guid destinationId)
         {
             isInitiator = true;
-            StateId = stateId;
             this.destinationId = destinationId;
             selfId = requesterId;
 
@@ -85,18 +113,16 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
                 KnownTypeSerializer.SerializeEndpointTransferMessage(stream,epmsg);
             });
             MiniLogger.Log(MiniLogger.LogLevel.Debug, selfLocalEndpoint + " Initiated");
-
+            internalState = Sts.Initiated;
         }
 
         // init tcp remote
         public void InitiateByRemote(MessageEnvelope message)
         {
+            internalState = Sts.Initiated;
+
             AesKey = ByteCopy.ToArray(message.Payload, message.PayloadOffset, message.PayloadCount);
-            if (AesKey == null)
-            {
-                
-            }
-            StateId = message.MessageId;
+            
             destinationId = message.From;
             selfId = message.To;
 
@@ -105,36 +131,62 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
             selfServer.GatherConfig = ScatterGatherConfig.UseBuffer;
             selfServer.StartServer();
             selfLocalEndpoint = new IPEndPoint(IPAddress.Any,/* 11123*/selfServer.LocalEndpoint.Port);
-           // selfLocalEndpoint = new IPEndPoint(IPAddress.Any,11123);
+            // selfLocalEndpoint = new IPEndPoint(IPAddress.Any,11123);
+            internalState = Sts.SendingUdp;
             SendUdpPortMapMsg();
             MiniLogger.Log(MiniLogger.LogLevel.Debug, selfLocalEndpoint + " Handling Request");
+
         }
 
 
         public void HandleMessage(MessageEnvelope message)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Debug, message.Header);
-            switch (message.Header)
+            try
             {
-                case Constants.OkSendUdp:
-                    AesKey = ByteCopy.ToArray(message.Payload, message.PayloadOffset, message.PayloadCount);
-                    SendUdpPortMapMsg();
-                    break;
-                case Constants.AckPortMap:
-                    Interlocked.Exchange(ref PortmapAcked, 1);
-                    break;
-                case Constants.TryConnect:
-                    TryConnectDestEndpoints(message);
-                    break;
-                case Constants.SwapToClient:
-                    SwapToClient(message);
-                    break;
-                case Constants.FinalizeSuccess:
-                    Finalize(message);
-                    break;
-                case Constants.FinalizeFail:
-                    Release(false);
-                    break;
+                switch (message.Header)
+                {
+                    case Constants.ResendUdp:
+                        if (AesKey == null)
+                        {
+                            internalState = Sts.AwaitingKey;
+                            return;
+                        }
+                        internalState = Sts.ResendingUdp;
+                        SendUdpPortMapMsg();
+                        break;
+                    case Constants.OkSendUdp:
+                        AesKey = ByteCopy.ToArray(message.Payload, message.PayloadOffset, message.PayloadCount);
+                        internalState = Sts.SendingUdp;
+                        SendUdpPortMapMsg();
+                        break;
+                    case Constants.AckPortMap:
+                        Interlocked.Exchange(ref PortmapAcked, 1);
+                        break;
+                    case Constants.TryConnect:
+                        internalState = Sts.Connecting;
+                        TryConnectDestEndpoints(message);
+                        break;
+                    case Constants.SwapToClient:
+                        internalState = Sts.SwappedToClient;
+                        SwapToClient(message);
+                        break;
+                    case Constants.FinalizeSuccess:
+                        ThreadPool.UnsafeQueueUserWorkItem((s) => {
+                            internalState = Sts.Finalising;
+                            Finalize(message);
+                        },null);
+                       
+                        break;
+                    case Constants.FinalizeFail:
+                        Release(false);
+                        break;
+                }
+
+            }
+            catch (Exception e)
+            {
+
             }
         }
 
@@ -151,6 +203,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
             MiniLogger.Log(MiniLogger.LogLevel.Debug, selfLocalEndpoint + " Swapping to client");
 
             selfServer.ShutdownServer();
+            Thread.Sleep(1);
             InitialiseSocket(selfLocalEndpoint);
 
             TryConnectDestEndpoints(message);
@@ -249,6 +302,8 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
 
         private void SwapToServer()
         {
+            internalState = Sts.Listening;
+
             MiniLogger.Log(MiniLogger.LogLevel.Debug, "Swapping To Server");
             selfSocket.Dispose();
             selfServer = new AesTcpServer((IPEndPoint)selfLocalEndpoint, new ConcurrentAesAlgorithm(AesKey));
@@ -274,28 +329,38 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
 
         GenericMessageSerializer<MockSerializer> serializer = new GenericMessageSerializer<MockSerializer>();
         PooledMemoryStream stream = new PooledMemoryStream();
-        AsyncUdpClient cl = new AsyncUdpClient();
+       AsyncUdpClient cl = new AsyncUdpClient();
 
         private void SendUdpPortMapMsg()
         {
-            Task.Delay(1000).ContinueWith((t) =>
-            {
-                if (Status == StateStatus.Pending && Interlocked.CompareExchange(ref PortmapAcked, 0, 0) != 1)
-                {
-                    SendUdpPortMapMsg();
-                }
-            });
+
+            //Task.Delay(1000).ContinueWith((t) =>
+            //{
+            //    if (Status == StateStatus.Pending && Interlocked.CompareExchange(ref PortmapAcked, 0, 0) != 1)
+            //    {
+            //        SendUdpPortMapMsg();
+            //    }
+            //    else
+            //    {
+            //        currentsts = Sts.idle;
+            //    }
+            //});
             try
             {
-                cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
-                cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                cl.Bind(((IPEndPoint)selfLocalEndpoint));
+                if (!cl.clientSocket.IsBound)
+                {
+                    cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
+                    cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    cl.Bind(((IPEndPoint)selfLocalEndpoint));
+                }
+                
                 MessageEnvelope message = new MessageEnvelope()
                 {
                     Header = Constants.TcpPortMap,
                     MessageId = StateId,
                     From = selfId
                 };
+                stream.Position = 0;
                 stream.WriteByte(92);
                 stream.WriteByte(93);
                 EndpointTransferMessage epmsg = new EndpointTransferMessage()
@@ -316,6 +381,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Error occured when sending udp port map : " + ex.Message);
                 //Release(false);
             }
+           
         }
         private void Finalize(MessageEnvelope message)
         {
@@ -325,6 +391,8 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
             //AesKey = ByteCopy.ToArray(message.Payload, message.PayloadOffset, message.PayloadCount);
             if (connected)
             {
+                internalState = Sts.FinalisingClient;
+                
                 selfClient = new AesTcpClient(selfSocket, new ConcurrentAesAlgorithm(AesKey));
             }
             Release(true);
@@ -338,7 +406,9 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
         int released = 0;
         public void Release(bool isCompletedSuccessfully)
         {
-            if(Interlocked.Increment(ref released) != 1)
+            internalState = Sts.Releasing;
+
+            if (Interlocked.Increment(ref released) != 1)
             {
                 return;
             }
@@ -349,6 +419,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
                 {
                     selfServer?.ShutdownServer();
                     selfSocket?.Dispose();
+                    cl?.Dispose();
                 }
                 catch { }
             }
@@ -356,6 +427,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
             {
                 Status = StateStatus.Completed;
             }
+
             Completed?.Invoke(this);
             Completed = null;
         }

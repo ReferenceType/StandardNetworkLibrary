@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.Utils;
@@ -19,6 +20,7 @@ namespace NetworkLibrary.Components.Crypto
 
         public AesManager(byte[] Key,byte[] IV, AesMode mode) 
         {
+
             this.Key = Key;
             this.IV = IV;
             this.AesMode = mode;
@@ -46,10 +48,7 @@ namespace NetworkLibrary.Components.Crypto
                     return new AesCbcRandIVAlgorithm(Key, IV);
                 case AesMode.GCM:
                     //return new AesGcmManagedAlgorithm(Key, IV);
-#if NETSTANDARD2_1_OR_GREATER
-                    return new AesGcmAlgorithm(Key,IV);
-
-#elif NET5_0_OR_GREATER
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
                     return new AesGcmAlgorithm(Key,IV);
 #endif
                     return new AesGcmManagedAlgorithm(Key,IV);

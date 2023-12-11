@@ -134,7 +134,8 @@ namespace NetworkLibrary.MessageProtocol
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int SerializeMessageWithInnerMessage(PooledMemoryStream serialisationStream, MessageEnvelope empyEnvelope, Action<PooledMemoryStream> externalSerializationCallback)
+        internal int SerializeMessageWithInnerMessage(PooledMemoryStream serialisationStream, 
+            MessageEnvelope empyEnvelope, Action<PooledMemoryStream> externalSerializationCallback)
         {
             // envelope+2
             int originalPos = serialisationStream.Position32;

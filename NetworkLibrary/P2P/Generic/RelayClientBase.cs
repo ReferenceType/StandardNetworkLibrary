@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Crypto;
+using NetworkLibrary.Components.Crypto.Certificate;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.P2P.Components;
@@ -116,8 +117,15 @@ namespace NetworkLibrary.P2P.Generic
         private bool initialised = false;
         public RelayClientBase(X509Certificate2 clientCert, int udpPort = 0)
         {
+            if (clientCert == null)
+                clientCert = CertificateGenerator.GenerateSelfSignedCertificate();
            this.clientCert = clientCert;
            this.udpPort = udpPort;
+        }
+        public RelayClientBase( int udpPort = 0)
+        {
+            this.clientCert = CertificateGenerator.GenerateSelfSignedCertificate();
+            this.udpPort = udpPort;
         }
         private void Initialise()
         {
@@ -569,7 +577,7 @@ namespace NetworkLibrary.P2P.Generic
 
             }
 
-            if (!udpServer.TrySendAsync(endpoint, message, serializationCallback, algo, out var excessStream))
+            if (!udpServer.TrySendAsync(endpoint, message, serializationCallback, algo, out var excessStream,false))
             {
                 if (JumboUdpModules.TryGetValue(toId, out var mod))
                     mod.Send(excessStream.GetBuffer(), 0, excessStream.Position32);
@@ -1228,6 +1236,9 @@ namespace NetworkLibrary.P2P.Generic
         }
         private Task<bool> RequestTcpHpAsync(Guid destinationId, bool userRequest)
         {
+            if(clientStateManager.IsTCPHolepunchStatePending(destinationId))
+            { return Task.FromResult(false); }
+
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var state = clientStateManager.CreateTcpHolePunchState(destinationId);
             state.Completed += async (s) =>
@@ -1632,7 +1643,8 @@ namespace NetworkLibrary.P2P.Generic
         {
             if (RUdpModules.TryGetValue(to, out var mod))
             {
-                WriteRudpRouterHeaderIfNeeded(msg, to);
+                //WriteRudpRouterHeaderIfNeeded(msg, to);
+                msg = MessageEnvelope.CloneFromNoRouter(msg);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();//ClientUdpModule.GetTLSStream();
 
@@ -1663,7 +1675,8 @@ namespace NetworkLibrary.P2P.Generic
         {
             if (RUdpModules.TryGetValue(to, out var mod))
             {
-                WriteRudpRouterHeaderIfNeeded(msg, to);
+                //WriteRudpRouterHeaderIfNeeded(msg, to);
+                msg = MessageEnvelope.CloneFromNoRouter(msg);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();//ClientUdpModule.GetTLSStream();
                 serialiser.EnvelopeMessageWithInnerMessage(stream, msg, innerMessage);
@@ -1686,7 +1699,8 @@ namespace NetworkLibrary.P2P.Generic
         {
             if (RUdpModules.TryGetValue(to, out var mod))
             {
-                WriteRudpRouterHeaderIfNeeded(msg, to);
+                //WriteRudpRouterHeaderIfNeeded(msg, to);
+                msg = MessageEnvelope.CloneFromNoRouter(msg);
 
                 msg.MessageId = Guid.NewGuid();
                 var task = Awaiter.RegisterWait(msg.MessageId, timeoutMs);
@@ -1725,7 +1739,9 @@ namespace NetworkLibrary.P2P.Generic
         {
             if (RUdpModules.TryGetValue(to, out var mod))
             {
-                WriteRudpRouterHeaderIfNeeded(msg, to);
+                //WriteRudpRouterHeaderIfNeeded(msg, to);
+                msg = MessageEnvelope.CloneFromNoRouter(msg);
+
 
                 msg.MessageId = Guid.NewGuid();
                 var task = Awaiter.RegisterWait(msg.MessageId, timeoutMs);
@@ -1763,12 +1779,12 @@ namespace NetworkLibrary.P2P.Generic
         #region Interface implementation
         void INetworkNode.SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm)
         {
-            udpServer.TrySendAsync(ep, message, callback, aesAlgorithm, out _);
+            udpServer.TrySendAsync(ep, message, callback, aesAlgorithm, out _,true);
         }
 
         void INetworkNode.SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback)
         {
-            udpServer.TrySendAsync(ep, message, callback, out _);
+            udpServer.TrySendAsync(ep, message, callback, out _,true);
         }
 
         void INetworkNode.SendAsyncMessage(Guid destinatioinId, MessageEnvelope message)
@@ -1777,6 +1793,13 @@ namespace NetworkLibrary.P2P.Generic
             message.To = destinatioinId;
             tcpMessageClient.SendAsyncMessage(message);
             //SendAsyncMessage(destinatioinId, message);
+        }
+
+        void INetworkNode.SendAsyncMessage( MessageEnvelope message, Action<PooledMemoryStream>  callback, Guid destinationId)
+        {
+            message.From = sessionId;
+            message.To = destinationId;
+            tcpMessageClient.SendAsyncMessage(message,callback);
         }
 
         private void CheckDisposedAndThrow()

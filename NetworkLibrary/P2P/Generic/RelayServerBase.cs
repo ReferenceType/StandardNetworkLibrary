@@ -42,11 +42,19 @@ namespace NetworkLibrary.P2P.Generic
         public AesMode AESMode;
         bool initialised = false;
         int port = 0;
-        X509Certificate2 certificate;
         public SecureRelayServerBase(int port, X509Certificate2 certificate, string serverName = "Andromeda") : base(port, certificate)
         {
             this.port = port;
-            this.certificate = certificate;
+            serverNameBytes = Encoding.UTF8.GetBytes(serverName);
+
+            ServerUdpInitKey = new byte[16];
+            var rng = RandomNumberGenerator.Create();
+            rng.GetNonZeroBytes(ServerUdpInitKey);
+            rng.Dispose();
+        }
+        public SecureRelayServerBase(int port, string serverName = "Andromeda") : base(port)
+        {
+            this.port = port;
             serverNameBytes = Encoding.UTF8.GetBytes(serverName);
 
             ServerUdpInitKey = new byte[16];
@@ -467,9 +475,12 @@ namespace NetworkLibrary.P2P.Generic
                 {
                     var message1 = serialiser.DeserialiseEnvelopedMessage(bytes, offset+2, count);
                     stateManager.HandleMessage(adress, message1);
-                    return;
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Error occured during tcp holepunch portmap: "+e.StackTrace);
+                }
+                return;
                 
             }
             //if (count % 16 != 0)
@@ -504,6 +515,11 @@ namespace NetworkLibrary.P2P.Generic
         void INetworkNode.SendAsyncMessage(Guid destinatioinId, MessageEnvelope message)
         {
             SendAsyncMessage(destinatioinId, message);
+        }
+
+        public void SendAsyncMessage(MessageEnvelope message, Action<PooledMemoryStream> callback, Guid destinationId)
+        {
+            SendAsyncMessage(destinationId, message,callback);
         }
     }
 }

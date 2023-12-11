@@ -13,6 +13,10 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         {
         }
 
+        public SslByteMessageServer(int port) : base(port)
+        {
+        }
+
         private protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {
             var ses = new SslByteMessageSession(guid, tuple.Item1);

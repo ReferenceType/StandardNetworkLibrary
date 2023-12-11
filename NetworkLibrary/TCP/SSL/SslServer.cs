@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components.Statistics;
+﻿using NetworkLibrary.Components.Crypto.Certificate;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
@@ -36,7 +37,19 @@ namespace NetworkLibrary.TCP.SSL.Base
         public SslServer(int port, X509Certificate2 certificate)
         {
             ServerPort = port;
+            if(certificate == null)
+               certificate = CertificateGenerator.GenerateSelfSignedCertificate();
             this.certificate = certificate;
+            OnClientRequestedConnection = (socket) => true;
+            RemoteCertificateValidationCallback += DefaultValidationCallback;
+
+            statisticsPublisher = new TcpServerStatisticsPublisher(Sessions);
+        }
+
+        public SslServer(int port)
+        {
+            ServerPort = port;
+            this.certificate = CertificateGenerator.GenerateSelfSignedCertificate();
             OnClientRequestedConnection = (socket) => true;
             RemoteCertificateValidationCallback += DefaultValidationCallback;
 

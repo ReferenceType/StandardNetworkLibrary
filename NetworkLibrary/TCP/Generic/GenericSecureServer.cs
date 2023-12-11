@@ -79,6 +79,10 @@ namespace NetworkLibrary.TCP.Generic
             this.writeLenghtPrefix = writeLenghtPrefix;
         }
 
+        public GenericSecureServerInternal(int port, bool writeLenghtPrefix = true) : base(port)
+        {
+            this.writeLenghtPrefix = writeLenghtPrefix;
+        }
 
         public override void StartServer()
         {

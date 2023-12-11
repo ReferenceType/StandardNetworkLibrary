@@ -189,11 +189,11 @@ namespace RelayBenchmark
 
             var cert = new X509Certificate2("client.pfx", "greenpass");
             var scert = new X509Certificate2("server.pfx", "greenpass");
-            var server = new SecureProtoRelayServer(20020, scert);
-            server.StartServer();
+            //var server = new SecureProtoRelayServer(20020, scert);
+            //server.StartServer();
             //Task.Run(async () => { while (true) { await Task.Delay(10000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
             var clients = new List<RelayClient>();
-            int numclients = 2;
+            int numclients = 30;
             var pending = new Task[numclients];
             Task.Run(async () => { while (true) { await Task.Delay(1000); Console.WriteLine(Interlocked.Exchange(ref sumsum, 0).ToString("N0")); } });
 
@@ -208,7 +208,7 @@ namespace RelayBenchmark
                 try
                 {
                     pending[i] = client.ConnectAsync(ip, 20020);
-                    //client.StartPingService();
+                    client.StartPingService();
                     // client.Connect(ip, 20011);
                     clients.Add(client);
                     //client.StartPingService();
@@ -235,10 +235,10 @@ namespace RelayBenchmark
                         if (peer.Key == Guid.Empty)
                             throw new Exception();
 
-                        // var a = client.RequestTcpHolePunchAsync(peer.Key);
-                        // pndg.Add(a);
-                        var aa = client.RequestHolePunchAsync(peer.Key, 10000, false);
-                        pndg.Add(aa);
+                         var a = client.RequestTcpHolePunchAsync(peer.Key);
+                         pndg.Add(a);
+                       // var aa = client.RequestHolePunchAsync(peer.Key, 10000, false);
+                        //pndg.Add(aa);
                         //client.TestHP(peer.Key, 10000, false);
                         //  Console.WriteLine(peer.Key+" cnt=> "+ ++cc);
                     }
@@ -258,7 +258,7 @@ namespace RelayBenchmark
                 var testMessage = new MessageEnvelope()
                 {
                     Header = "Test",
-                    Payload = new byte[320000]
+                    Payload = new byte[320]
                 };
                 for (int i = 0; i < testMessage.PayloadCount; i++)
                 {
@@ -270,8 +270,8 @@ namespace RelayBenchmark
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                      //  client.SendAsyncMessage(peer, testMessage);
-                      client.SendUdpMessage(peer, testMessage);
+                        client.SendAsyncMessage(peer, testMessage);
+                      //client.SendUdpMessage(peer, testMessage);
                       // client.SendRudpMessage(peer, testMessage);
                         //  client.BroadcastMessage(testMessage);
                         //client.BroadcastUdpMessage(testMessage);

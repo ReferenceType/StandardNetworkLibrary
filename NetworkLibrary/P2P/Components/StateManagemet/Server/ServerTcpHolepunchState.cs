@@ -7,6 +7,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace NetworkLibrary.P2P.Components.StateManagemet.Server
 {
@@ -37,7 +38,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
             rng.GetNonZeroBytes(random);
             rng.Dispose();
         }
-        public void Initialize(MessageEnvelope message)
+        public async void Initialize(MessageEnvelope message)
         {
             MiniLogger.Log(MiniLogger.LogLevel.Debug, "Initialising Server HP State");
             requesterEndpoints = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
@@ -64,7 +65,35 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
                 Payload = random
             };
             stateManager.SendTcpMessage(requesterId, msg2);
+            await Task.Delay(3000);
 
+            while (!portMapComplete && released == 0)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Warning, "awaiting port map");
+                if(DestinationRemoteEp == null)
+                {
+                    var msg1 = new MessageEnvelope()
+                    {
+                        MessageId = StateId,
+                        To = destinationId,
+                        Header = Constants.ResendUdp,
+                        IsInternal = true,
+                    };
+                    stateManager.SendTcpMessage(destinationId,msg1);
+                }
+                if(RequesterRemoteEp == null)
+                {
+                    var msg1 = new MessageEnvelope()
+                    {
+                        MessageId = StateId,
+                        To = requesterId,
+                        Header = Constants.ResendUdp,
+                        IsInternal = true,
+                    };
+                    stateManager.SendTcpMessage(requesterId, msg1);
+                }
+                await Task.Delay(3000);
+            }
         }
         public void HandleMessage(MessageEnvelope message)
         {

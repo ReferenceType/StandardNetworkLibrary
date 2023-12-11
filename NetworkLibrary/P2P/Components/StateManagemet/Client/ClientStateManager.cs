@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Threading;
+using static NetworkLibrary.P2P.Components.PingData;
 
 namespace NetworkLibrary.P2P.Components.StateManagement.Client
 {
@@ -12,6 +13,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
     {
         internal RelayClientBase<S> client;
         private ConcurrentDictionary<Guid, string> pendingHolepunchStates = new ConcurrentDictionary<Guid, string>();
+        private ConcurrentDictionary<Guid, string> pendingTcpHolepunchStates = new ConcurrentDictionary<Guid, string>();
         private ClientConnectionState pendingState;
         public ClientStateManager(RelayClientBase<S> client) : base(client)
         {
@@ -29,7 +31,9 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
                     AddState(CreateHolepunchState(message));
                     return true;
                 case Constants.InitTCPHPRemote:
-                    AddState(CreateTcpHolePunchStateRemote(message));
+                    var state = CreateTcpHolePunchStateRemote(message);
+                    AddState(state);
+                    state.InitiateByRemote(message);
                     return true;
                    
                 default:
@@ -114,23 +118,32 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
         {
             return pendingHolepunchStates.TryGetValue(peerId, out _);
         }
+        internal bool IsTCPHolepunchStatePending(Guid peerId)
+        {
+            return pendingTcpHolepunchStates.TryGetValue(peerId, out _);
+        }
 
         internal ClientTcpHolepunchState CreateTcpHolePunchState(Guid destinationId)
         {
-            var state = new ClientTcpHolepunchState(this, client.relayServerEndpoint);
-            state.InitiateByLocal(client.SessionId, destinationId, Guid.NewGuid());
+            pendingTcpHolepunchStates.TryAdd(destinationId, null);
+            var state = new ClientTcpHolepunchState(this, client.relayServerEndpoint,Guid.NewGuid());
             AddState(state);
+            state.InitiateByLocal(client.SessionId, destinationId);
+            state.Completed+=(s) => pendingTcpHolepunchStates.TryRemove(destinationId, out _);
+
             return state;
         }
 
         private ClientTcpHolepunchState CreateTcpHolePunchStateRemote(MessageEnvelope msg)
         {
-            var state = new ClientTcpHolepunchState(this, client.relayServerEndpoint);
-            state.InitiateByRemote(msg);
+            pendingTcpHolepunchStates.TryAdd(msg.From, null);
+            var state = new ClientTcpHolepunchState(this, client.relayServerEndpoint,msg.MessageId);
 
             state.Completed += (Istate) =>
             {
-                if(state.Status == StateStatus.Completed)
+                pendingTcpHolepunchStates.TryRemove(msg.From, out _);
+
+                if (state.Status == StateStatus.Completed)
                 {
                     client.RegisterTcpNode(Istate);
                 }

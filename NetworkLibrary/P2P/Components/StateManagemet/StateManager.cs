@@ -12,7 +12,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement
         void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm);
         void SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback);
         void SendAsyncMessage(Guid destinatioinId, MessageEnvelope message);
-        void SendAsyncMessage(Guid destinatioinId, MessageEnvelope message, Action<PooledMemoryStream> callback);
+        void SendAsyncMessage(MessageEnvelope message, Action<PooledMemoryStream> callback,Guid destinationId);
 
     }
 
@@ -104,7 +104,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement
 
         internal void SendTcpMessage(Guid destinationId, MessageEnvelope message, Action<PooledMemoryStream> callback)
         {
-            networkNode.SendAsyncMessage(destinationId, message,callback);
+            networkNode.SendAsyncMessage( message,callback,destinationId);
         }
     }
 }

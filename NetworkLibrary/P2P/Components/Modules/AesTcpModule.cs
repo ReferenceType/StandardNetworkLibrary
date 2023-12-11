@@ -61,8 +61,8 @@ namespace NetworkLibrary.P2P.Components.Modules
       
         public void SendAsync(MessageEnvelope message)
         {
-            message.From = Guid.Empty; 
-            message.To = Guid.Empty;
+            message = MessageEnvelope.CloneFromNoRouter(message);
+
 
             GetSerialisationStream();
             TLSSerialisationStream.Position32 = 0;
@@ -78,8 +78,8 @@ namespace NetworkLibrary.P2P.Components.Modules
 
         public void SendAsync<T>(MessageEnvelope message, T innerMsg)
         {
-            message.From = Guid.Empty;
-            message.To = Guid.Empty;
+            message = MessageEnvelope.CloneFromNoRouter(message);
+
 
             GetSerialisationStream();
             TLSSerialisationStream.Position32 = 0;
@@ -90,8 +90,8 @@ namespace NetworkLibrary.P2P.Components.Modules
         }
         public void SendAsync(MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
         {
-            message.From = Guid.Empty;
-            message.To = Guid.Empty;
+            message = MessageEnvelope.CloneFromNoRouter(message);
+
 
             GetSerialisationStream();
             TLSSerialisationStream.Position32 = 0;
@@ -102,8 +102,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         }
         public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message, T payload, int timeout)
         {
-            message.From = Guid.Empty;
-            message.To = Guid.Empty;
+            message = MessageEnvelope.CloneFromNoRouter(message);
 
             message.MessageId = Guid.NewGuid();
             var task = awaiter.RegisterWait(message.MessageId, timeout);
@@ -113,8 +112,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         }
         public Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeout)
         {
-            message.From = Guid.Empty;
-            message.To = Guid.Empty;
+            message = MessageEnvelope.CloneFromNoRouter(message);
 
             message.MessageId = Guid.NewGuid();
             var task = awaiter.RegisterWait(message.MessageId, timeout);

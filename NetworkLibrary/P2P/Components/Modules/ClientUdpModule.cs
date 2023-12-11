@@ -40,10 +40,9 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if(endpoint!= associatedClient.relayServerEndpoint)
             {
-                message.From = Guid.Empty;
-                message.To = Guid.Empty;
+                message = MessageEnvelope.CloneFromNoRouter(message);
             }
-           
+
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
 
@@ -65,8 +64,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (endpoint != associatedClient.relayServerEndpoint)
             {
-                message.From = Guid.Empty;
-                message.To = Guid.Empty;
+                message = MessageEnvelope.CloneFromNoRouter(message);
             }
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
@@ -85,12 +83,12 @@ namespace NetworkLibrary.P2P.Components.Modules
             return true;
         }
 
-        public bool TrySendAsync(IPEndPoint endpoint, MessageEnvelope message, Action<PooledMemoryStream> SerializationCallback, out PooledMemoryStream excessStream)
+        public bool TrySendAsync(IPEndPoint endpoint, MessageEnvelope message, 
+            Action<PooledMemoryStream> SerializationCallback, out PooledMemoryStream excessStream, bool forceRouterHeader = true)
         {
-            if (endpoint != associatedClient.relayServerEndpoint)
+            if (!forceRouterHeader&&endpoint != associatedClient.relayServerEndpoint)
             {
-                message.From = Guid.Empty;
-                message.To = Guid.Empty;
+                message = MessageEnvelope.CloneFromNoRouter(message);
             }
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
@@ -114,8 +112,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (endpoint != associatedClient.relayServerEndpoint)
             {
-                message.From = Guid.Empty;
-                message.To = Guid.Empty;
+                message = MessageEnvelope.CloneFromNoRouter(message);
             }
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
@@ -154,12 +151,16 @@ namespace NetworkLibrary.P2P.Components.Modules
             return true;
         }
 
-        public bool TrySendAsync(IPEndPoint endpoint, MessageEnvelope message, Action<PooledMemoryStream> SerializationCallback, ConcurrentAesAlgorithm algorithm, out PooledMemoryStream excessStream)
+        public bool TrySendAsync(IPEndPoint endpoint,
+            MessageEnvelope message, 
+            Action<PooledMemoryStream> SerializationCallback,
+            ConcurrentAesAlgorithm algorithm,
+            out PooledMemoryStream excessStream,
+            bool forceRouterHeader = false)
         {
-            if (endpoint != associatedClient.relayServerEndpoint)
+            if (!forceRouterHeader&& endpoint != associatedClient.relayServerEndpoint)
             {
-                message.From = Guid.Empty;
-                message.To = Guid.Empty;
+                message = MessageEnvelope.CloneFromNoRouter(message);
             }
 
             GetTLSStream();
@@ -186,8 +187,8 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (endpoint != associatedClient.relayServerEndpoint)
             {
-                message.From = Guid.Empty;
-                message.To = Guid.Empty;
+                message = MessageEnvelope.CloneFromNoRouter(message);
+
             }
 
             GetTLSStream();

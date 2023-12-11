@@ -37,6 +37,7 @@
         public const string ReqTCPHP = "ReqTCPHP";
         public const string TcpPortMap = "TcpPortMap";
         public const string OkSendUdp = "OkSendUdp";
+        public const string ResendUdp = "ResendUdp";
         public const string AckPortMap = "AckPortMap";
         public const string TryConnect = "TryConnect";
         public const string SwapToClient = "SwapToClient";

@@ -34,6 +34,7 @@ namespace NetworkLibrary.Components
         {
             SHA256 sHA = SHA256.Create();
             var hash = sHA.ComputeHash(key);
+            sHA.Dispose();
             return ByteCopy.ToArray(hash, 0, 16);
         }
 

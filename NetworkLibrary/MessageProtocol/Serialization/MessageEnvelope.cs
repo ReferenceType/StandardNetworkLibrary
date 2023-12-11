@@ -81,6 +81,21 @@ namespace NetworkLibrary
             IsLocked = false;
         }
 
+        internal static MessageEnvelope CloneFromNoRouter(MessageEnvelope message)
+        {
+            var msg = new MessageEnvelope();
+            msg.Header = message.Header;
+            msg.MessageId = message.MessageId;
+            msg.KeyValuePairs = message.KeyValuePairs;
+            msg.IsInternal = message.IsInternal;
+            msg.TimeStamp = message.TimeStamp;
+            msg.Payload = message.Payload;
+            msg.PayloadOffset = message.PayloadOffset;
+            msg.PayloadCount = message.PayloadCount;
+            return msg;
+
+        }
+
     }
 
 }

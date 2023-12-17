@@ -20,10 +20,10 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Server
             switch (message.Header)
             {
                 case Constants.Register:
-                    AddState(CreateConnectionState(clientId, message));
+                    CreateConnectionState(clientId, message);
                     return true;
                 case Constants.ReqTCPHP:
-                    AddState(CreateTcpHPState(message));
+                    CreateTcpHPState(message);
                     return true;
                 default:
                     return base.HandleMessage(message);
@@ -38,6 +38,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Server
             var stateId = Guid.NewGuid();
             var state = new ServerConnectionState(clientId, stateId, this);
             state.Completed += OnServerConnectionStateCompleted;
+            AddState(state);
             MessageEnvelope envelope = new MessageEnvelope()
             {
                 IsInternal = true,
@@ -62,7 +63,8 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Server
 
         private ServerTcpHolepunchState CreateTcpHPState(MessageEnvelope message)
         {
-            var state = new ServerTcpHolepunchState(this);
+            var state = new ServerTcpHolepunchState(this,message.MessageId);
+            AddState(state);
             state.Initialize(message);
             MiniLogger.Log(MiniLogger.LogLevel.Info, "Created tcp holepunch state");
             // room server needs to know this completion. maybe?

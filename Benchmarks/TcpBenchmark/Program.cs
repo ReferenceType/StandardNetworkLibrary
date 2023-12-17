@@ -115,7 +115,7 @@ namespace ConsoleTest
             }
             Task.WaitAll(toWait);
             Console.WriteLine("All Clients Connected");
-            Console.WriteLine(server.SessionCount);
+            Console.WriteLine(server?.SessionCount);
 
         }
 

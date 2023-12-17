@@ -4,6 +4,7 @@ using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace MessageProtocol
 {
@@ -126,13 +127,12 @@ namespace MessageProtocol
             WriteOnSessionStream(amountWritten);
 
         }
-
         protected override void ReleaseReceiveResources()
         {
             base.ReleaseReceiveResources();
-            reader.ReleaseResources();
-            reader = null;
-            mq = null;
+            Interlocked.Exchange(ref mq, null)?.Dispose();
+            Interlocked.Exchange(ref reader, null)?.ReleaseResources();
+           
         }
     }
 }

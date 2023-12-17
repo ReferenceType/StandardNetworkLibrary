@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace NetworkLibrary.Components
 {
@@ -70,7 +71,7 @@ namespace NetworkLibrary.Components
         public void Clear()
         {
             position = 0;
-            if (bufferInternal.Length > 128000)
+            if (bufferInternal.Length > 512000)
             {
                 BufferPool.ReturnBuffer(bufferInternal);
                 bufferInternal = BufferPool.RentBuffer(128000);
@@ -361,8 +362,11 @@ namespace NetworkLibrary.Components
         {
             if (disposing)
             {
-                BufferPool.ReturnBuffer(bufferInternal);
-                bufferInternal = null;
+                var buf = Interlocked.Exchange(ref bufferInternal, null);
+                if (buf!=null)
+                {
+                    BufferPool.ReturnBuffer(buf);
+                }
             }
             base.Dispose(disposing);
         }

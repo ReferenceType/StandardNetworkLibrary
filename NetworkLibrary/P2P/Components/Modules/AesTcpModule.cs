@@ -61,7 +61,7 @@ namespace NetworkLibrary.P2P.Components.Modules
       
         public void SendAsync(MessageEnvelope message)
         {
-            message = MessageEnvelope.CloneFromNoRouter(message);
+            message = MessageEnvelope.CloneWithNoRouter(message);
 
 
             GetSerialisationStream();
@@ -78,7 +78,7 @@ namespace NetworkLibrary.P2P.Components.Modules
 
         public void SendAsync<T>(MessageEnvelope message, T innerMsg)
         {
-            message = MessageEnvelope.CloneFromNoRouter(message);
+            message = MessageEnvelope.CloneWithNoRouter(message);
 
 
             GetSerialisationStream();
@@ -90,7 +90,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         }
         public void SendAsync(MessageEnvelope message, Action<PooledMemoryStream> serializationCallback)
         {
-            message = MessageEnvelope.CloneFromNoRouter(message);
+            message = MessageEnvelope.CloneWithNoRouter(message);
 
 
             GetSerialisationStream();
@@ -102,7 +102,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         }
         public Task<MessageEnvelope> SendMessageAndWaitResponse<T>(MessageEnvelope message, T payload, int timeout)
         {
-            message = MessageEnvelope.CloneFromNoRouter(message);
+            message = MessageEnvelope.CloneWithNoRouter(message);
 
             message.MessageId = Guid.NewGuid();
             var task = awaiter.RegisterWait(message.MessageId, timeout);
@@ -112,7 +112,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         }
         public Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope message, int timeout)
         {
-            message = MessageEnvelope.CloneFromNoRouter(message);
+            message = MessageEnvelope.CloneWithNoRouter(message);
 
             message.MessageId = Guid.NewGuid();
             var task = awaiter.RegisterWait(message.MessageId, timeout);
@@ -163,6 +163,7 @@ namespace NetworkLibrary.P2P.Components.Modules
 
         internal void Dispose()
         {
+           OnMessageReceived = null;
            client?.Dispose();
            server?.ShutdownServer();
         }

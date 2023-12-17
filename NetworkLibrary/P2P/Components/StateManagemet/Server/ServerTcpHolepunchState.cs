@@ -30,10 +30,12 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
         int destinationSuccess = 0;
         private byte[] random =  new byte[16];
 
-        public ServerTcpHolepunchState(StateManager sm)
+        public ServerTcpHolepunchState(StateManager sm, Guid stateId)
         {
             stateManager = sm;
-           // var random = new byte[16];
+            StateId = stateId;
+
+            // var random = new byte[16];
             var rng = RandomNumberGenerator.Create();
             rng.GetNonZeroBytes(random);
             rng.Dispose();
@@ -44,7 +46,6 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
             requesterEndpoints = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
             requesterId = message.From;
             destinationId = message.To;
-            StateId = message.MessageId;
 
             MessageEnvelope msg = new MessageEnvelope
             {

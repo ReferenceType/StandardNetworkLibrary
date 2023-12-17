@@ -22,6 +22,7 @@ namespace NetworkLibrary.TCP.SSL.Custom
             session.SocketRecieveBufferSize = SocketRecieveBufferSize;
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.DropOnCongestion = DropOnCongestion;
+            session.UseQueue = false;
             return session;
         }
 

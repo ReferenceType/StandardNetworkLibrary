@@ -40,7 +40,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if(endpoint!= associatedClient.relayServerEndpoint)
             {
-                message = MessageEnvelope.CloneFromNoRouter(message);
+                message = MessageEnvelope.CloneWithNoRouter(message);
             }
 
             GetTLSStream();
@@ -64,7 +64,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (endpoint != associatedClient.relayServerEndpoint)
             {
-                message = MessageEnvelope.CloneFromNoRouter(message);
+                message = MessageEnvelope.CloneWithNoRouter(message);
             }
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
@@ -88,7 +88,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (!forceRouterHeader&&endpoint != associatedClient.relayServerEndpoint)
             {
-                message = MessageEnvelope.CloneFromNoRouter(message);
+                message = MessageEnvelope.CloneWithNoRouter(message);
             }
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
@@ -112,7 +112,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (endpoint != associatedClient.relayServerEndpoint)
             {
-                message = MessageEnvelope.CloneFromNoRouter(message);
+                message = MessageEnvelope.CloneWithNoRouter(message);
             }
             GetTLSStream();
             TLSSerialisationStream.Position32 = 0;
@@ -160,7 +160,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (!forceRouterHeader&& endpoint != associatedClient.relayServerEndpoint)
             {
-                message = MessageEnvelope.CloneFromNoRouter(message);
+                message = MessageEnvelope.CloneWithNoRouter(message);
             }
 
             GetTLSStream();
@@ -187,7 +187,7 @@ namespace NetworkLibrary.P2P.Components.Modules
         {
             if (endpoint != associatedClient.relayServerEndpoint)
             {
-                message = MessageEnvelope.CloneFromNoRouter(message);
+                message = MessageEnvelope.CloneWithNoRouter(message);
 
             }
 

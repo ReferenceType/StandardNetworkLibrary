@@ -106,7 +106,8 @@ namespace NetworkLibrary.TCP.SSL.Base
             var sslStream = new SslStream(new NetworkStream(acceptedArg.AcceptSocket, true), false, ValidateCeriticate);
             try
             {
-                Authenticate((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint, sslStream, certificate, true, SslProtocols.None, false);
+                Authenticate((IPEndPoint)acceptedArg.AcceptSocket.RemoteEndPoint, sslStream,
+                    certificate, true, SslProtocols.None, false);
             }
             catch (Exception ex)
             when (ex is AuthenticationException || ex is ObjectDisposedException)
@@ -120,11 +121,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         private async void Authenticate(IPEndPoint remoteEndPoint, SslStream sslStream, X509Certificate2 certificate, bool v1, SslProtocols none, bool v2)
         {
             var task = sslStream.AuthenticateAsServerAsync(certificate, v1, none, v2);
-            if (await Task.WhenAny(task, Task.Delay(10000)) == task)
+            if (await Task.WhenAny(task, Task.Delay(10000)).ConfigureAwait(false) == task)
             {
                 try
                 {
-                    await task;
+                    //await task;
                     var sessionId = Guid.NewGuid();
                     var ses = CreateSession(sessionId, (sslStream, remoteEndPoint));
                     ses.OnBytesRecieved += HandleBytesReceived;

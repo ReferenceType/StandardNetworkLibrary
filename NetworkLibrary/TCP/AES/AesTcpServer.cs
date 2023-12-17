@@ -30,6 +30,7 @@ namespace NetworkLibrary.TCP.AES
             session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
+            session.UseQueue = false;
             return session;
 
         }

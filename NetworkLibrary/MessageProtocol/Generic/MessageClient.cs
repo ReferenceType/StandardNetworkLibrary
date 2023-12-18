@@ -51,6 +51,7 @@ namespace MessageProtocol
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.DropOnCongestion = DropOnCongestion;
             ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
+            ses.UseQueue = false;
             session = ses;
 
             return ses;

@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Crypto;
 using NetworkLibrary.P2P.Components.HolePunch;
 using System;
 using System.Collections.Generic;
@@ -6,7 +7,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace NetworkLibrary.P2P.Components.StateManagemet.Client
+namespace NetworkLibrary.P2P.Components.StateManagement.Client
 {
     internal class ClientConnectionState : IState
     {
@@ -23,9 +24,10 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
 
         private ConcurrentAesAlgorithm tempEncryptor;
         private StateManager stateManager;
-
-        public ClientConnectionState(StateManager stateManager)
+        AesMode mode;
+        public ClientConnectionState(StateManager stateManager, AesMode AESMode)
         {
+            mode = AESMode;
             this.stateManager = stateManager;
             StartLifetimeCounter();
         }
@@ -61,7 +63,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
 
         private void RegisterUdp(MessageEnvelope message)
         {
-            tempEncryptor = new ConcurrentAesAlgorithm(message.Payload, message.Payload);
+            tempEncryptor = new ConcurrentAesAlgorithm(message.Payload,mode);
             SessionId = message.To;
 
             MessageEnvelope udpRegistrationMsg = new MessageEnvelope()
@@ -92,14 +94,14 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
 
         private void SendUdpRegistrationMessage(MessageEnvelope udpRegistrationMsg, EndpointTransferMessage endpoints)
         {
-            stateManager.SendAsync(serverEndpoint, udpRegistrationMsg,
+            stateManager.SendUdpAsync(serverEndpoint, udpRegistrationMsg,
                (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream, endpoints),
                 tempEncryptor);
         }
 
         private void HandleFinalization(MessageEnvelope finalMSg)
         {
-            udpEncriptor = new ConcurrentAesAlgorithm(finalMSg.Payload, finalMSg.Payload);
+            udpEncriptor = new ConcurrentAesAlgorithm(finalMSg.Payload,mode);
             Release(true);
         }
 

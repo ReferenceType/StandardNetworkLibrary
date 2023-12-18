@@ -4,6 +4,7 @@ using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace MessageProtocol
 {
@@ -15,7 +16,7 @@ namespace MessageProtocol
         private ByteMessageReader reader;
         public SecureMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }
@@ -79,8 +80,7 @@ namespace MessageProtocol
 
             // you have to push it to queue because queue also does the processing.
             mq.TryEnqueueMessage(message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            WriteOnSessionStream(amountWritten);
+            FlushAndSend();
 
         }
 
@@ -122,17 +122,15 @@ namespace MessageProtocol
 
             // you have to push it to queue because queue also does the processing.
             mq.TryEnqueueMessage(envelope, message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            WriteOnSessionStream(amountWritten);
+            FlushAndSend();
 
         }
-
         protected override void ReleaseReceiveResources()
         {
             base.ReleaseReceiveResources();
-            reader.ReleaseResources();
-            reader = null;
-            mq = null;
+            Interlocked.Exchange(ref mq, null)?.Dispose();
+            Interlocked.Exchange(ref reader, null)?.ReleaseResources();
+           
         }
     }
 }

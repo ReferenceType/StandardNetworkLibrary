@@ -8,6 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace NetworkLibrary.TCP.SSL.Custom
 {
+    [Obsolete("Do not use this class, only for test")]
     public class CustomSslServer : ByteMessageTcpServer
     {
 
@@ -15,10 +16,37 @@ namespace NetworkLibrary.TCP.SSL.Custom
         public CustomSslServer(int port, X509Certificate2 certificate) : base(port)
         {
             this.certificate = certificate;
+            
         }
 
         protected override bool IsConnectionAllowed(SocketAsyncEventArgs acceptArgs)
         {
+#if NET6_0_OR_GREATER
+
+            //var sock = acceptArgs.AcceptSocket;
+            //using (ECDiffieHellmanCng alice = new ECDiffieHellmanCng())
+            //{
+
+            //    alice.KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash;
+            //    alice.HashAlgorithm = CngAlgorithm.Sha256;
+            //    var alicePublicKey = alice.PublicKey.ToByteArray();
+
+            //    sock.SendAsync(alicePublicKey, SocketFlags.None);
+
+            //    byte[] b = new byte[140];
+            //    int amount = sock.Receive(b);
+
+              
+            //    var bobPk = b;
+            //    CngKey bobKey = CngKey.Import(bobPk, CngKeyBlobFormat.EccPublicBlob);
+            //    var privateKey = alice.DeriveKeyMaterial(bobKey);
+
+            //    acceptArgs.UserToken = Utils.ByteCopy.ToArray(privateKey, 0, 16);
+
+            //}
+            //return true;
+#endif
+
             // Todo do ssl part of server here
             var sslStream = new SslStream(new NetworkStream(acceptArgs.AcceptSocket, false), false, ValidateCeriticate);
             sslStream.AuthenticateAsServer(certificate, true, System.Security.Authentication.SslProtocols.Tls12, false);
@@ -57,7 +85,9 @@ namespace NetworkLibrary.TCP.SSL.Custom
             session.SocketRecieveBufferSize = ClientReceiveBufsize;
             session.MaxIndexedMemory = MaxIndexedMemoryPerClient;
             session.DropOnCongestion = DropOnBackPressure;
+            session.UseQueue = true;
             return session;
         }
     }
+
 }

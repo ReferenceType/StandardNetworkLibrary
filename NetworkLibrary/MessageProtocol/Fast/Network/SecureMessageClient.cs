@@ -29,6 +29,16 @@ namespace NetworkLibrary.MessageProtocol
             }
             MapReceivedBytes();
         }
+        public SecureMessageClient() : base()
+        {
+            RemoteCertificateValidationCallback += ValidateCert;
+            GatherConfig = ScatterGatherConfig.UseBuffer;
+            if (MessageEnvelope.Serializer == null)
+            {
+                MessageEnvelope.Serializer = new GenericMessageSerializer<S>();
+            }
+            MapReceivedBytes();
+        }
 
         protected virtual bool ValidateCert(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
@@ -135,6 +145,7 @@ namespace NetworkLibrary.MessageProtocol
         public override void Dispose()
         {
             OnMessageReceived = null;
+            base.Dispose();
         }
     }
 

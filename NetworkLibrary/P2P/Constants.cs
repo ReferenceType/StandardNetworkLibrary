@@ -33,5 +33,19 @@
 
         // key of a dict, picked some unusual control char.
         public const string RoomName = "\v";
+
+        public const string ReqTCPHP = "ReqTCPHP";
+        public const string TcpPortMap = "TcpPortMap";
+        public const string OkSendUdp = "OkSendUdp";
+        public const string ResendUdp = "ResendUdp";
+        public const string AckPortMap = "AckPortMap";
+        public const string TryConnect = "TryConnect";
+        public const string SwapToClient = "SwapToClient";
+        public const string FinalizeSuccess = "FinalizeSuccess";
+        public const string FinalizeFail = "FinalizeFail";
+        public const string Failed = "Failed";
+        public const string Success = "Success";
+        public const string InitTCPHPRemote = "InitTCPHPRemote";
+
     }
 }

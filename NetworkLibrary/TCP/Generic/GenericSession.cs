@@ -4,6 +4,7 @@ using NetworkLibrary.TCP.Base;
 using System;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace NetworkLibrary.TCP.Generic
 {
@@ -16,7 +17,7 @@ namespace NetworkLibrary.TCP.Generic
         public GenericSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, bool writeMsgLenghtPrefix = true) : base(acceptedArg, sessionId)
         {
             this.writeMsgLenghtPrefix = writeMsgLenghtPrefix;
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
         }
@@ -87,13 +88,11 @@ namespace NetworkLibrary.TCP.Generic
             FlushSendBuffer(0, amountWritten);
 
         }
-
         protected override void ReleaseReceiveResources()
         {
             base.ReleaseReceiveResources();
-            reader.ReleaseResources();
-            reader = null;
-            mq = null;
+            Interlocked.Exchange(ref mq, null)?.Dispose();
+            Interlocked.Exchange(ref reader, null)?.ReleaseResources();
         }
     }
 }

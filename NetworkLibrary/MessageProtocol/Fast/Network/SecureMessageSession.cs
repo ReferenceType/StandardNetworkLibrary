@@ -3,6 +3,8 @@ using NetworkLibrary.TCP.SSL.Base;
 using System;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
+using NetworkLibrary.Utils;
+using System.Threading;
 
 namespace NetworkLibrary.MessageProtocol
 {
@@ -13,20 +15,20 @@ namespace NetworkLibrary.MessageProtocol
         private ByteMessageReader reader;
         public SecureMessageSession(Guid sessionId, SslStream sessionStream) : base(sessionId, sessionStream)
         {
-            reader = new ByteMessageReader(sessionId);
+            reader = new ByteMessageReader();
             reader.OnMessageReady += HandleMessage;
             UseQueue = false;
-        }
-
-        protected virtual GenericMessageQueue<S> GetMesssageQueue()
-        {
-            return new GenericMessageQueue<S>(MaxIndexedMemory, true);
         }
 
         protected override IMessageQueue CreateMessageQueue()
         {
             mq = GetMesssageQueue();
             return mq;
+        }
+
+        protected virtual GenericMessageQueue<S> GetMesssageQueue()
+        {
+            return new GenericMessageQueue<S>(MaxIndexedMemory, true);
         }
 
         private void HandleMessage(byte[] arg1, int arg2, int arg3)
@@ -36,6 +38,7 @@ namespace NetworkLibrary.MessageProtocol
 
         protected override void HandleReceived(byte[] buffer, int offset, int count)
         {
+            if (IsSessionClosing()) return;
             reader.ParseBytes(buffer, offset, count);
         }
 
@@ -76,9 +79,13 @@ namespace NetworkLibrary.MessageProtocol
             }
 
             // you have to push it to queue because queue also does the processing.
-            mq.TryEnqueueMessage(message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            WriteOnSessionStream(amountWritten);
+            if (!mq.TryEnqueueMessage(message))
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
+                EndSession();
+                return;
+            }
+            FlushAndSend();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -118,9 +125,16 @@ namespace NetworkLibrary.MessageProtocol
             }
 
             // you have to push it to queue because queue also does the processing.
-            mq.TryEnqueueMessage(envelope, message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            WriteOnSessionStream(amountWritten);
+            if (!mq.TryEnqueueMessage(envelope,message))
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
+                EndSession();
+                return;
+            }
+
+            //mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+            //WriteOnSessionStream(amountWritten);
+            FlushAndSend();
 
         }
 
@@ -161,18 +175,22 @@ namespace NetworkLibrary.MessageProtocol
             }
 
             // you have to push it to queue because queue also does the processing.
-            mq.TryEnqueueMessage(envelope, serializationCallback);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            WriteOnSessionStream(amountWritten);
+            if (!mq.TryEnqueueMessage(envelope,serializationCallback))
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
+                EndSession();
+                return;
+            }
+            FlushAndSend();
+            //mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+            //WriteOnSessionStream(amountWritten);
 
         }
-
-        protected override void ReleaseReceiveResources()
+        protected override void ReleaseSendResources()
         {
-            base.ReleaseReceiveResources();
-            reader.ReleaseResources();
-            reader = null;
-            mq = null;
+            base.ReleaseSendResources();
+            Interlocked.Exchange(ref reader, null)?.ReleaseResources();
+            Interlocked.Exchange(ref mq, null)?.Dispose();
         }
     }
 }

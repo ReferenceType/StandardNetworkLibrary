@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components.Statistics;
+﻿using NetworkLibrary.Components.Crypto.Certificate;
+using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.TCP.SSL.ByteMessage;
 using NetworkLibrary.Utils;
 using System.Diagnostics;
@@ -88,7 +89,7 @@ namespace ConsoleTest
         {
             clientMessage = new byte[messageSize];
             clients = new List<SslByteMessageClient>();
-            var ccert = new X509Certificate2("client.pfx", "greenpass");
+            var ccert = CertificateGenerator.GenerateSelfSignedCertificate();//new X509Certificate2("client.pfx", "greenpass");
 
             for (int i = 0; i < numClients; i++)
             {
@@ -133,7 +134,7 @@ namespace ConsoleTest
             fixedMessage = isFixedMessage ? new byte[fixedMessageSize] : new byte[0];
             var scert = new X509Certificate2("server.pfx", "greenpass");
 
-            server = new SslByteMessageServer(port, scert);
+            server = new SslByteMessageServer(port);
             server.RemoteCertificateValidationCallback
                 += ValidateCertAsClient;
 

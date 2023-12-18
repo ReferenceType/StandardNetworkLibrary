@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
 using System.Net.Sockets;
@@ -7,13 +8,13 @@ namespace NetworkLibrary.TCP.SSL.Custom
 {
     internal class CustomSslSession : ByteMessageSession
     {
-        AesAlgorithm encryptor;
+        AesCbcAlgorithm encryptor;
         //AesDecryptor processor;
         private AesMessageDecryptor decr;
 
         internal CustomSslSession(SocketAsyncEventArgs acceptedArg, Guid sessionId, byte[] aesKey) : base(acceptedArg, sessionId)
         {
-            encryptor = new AesAlgorithm(aesKey, aesKey);
+            encryptor = new AesCbcAlgorithm(aesKey, aesKey);
             decr = new AesMessageDecryptor(encryptor);
         }
 

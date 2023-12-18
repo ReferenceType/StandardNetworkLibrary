@@ -14,6 +14,10 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         {
         }
 
+        public SslByteMessageClient() : base()
+        {
+        }
+
 
         private protected override IAsyncSession CreateSession(Guid guid, ValueTuple<SslStream, IPEndPoint> tuple)
         {

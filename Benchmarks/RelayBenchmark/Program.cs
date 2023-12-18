@@ -179,31 +179,43 @@ namespace RelayBenchmark
             Payload = new byte[32]
         };
         static Stopwatch sw = new Stopwatch();
+        static long sumsum = 0;
+
         private static void RelayTest()
         {
+           
             //string ip = "79.52.134.220";
             string ip = "127.0.0.1";
 
 
             var cert = new X509Certificate2("client.pfx", "greenpass");
             var scert = new X509Certificate2("server.pfx", "greenpass");
-           // var server = new SecureProtoRelayServer(20011, scert);
-           // server.StartServer();
+            if (Console.ReadLine() == "e")
+            {
+                var server = new SecureProtoRelayServer(20020, scert);
+                server.StartServer();
+                Task.Run(async () => { while (true) { await Task.Delay(5000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
+
+            }
+            Console.ReadLine();
             //Task.Run(async () => { while (true) { await Task.Delay(10000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
             var clients = new List<RelayClient>();
-            int numclients = 2;
+            int numclients = 50;
             var pending = new Task[numclients];
+            Task.Run(async () => { while (true) { await Task.Delay(1000); Console.WriteLine(Interlocked.Exchange(ref sumsum, 0).ToString("N0")); } });
+
             // Parallel.For(0, numclients, (i) =>
             for (int i = 0; i < numclients; i++)
 
             {
-                var client = new RelayClient(cert);
+                var client = new RelayClient(cert,0);
                 client.OnMessageReceived += (reply) => ClientMsgReceived(client, reply);
                 client.OnUdpMessageReceived += (reply) => ClientUdpReceived(client, reply);
                 //client.OnPeerRegistered += (id) => { /*if (client.sessionId.CompareTo(id) > 0)*/ client.RequestHolePunchAsync(id, 10000, false); };
                 try
                 {
-                    pending[i] = client.ConnectAsync(ip, 20011);
+                    pending[i] = client.ConnectAsync(ip, 20020);
+                   // client.StartPingService();
                     // client.Connect(ip, 20011);
                     clients.Add(client);
                     //client.StartPingService();
@@ -230,8 +242,10 @@ namespace RelayBenchmark
                         if (peer.Key == Guid.Empty)
                             throw new Exception();
 
-                        //var a = client.RequestHolePunchAsync(peer.Key, 10000, false);
-                        //pndg.Add(a);
+                         //var a = client.RequestTcpHolePunchAsync(peer.Key);
+                         //pndg.Add(a);
+                       // var aa = client.RequestHolePunchAsync(peer.Key, 10000, false);
+                        //pndg.Add(aa);
                         //client.TestHP(peer.Key, 10000, false);
                         //  Console.WriteLine(peer.Key+" cnt=> "+ ++cc);
                     }
@@ -243,13 +257,15 @@ namespace RelayBenchmark
 
 
             Thread.Sleep(1000);
+            Console.WriteLine("all good");
+
             // Parallel.ForEach(clients, (client) =>
             foreach (var client in clients)
             {
                 var testMessage = new MessageEnvelope()
                 {
                     Header = "Test",
-                    Payload = new byte[255000]
+                    Payload = new byte[32]
                 };
                 for (int i = 0; i < testMessage.PayloadCount; i++)
                 {
@@ -261,11 +277,12 @@ namespace RelayBenchmark
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                        //client.SendAsyncMessage(peer, testMessage);
-                       //client.SendUdpMesssage(peer, testMessage);
+                        client.SendAsyncMessage(peer, testMessage);
+                      //client.SendUdpMessage(peer, testMessage);
+                      // client.SendRudpMessage(peer, testMessage);
                         //  client.BroadcastMessage(testMessage);
                         //client.BroadcastUdpMessage(testMessage);
-                         client.SendRudpMessage(peer,testMessage);
+                        // client.SendRudpMessage(peer,testMessage);
                     }
                 }
                 break;
@@ -276,13 +293,14 @@ namespace RelayBenchmark
 
             sw.Start();
             sw2.Start();
-
             void ClientMsgReceived(RelayClient client, MessageEnvelope reply)
             {
+                //Interlocked.Add(ref sumsum, reply.PayloadCount);
+                Interlocked.Increment(ref sumsum);
                 //Interlocked.Increment(ref totMsgCl);
                 client.SendAsyncMessage(reply.From, reply);
                 // Console.WriteLine("R     " + sw.ElapsedMilliseconds);
-                sw.Restart();
+              //  sw.Restart();
             }
 
 
@@ -299,8 +317,8 @@ namespace RelayBenchmark
                 //        var b = (byte)i;
                 //    }
                 //}
-                //client.SendUdpMesssage(reply.From, reply);
-                client.SendRudpMessage(reply.From, reply);
+                client.SendUdpMessage(reply.From, reply);
+               // client.SendRudpMessage(reply.From, reply);
                 return;
                 if (client == clients[0])
                 {

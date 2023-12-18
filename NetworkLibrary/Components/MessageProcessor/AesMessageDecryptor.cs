@@ -1,5 +1,6 @@
 ﻿
 using System;
+using NetworkLibrary.Components.Crypto.Algorithms;
 
 namespace NetworkLibrary.Components
 {
@@ -19,9 +20,9 @@ namespace NetworkLibrary.Components
         int pendingRemaining;
         private bool writeHeaderOnflush;
 
-        private AesAlgorithm algorithm;
+        private AesCbcAlgorithm algorithm;
 
-        public AesMessageDecryptor(AesAlgorithm algorithm)
+        public AesMessageDecryptor(AesCbcAlgorithm algorithm)
         {
             this.algorithm = algorithm;
         }

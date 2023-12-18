@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Crypto;
 using NetworkLibrary.P2P.Components.HolePunch;
 using System;
 using System.Collections.Generic;
@@ -8,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Transactions;
 
-namespace NetworkLibrary.P2P.Components.StateManagemet.Client
+namespace NetworkLibrary.P2P.Components.StateManagement.Client
 {
     internal class ClientHolepunchState : IState
     {
@@ -32,8 +33,10 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         private StateManager stateManager;
         private int totalPunchRoutines = 0;
         private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        public ClientHolepunchState(Guid destinationId, Guid stateId, StateManager stateManager, IPEndPoint relayServerEndpoint)
+        AesMode mode;
+        public ClientHolepunchState(Guid destinationId, Guid stateId, StateManager stateManager, IPEndPoint relayServerEndpoint, AesMode aesMode)
         {
+            mode = aesMode;
             this.destinationId = destinationId;
             StateId = stateId;
             this.stateManager = stateManager;
@@ -60,7 +63,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
             };
             if (encypted)
                 message.KeyValuePairs = new Dictionary<string, string>() { { "Encrypted", null } };
-            stateManager.SendAsyncMessage(destinationId, message);
+            stateManager.SendTcpMessage(destinationId, message);
             // reply will be handled on HandleEndpointMessage
         }
 
@@ -98,7 +101,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
             KeyReceived?.Invoke(cryptoKey, targetEndpoints.LocalEndpoints);
             if (cryptoKey != null)
             {
-                aesAlgorithm = new ConcurrentAesAlgorithm(cryptoKey, cryptoKey);
+                aesAlgorithm = new ConcurrentAesAlgorithm(cryptoKey,mode);
             }
            
             var count = targetEndpoints.LocalEndpoints.Count;
@@ -135,9 +138,9 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                // Console.WriteLine("Punching towards: " + ep.ToString());
 
                 if (aesAlgorithm != null)
-                    stateManager.SendAsync(ep, message, Callback, aesAlgorithm);
+                    stateManager.SendUdpAsync(ep, message, Callback, aesAlgorithm);
                 else
-                    stateManager.SendAsync(ep, message, Callback);
+                    stateManager.SendUdpAsync(ep, message, Callback);
 
                 for (int i = 0; i < 10; i++)
                 {
@@ -145,9 +148,9 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                         break;
 
                     if (aesAlgorithm != null)
-                        stateManager.SendAsync(ep, message, Callback, aesAlgorithm);
+                        stateManager.SendUdpAsync(ep, message, Callback, aesAlgorithm);
                     else
-                        stateManager.SendAsync(ep, message, Callback);
+                        stateManager.SendUdpAsync(ep, message, Callback);
 
                     await Task.Delay(16 * i).ConfigureAwait(false);
                 }
@@ -179,7 +182,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
                 };
                 // payload is the endpoint where remote peer was shooting at.
                 msg.SetPayload(message.Payload, message.PayloadOffset, message.PayloadCount);
-                stateManager.SendAsyncMessage(destinationId, msg);
+                stateManager.SendTcpMessage(destinationId, msg);
                 Consensus();
             }
         }
@@ -222,7 +225,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
             if (Interlocked.Decrement(ref totalPunchRoutines) == 0)
             {
                 // this means i have send all udp messages for holepunch
-                stateManager.SendAsyncMessage(destinationId,
+                stateManager.SendTcpMessage(destinationId,
                     new MessageEnvelope()
                     {
                         IsInternal = true,
@@ -239,7 +242,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Client
         {
             if (Interlocked.Increment(ref consensusState) == totalConsensus)
             {
-                stateManager.SendAsyncMessage(destinationId,
+                stateManager.SendTcpMessage(destinationId,
                    new MessageEnvelope()
                    {
                        IsInternal = true,

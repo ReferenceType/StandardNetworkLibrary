@@ -9,7 +9,6 @@ namespace NetworkLibrary.TCP.Base
 {
     public class AsyncTpcClient : TcpClientBase, IDisposable
     {
-        protected bool connected = false;
         internal IAsyncSession session;
 
         private TcpClientStatisticsPublisher statisticsPublisher;
@@ -18,6 +17,21 @@ namespace NetworkLibrary.TCP.Base
 
         public AsyncTpcClient() { }
 
+        protected void SetConnectedSocket(Socket clientSocket, ScatterGatherConfig config)
+        {
+            this.GatherConfig = config;
+            this.clientSocket = clientSocket;
+            IsConnected = true;
+            var Id = Guid.NewGuid();
+
+            session = CreateSession(clientSocket, Id);
+
+            session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
+            session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
+
+            session.StartSession();
+            statisticsPublisher = new TcpClientStatisticsPublisher(session, Id);
+        }
         #region Connect
 
         public override void Connect(string IP, int port)
@@ -63,7 +77,8 @@ namespace NetworkLibrary.TCP.Base
             else
             {
                 e.AcceptSocket = e.ConnectSocket;
-                connected = true;
+                IsConnected = true;
+                IsConnecting = false;
 
                 HandleConnected(e);
                 connectedCompletionSource?.TrySetResult(true);
@@ -103,19 +118,47 @@ namespace NetworkLibrary.TCP.Base
                 ses.UseQueue = false;
             return ses;
         }
+        private protected virtual  IAsyncSession CreateSession(Socket e, Guid sessionId)
+        {
+            var ses = new TcpSession(e, sessionId);
+            ses.socketSendBufferSize = SocketSendBufferSize;
+            ses.SocketRecieveBufferSize = SocketRecieveBufferSize;
+            ses.MaxIndexedMemory = MaxIndexedMemory;
+            ses.DropOnCongestion = DropOnCongestion;
 
+            if (GatherConfig == ScatterGatherConfig.UseQueue)
+                ses.UseQueue = true;
+            else
+                ses.UseQueue = false;
+            return ses;
+        }
         #endregion
 
         #region Send & Receive
+        /// <summary>
+        /// Sends a message without blocking.
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be added to queue without copy.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread.
+        /// </summary>
+        /// <param name="buffer"></param>
         public override void SendAsync(byte[] buffer)
         {
-            if (connected)
+            if (IsConnected)
                 session?.SendAsync(buffer);
         }
 
+        /// <summary>
+        /// Sends a message without blocking
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be copied to single buffer before added into queue.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread,
+        /// <br/>ScatterGatherConfig.UseBuffer is the reccomeded configuration if your sends are buffer region
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
         public override void SendAsync(byte[] buffer, int offset, int count)
         {
-            if (connected)
+            if (IsConnected)
                 session?.SendAsync(buffer, offset, count);
         }
 

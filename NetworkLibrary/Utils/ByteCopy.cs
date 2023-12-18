@@ -40,23 +40,13 @@ namespace NetworkLibrary.Utils
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteInt32(byte[] buffer, int offset, int value)
+       
+        internal static byte[] Merge(byte[] b1, byte[] b2)
         {
-            if (BitConverter.IsLittleEndian)
-            {
-                buffer[offset] = (byte)value;
-                buffer[offset + 1] = (byte)(value >> 8);
-                buffer[offset + 2] = (byte)(value >> 16);
-                buffer[offset + 3] = (byte)(value >> 24);
-            }
-            else
-            {
-                buffer[offset + 3] = (byte)value;
-                buffer[offset + 2] = (byte)(value >> 8);
-                buffer[offset + 1] = (byte)(value >> 16);
-                buffer[offset] = (byte)(value >> 24);
-            }
+            var bf=GetNewArray(b1.Length + b2.Length);
+            BlockCopy(b1, 0, bf, 0, b1.Length);
+            BlockCopy(b2, 0, bf, b1.Length, b2.Length);
+            return bf;
         }
     }
 }

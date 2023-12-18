@@ -6,10 +6,11 @@ namespace NetworkLibrary.TCP.Base
 {
     public abstract class TcpClientBase
     {
-
         /// <summary>
-        /// Use queue if your messages are from static resources such a a byte[] without segmentation.
-        /// Use buffer if your messsages are mainly from segment of byte[] i.e. buffer, offset, count.
+        ///<br/> Determines whether to use queue or buffer for message gathering mechanism.
+        /// <br/><br/> UseQueue requires your byte[] sources to be not modified after send because your data may be copied asyncronusly.
+        /// <br/><br/> UseBuffer will copy your data into a buffer on caller thread. Socket will perform buffer swaps.
+        /// You can modify or reuse your data safely.
         /// </summary>
         public ScatterGatherConfig GatherConfig = ScatterGatherConfig.UseQueue;
 
@@ -37,7 +38,9 @@ namespace NetworkLibrary.TCP.Base
         public Action OnDisconnected { get; set; }
 
         /// <summary>
-        /// 
+        /// Invoked when bytes are received. New receive operation will not be performed until this callback is finalised.
+        /// <br/><br/>Callback data is region of the socket buffer.
+        /// <br/>Do a copy if you intend to store the data or use it on different thread.
         /// </summary>
         public BytesRecieved OnBytesReceived { get; set; }
 
@@ -66,7 +69,7 @@ namespace NetworkLibrary.TCP.Base
         /// Maximum amount of indexed memory to be held inside the message queue.
         /// it is the cumulative message lengths that are queued.
         /// </summary>
-        public int MaxIndexedMemory { get; set; } = 128000;
+        public int MaxIndexedMemory { get; set; } = 128000000;
 
         /// <summary>
         /// Indicates whether if we should drop the messages on congestion pressure

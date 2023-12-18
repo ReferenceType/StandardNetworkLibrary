@@ -4,9 +4,13 @@ using System;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
+using NetworkLibrary.Utils;
 
 namespace NetworkLibrary.TCP.SSL.Custom
 {
+    [Obsolete("Do not use this class, only for test")]
+    // authenticate with tls, send with aes.
     public class CustomSslClient : ByteMessageTcpClient
     {
         private X509Certificate2 certificate;
@@ -22,14 +26,37 @@ namespace NetworkLibrary.TCP.SSL.Custom
             session.SocketRecieveBufferSize = SocketRecieveBufferSize;
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.DropOnCongestion = DropOnCongestion;
+            session.UseQueue = true;
             return session;
         }
 
-
-
-        // this was just for a test.
         protected override void HandleConnected(SocketAsyncEventArgs e)
         {
+#if NET6_0_OR_GREATER
+
+            //var sock = e.ConnectSocket;
+            //using (ECDiffieHellmanCng alice = new ECDiffieHellmanCng())
+            //{
+
+            //    alice.KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash;
+            //    alice.HashAlgorithm = CngAlgorithm.Sha256;
+            //    var alicePublicKey = alice.PublicKey.ToByteArray();
+
+            //    sock.Send(alicePublicKey);
+
+            //    byte[] b =  new byte[140];
+            //    int amount =  sock.Receive(b);
+
+            //    var bobPk = b;
+            //    CngKey bobKey = CngKey.Import(bobPk, CngKeyBlobFormat.EccPublicBlob);
+            //    var privateKey = alice.DeriveKeyMaterial(bobKey);
+
+            //    e.UserToken = ByteCopy.ToArray(privateKey,0,16);
+            //}
+            //base.HandleConnected(e);
+            //return;
+#endif
+
             // do the ssl validation certs,
             // get your aes symetric key,
             var sslStream = new SslStream(new NetworkStream(e.ConnectSocket, false), false, ValidateCeriticate);
@@ -56,6 +83,6 @@ namespace NetworkLibrary.TCP.SSL.Custom
             return false;
         }
 
-
     }
+
 }

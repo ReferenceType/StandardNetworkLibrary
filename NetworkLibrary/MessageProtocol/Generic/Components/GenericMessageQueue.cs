@@ -18,7 +18,7 @@ namespace NetworkLibrary.MessageProtocol
 
         public bool TryEnqueueMessage<T>(E envelope, T message)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
@@ -47,7 +47,7 @@ namespace NetworkLibrary.MessageProtocol
         public bool TryEnqueueMessage(E envelope)
         {
 
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {

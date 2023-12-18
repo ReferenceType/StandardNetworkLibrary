@@ -1,8 +1,10 @@
 ﻿using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.P2P.Components.StateManagemet.Server;
 using NetworkLibrary.P2P.Generic;
+using NetworkLibrary.Utils;
 using System;
 
-namespace NetworkLibrary.P2P.Components.StateManagemet.Server
+namespace NetworkLibrary.P2P.Components.StateManagement.Server
 {
     internal class ServerStateManager<S> : StateManager where S : ISerializer, new()
     {
@@ -18,9 +20,11 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
             switch (message.Header)
             {
                 case Constants.Register:
-                    AddState(CreateConnectionState(clientId, message));
+                    CreateConnectionState(clientId, message);
                     return true;
-
+                case Constants.ReqTCPHP:
+                    CreateTcpHPState(message);
+                    return true;
                 default:
                     return base.HandleMessage(message);
             }
@@ -34,6 +38,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
             var stateId = Guid.NewGuid();
             var state = new ServerConnectionState(clientId, stateId, this);
             state.Completed += OnServerConnectionStateCompleted;
+            AddState(state);
             MessageEnvelope envelope = new MessageEnvelope()
             {
                 IsInternal = true,
@@ -54,6 +59,16 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
                 var state = obj as ServerConnectionState;
                 server.Register(state.clientId, state.remoteEndpoint, state.endpointTransferMsg.LocalEndpoints, state.random);
             }
+        }
+
+        private ServerTcpHolepunchState CreateTcpHPState(MessageEnvelope message)
+        {
+            var state = new ServerTcpHolepunchState(this,message.MessageId);
+            AddState(state);
+            state.Initialize(message);
+            MiniLogger.Log(MiniLogger.LogLevel.Info, "Created tcp holepunch state");
+            // room server needs to know this completion. maybe?
+            return state;
         }
     }
 }

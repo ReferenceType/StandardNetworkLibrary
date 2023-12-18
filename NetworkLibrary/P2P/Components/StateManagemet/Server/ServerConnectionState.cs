@@ -4,7 +4,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Threading;
 
-namespace NetworkLibrary.P2P.Components.StateManagemet.Server
+namespace NetworkLibrary.P2P.Components.StateManagement.Server
 {
 
     class ServerConnectionState : IState
@@ -66,7 +66,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
                     MessageId = StateId,
                 };
 
-                server.SendAsyncMessage(clientId, envelope);
+                server.SendTcpMessage(clientId, envelope);
             }
         }
 

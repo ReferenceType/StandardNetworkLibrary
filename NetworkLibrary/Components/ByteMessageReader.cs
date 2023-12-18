@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace NetworkLibrary.Components
 {
@@ -16,16 +17,14 @@ namespace NetworkLibrary.Components
         private int currentExpectedByteLenght;
         private int originalCapacity;
 
-        private readonly Guid Guid;
         public event Action<byte[], int, int> OnMessageReady;
 
         private bool awaitingHeader;
 
-        public ByteMessageReader(Guid guid, int bufferSize = 256000)
+        public ByteMessageReader( int bufferSize = 256000)
         {
             awaitingHeader = true;
             currentExpectedByteLenght = 4;
-            Guid = guid;
 
             headerBuffer = new byte[HeaderLenght];
             originalCapacity = bufferSize;
@@ -227,10 +226,17 @@ namespace NetworkLibrary.Components
             BufferPool.ReturnBuffer(internalBufer);
             internalBufer = BufferPool.RentBuffer(originalCapacity);
         }
-
+        
         public void ReleaseResources()
         {
-            if (internalBufer != null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
+            OnMessageReady = null;
+
+            var b = Interlocked.Exchange(ref internalBufer, null);
+
+            if (b != null) 
+            { 
+                BufferPool.ReturnBuffer(b);
+            }
         }
         #endregion
     }

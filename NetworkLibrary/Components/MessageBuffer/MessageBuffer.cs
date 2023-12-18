@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Drawing;
 using System.Threading;
 
 namespace NetworkLibrary.Components.MessageBuffer
@@ -11,7 +12,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         protected PooledMemoryStream writeStream = new PooledMemoryStream();
         protected PooledMemoryStream flushStream = new PooledMemoryStream();
-        protected readonly object loki = new object();
+        protected readonly object bufferMtex = new object();
         protected bool writeLengthPrefix;
         protected int currentIndexedMemory;
         protected bool disposedValue;
@@ -29,7 +30,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool TryEnqueueMessage(byte[] bytes)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
@@ -53,7 +54,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryEnqueueMessage(byte[] bytes, int offset, int count)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
@@ -76,7 +77,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryFlushQueue(ref byte[] buffer, int offset, out int amountWritten)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (IsEmpty())
                 {
@@ -99,10 +100,33 @@ namespace NetworkLibrary.Components.MessageBuffer
 
 
         }
+        public bool TryEnqueueMessage(byte[] data1, int offset1, int count1, byte[] data2, int offset2, int count2)
+        {
+            lock (bufferMtex)
+            {
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
+                {
 
+                    TotalMessageDispatched++;
+
+                    if (writeLengthPrefix)
+                    {
+                        currentIndexedMemory += 4;
+                        writeStream.WriteInt(count1+count2);
+                    }
+
+                    writeStream.Write(data1, offset1, count1);
+                    writeStream.Write(data2, offset2, count2);
+                    currentIndexedMemory += count1+count2;
+                    return true;
+                }
+
+            }
+            return false;
+        }
         protected virtual void Dispose(bool disposing)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (!disposedValue)
                 {

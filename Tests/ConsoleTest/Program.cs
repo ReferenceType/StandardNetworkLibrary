@@ -58,6 +58,18 @@ namespace ConsoleTest
         static void Main(string[] args)
         {
             MiniLogger.AllLog += (log) => Console.WriteLine(log);
+            var ServerSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+          //  ServerSocket.ExclusiveAddressUse = false;
+           // ServerSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            ServerSocket.Bind(new IPEndPoint(IPAddress.Any, 11111));
+            ServerSocket.Listen(1000);
+            var ep = ServerSocket.LocalEndPoint;
+            ServerSocket.Dispose();
+            var ServerSocket1 = new Socket(SocketType.Stream, ProtocolType.Tcp);
+          //  ServerSocket1.ExclusiveAddressUse = false;
+           // ServerSocket1.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            ServerSocket1.Bind(ep);
+
             TestLobby();
             //TestReliableModules();
             Console.ReadLine();
@@ -602,8 +614,8 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
             rng.GetNonZeroBytes(random);
             rng.Dispose();
 
-            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(random, random);
-            ConcurrentAesAlgorithm algo2 = new ConcurrentAesAlgorithm(random, random);
+            ConcurrentAesAlgorithm algo = new ConcurrentAesAlgorithm(random,NetworkLibrary.Components.Crypto.AesMode.CBCRandomIV);
+            ConcurrentAesAlgorithm algo2 = new ConcurrentAesAlgorithm(random, NetworkLibrary.Components.Crypto.AesMode.CBCRandomIV);
 
             EncryptedUdpProtoClient client1 = new EncryptedUdpProtoClient(algo);
             EncryptedUdpProtoClient client2 = new EncryptedUdpProtoClient(algo2);
@@ -985,8 +997,26 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
                 Buffer.BlockCopy(bytes, 0, result, 0, 32);
                 return result;
             }
+            ConcurrentDictionary<Guid,bool> messageTracker = new ConcurrentDictionary<Guid, bool>();
+            Task.Run(async () =>
+            {
 
-
+                while (true)
+                {
+                    await Task.Delay(1000);
+                    foreach (var entry in messageTracker)
+                    {
+                        if (entry.Value == true)
+                        {
+                            // Drop Client.
+                        }
+                        else
+                        {
+                            messageTracker[entry.Key] = false;
+                        }
+                    }
+                }
+            });
 
 
         }
@@ -1113,62 +1143,62 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         }
 
-        private static void SSlTest2()
-        {
-            Stopwatch sw = new Stopwatch();
-            int totMsgClient = 0;
-            int totMsgServer = 0;
-            byte[] req = new byte[32];
-            byte[] resp = new byte[32];
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            var cert = new X509Certificate2("client.pfx", "greenpass");
-            CustomSslServer server = new CustomSslServer(2008, scert);
-            server.OnBytesReceived += ServerReceived;
-            server.StartServer();
+        //private static void SSlTest2()
+        //{
+        //    Stopwatch sw = new Stopwatch();
+        //    int totMsgClient = 0;
+        //    int totMsgServer = 0;
+        //    byte[] req = new byte[32];
+        //    byte[] resp = new byte[32];
+        //    var scert = new X509Certificate2("server.pfx", "greenpass");
+        //    var cert = new X509Certificate2("client.pfx", "greenpass");
+        //    CustomSslServer server = new CustomSslServer(2008, scert);
+        //    server.OnBytesReceived += ServerReceived;
+        //    server.StartServer();
 
-            CustomSslClient client = new CustomSslClient(cert);
-            client.OnBytesReceived += ClientReceived;
-            client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
-            sw.Start();
-            for (int i = 0; i < 1000000; i++)
-            {
-                client.SendAsync(req);
+        //    CustomSslClient client = new CustomSslClient(cert);
+        //    client.OnBytesReceived += ClientReceived;
+        //    client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
+        //    sw.Start();
+        //    for (int i = 0; i < 1000000; i++)
+        //    {
+        //        client.SendAsync(req);
 
-            }
-            client.SendAsync(new byte[502]);
+        //    }
+        //    client.SendAsync(new byte[502]);
 
-            while (Console.ReadLine() != "e")
-            {
-                Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
-                Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
-            }
+        //    while (Console.ReadLine() != "e")
+        //    {
+        //        Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
+        //        Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
+        //    }
 
-            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
-            {
-                Interlocked.Increment(ref totMsgServer);
-                if (arg4 == 502)
-                {
-                    server.SendBytesToClient(arg1, new byte[502]);
-                    return;
-                }
-                server.SendBytesToClient(arg1, resp);
-            }
+        //    void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
+        //    {
+        //        Interlocked.Increment(ref totMsgServer);
+        //        if (arg4 == 502)
+        //        {
+        //            server.SendBytesToClient(arg1, new byte[502]);
+        //            return;
+        //        }
+        //        server.SendBytesToClient(arg1, resp);
+        //    }
 
-            void ClientReceived(byte[] arg2, int arg3, int arg4)
-            {
-                Interlocked.Increment(ref totMsgClient);
-                if (arg4 != 32)
-                {
+        //    void ClientReceived(byte[] arg2, int arg3, int arg4)
+        //    {
+        //        Interlocked.Increment(ref totMsgClient);
+        //        if (arg4 != 32)
+        //        {
 
-                }
-                if (arg4 == 502)
-                {
-                    sw.Stop();
-                    Console.WriteLine(sw.ElapsedMilliseconds);
-                }
-                // client.SendAsync(req);
-            }
-        }
+        //        }
+        //        if (arg4 == 502)
+        //        {
+        //            sw.Stop();
+        //            Console.WriteLine(sw.ElapsedMilliseconds);
+        //        }
+        //        // client.SendAsync(req);
+        //    }
+        //}
 
 
 

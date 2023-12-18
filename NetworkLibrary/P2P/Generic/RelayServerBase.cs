@@ -1,10 +1,11 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Crypto;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.P2P.Components;
 using NetworkLibrary.P2P.Components.HolePunch;
-using NetworkLibrary.P2P.Components.StateManagemet;
-using NetworkLibrary.P2P.Components.StateManagemet.Server;
+using NetworkLibrary.P2P.Components.StateManagement;
+using NetworkLibrary.P2P.Components.StateManagement.Server;
 using NetworkLibrary.UDP;
 using NetworkLibrary.Utils;
 using System;
@@ -38,18 +39,45 @@ namespace NetworkLibrary.P2P.Generic
         internal byte[] ServerUdpInitKey { get; }
         private ServerStateManager<S> stateManager;
         private readonly byte[] serverNameBytes;
+        public AesMode AESMode;
+        bool initialised = false;
+        int port = 0;
         public SecureRelayServerBase(int port, X509Certificate2 certificate, string serverName = "Andromeda") : base(port, certificate)
         {
-            OnClientAccepted += HandleClientAccepted;
-            //OnBytesReceived += HandleTCPReceived;
-            OnClientDisconnected += HandleClientDisconnected;
-            udpServer = new AsyncUdpServer(port);
+            this.port = port;
+            serverNameBytes = Encoding.UTF8.GetBytes(serverName);
 
             ServerUdpInitKey = new byte[16];
             var rng = RandomNumberGenerator.Create();
             rng.GetNonZeroBytes(ServerUdpInitKey);
             rng.Dispose();
-            relayDectriptor = new ConcurrentAesAlgorithm(ServerUdpInitKey, ServerUdpInitKey);
+        }
+        public SecureRelayServerBase(int port, string serverName = "Andromeda") : base(port)
+        {
+            this.port = port;
+            serverNameBytes = Encoding.UTF8.GetBytes(serverName);
+
+            ServerUdpInitKey = new byte[16];
+            var rng = RandomNumberGenerator.Create();
+            rng.GetNonZeroBytes(ServerUdpInitKey);
+            rng.Dispose();
+        }
+        public override void StartServer()
+        {
+            Initialise();
+            base.StartServer();
+        }
+        private void Initialise()
+        {
+            if(initialised) return;
+            initialised=true;
+
+            OnClientAccepted += HandleClientAccepted;
+            //OnBytesReceived += HandleTCPReceived;
+            OnClientDisconnected += HandleClientDisconnected;
+            udpServer = new AsyncUdpServer(port);
+
+            relayDectriptor = new ConcurrentAesAlgorithm(ServerUdpInitKey, AESMode);
 
             udpServer.OnClientAccepted += UdpClientAccepted;
             udpServer.OnBytesRecieved += HandleUdpBytesReceived;
@@ -58,9 +86,7 @@ namespace NetworkLibrary.P2P.Generic
             udpServer.StartServer();
 
             Task.Run(PeerListPushRoutine);
-            serverNameBytes = Encoding.UTF8.GetBytes(serverName);
         }
-
 
         public void GetTcpStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
            => GetStatistics(out generalStats, out sessionStats);
@@ -138,7 +164,7 @@ namespace NetworkLibrary.P2P.Generic
 
         internal void Register(Guid clientId, IPEndPoint remoteEndpoint, List<EndpointData> localEndpoints, byte[] random)
         {
-            UdpCryptos.TryAdd(remoteEndpoint, new ConcurrentAesAlgorithm(random, random));
+            UdpCryptos.TryAdd(remoteEndpoint, new ConcurrentAesAlgorithm(random, AESMode));
             RegisteredUdpEndpoints.TryAdd(clientId, remoteEndpoint);
 
             localEndpoints.Add(new EndpointData(remoteEndpoint));
@@ -257,9 +283,6 @@ namespace NetworkLibrary.P2P.Generic
                     Header = Constants.InitiateHolepunch
                 };
 
-                //if (endpointsD.Last().ToIpEndpoint().Address == ((IPEndPoint)udpServer.LocalEndpoint).Address)
-                //    mreq.KeyValuePairs = new Dictionary<string, string>() { { "UseRelayIp", null } };
-
                 SendAsyncMessage(message.From,mreq,
                     (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                                 new EndpointTransferMessage()
@@ -279,9 +302,7 @@ namespace NetworkLibrary.P2P.Generic
                     Header = Constants.InitiateHolepunch
                 };
 
-                //if (endpointsR.Last().ToIpEndpoint().Address == ((IPEndPoint)udpServer.LocalEndpoint).Address)
-                //    mreq.KeyValuePairs = new Dictionary<string, string>() { { "UseRelayIp", null } };
-
+              
                 SendAsyncMessage(message.To, mdest,
                   (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                               new EndpointTransferMessage() { 
@@ -336,7 +357,16 @@ namespace NetworkLibrary.P2P.Generic
             return udpBuffer2;
         }
 
-       
+        [ThreadStatic]
+        static byte[] udpBuffer3;
+        static byte[] GetTlsBuffer3()
+        {
+            if (udpBuffer3 == null)
+                udpBuffer3 = ByteCopy.GetNewArray(65000, true);
+            return udpBuffer3;
+        }
+
+
         private void HandleUdpBytesReceived(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
             //filter unknown messages
@@ -371,9 +401,9 @@ namespace NetworkLibrary.P2P.Generic
                 {
                     if (UdpCryptos.TryGetValue(destEp, out var encryptor))
                     {
-                        //var encBuffer = GetTlsBuffer2();
-                        var reEncryptedBytesAmount = encryptor.EncryptInto(udpBuffer, 0, decrptedAmount, udpBuffer, 0);
-                        udpServer.SendBytesToClient(destEp, udpBuffer, 0, reEncryptedBytesAmount);
+                        var encBuffer = GetTlsBuffer3();
+                        var reEncryptedBytesAmount = encryptor.EncryptInto(udpBuffer, 0, decrptedAmount, encBuffer, 0);
+                        udpServer.SendBytesToClient(destEp, encBuffer, 0, reEncryptedBytesAmount);
                     }
                 }
             }
@@ -434,11 +464,21 @@ namespace NetworkLibrary.P2P.Generic
                 udpServer.SendBytesToClient(adress, serverNameBytes,0,serverNameBytes.Length);
                 return;
             }
-            if (count % 16 != 0)
+            if (bytes[offset] == 92 && bytes[offset+1] == 93)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to decrypt unregistered peer message");
+                try
+                {
+                    var message1 = serialiser.DeserialiseEnvelopedMessage(bytes, offset+2, count);
+                    stateManager.HandleMessage(adress, message1);
+                }
+                catch (Exception e)
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Error occured during tcp holepunch portmap: "+e.StackTrace);
+                }
                 return;
+                
             }
+          
             try
             {
                 byte[] result = relayDectriptor.Decrypt(bytes, offset, count);
@@ -466,6 +506,11 @@ namespace NetworkLibrary.P2P.Generic
         void INetworkNode.SendAsyncMessage(Guid destinatioinId, MessageEnvelope message)
         {
             SendAsyncMessage(destinatioinId, message);
+        }
+
+        public void SendAsyncMessage(MessageEnvelope message, Action<PooledMemoryStream> callback, Guid destinationId)
+        {
+            SendAsyncMessage(destinationId, message,callback);
         }
     }
 }

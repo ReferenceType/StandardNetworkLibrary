@@ -246,7 +246,7 @@ namespace NetworkLibrary.MessageProtocol
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal unsafe void EnvelopeMessageWithBytesDontWritePayload(byte[] buffer,ref int offset, MessageEnvelope envelope, int payloadCount)
         {
-            int originalPos = 0;
+            int originalPos = offset;
             offset += 2;
 
             EnvelopeSerializer.Serialize(buffer,ref offset, envelope);
@@ -258,8 +258,7 @@ namespace NetworkLibrary.MessageProtocol
             }
             ushort oldpos = (ushort)(delta);//msglen +2 
 
-            fixed (byte* b = &buffer[originalPos])
-                *(short*)b = (short)oldpos;
+          
 
             if (payloadCount > 0)
             {

@@ -129,19 +129,13 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
 
             // you have to push it to queue because queue also does the processing.
-            if(! messageQueue.TryEnqueueMessage(buffer, offset, count))
+            if(!messageQueue.TryEnqueueMessage(buffer, offset, count))
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
                 EndSession();
                 return;
             }
-            ThreadPool.UnsafeQueueUserWorkItem((s) =>
-            {
-                messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-                WriteOnSessionStream(amountWritten);
-            }, null);
-           
-
+            FlushAndSend();
         }
         public void SendAsync(byte[] buffer)
         {
@@ -185,18 +179,33 @@ namespace NetworkLibrary.TCP.SSL.Base
                 SendSemaphore.Release();
                 return;
             }
-            messageQueue.TryEnqueueMessage(buffer);
-
-            // you have to push it to queue because queue also does the processing.
-            ThreadPool.UnsafeQueueUserWorkItem((s) =>
+            if (!messageQueue.TryEnqueueMessage(buffer))
             {
-                messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-                WriteOnSessionStream(amountWritten);
-            }, null);
-           
-
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
+                EndSession();
+                return;
+            }
+            FlushAndSend();
         }
 
+        protected void FlushAndSend()
+        {
+            ThreadPool.UnsafeQueueUserWorkItem((s) => 
+            {
+                try
+                {
+                    messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+                    WriteOnSessionStream(amountWritten);
+                }
+                catch
+                {
+                    if (!IsSessionClosing())
+                        throw;
+                }
+
+            }, null);
+           
+        }
         protected void WriteOnSessionStream(int count)
         {
 #if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
@@ -220,12 +229,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             try
             {
+                //somehow faster than while loop...
             Top:
                 totalBytesSend += count;
                 await sessionStream.WriteAsync(new ReadOnlyMemory<byte>(sendBuffer, 0, count)).ConfigureAwait(false);
-                //ThreadPool.UnsafeQueueUserWorkItem((s) =>
-                //{
-
+               
                 if (IsSessionClosing())
                 {
                     ReleaseSendResourcesIdempotent();
@@ -233,8 +241,6 @@ namespace NetworkLibrary.TCP.SSL.Base
                 }
                 if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
                 {
-                    // WriteOnSessionStream(amountWritten);
-                    //return;
                     count = amountWritten;
                     goto Top;
 
@@ -267,34 +273,21 @@ namespace NetworkLibrary.TCP.SSL.Base
                 {
                     if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten_))
                     {
-                        // WriteOnSessionStream(amountWritten_);
                         count = amountWritten_;
                         goto Top;
                     }
                 }
-                // }, null);
             }
             catch (Exception e)
             {
-                if (!IsSessionClosing())
-                {
-                    HandleError("Error on sent callback ssl", e);
-                }
+                HandleError("Error on sent callback ssl", e);
             }
         }
 #endif
 
         private void SentInternal(IAsyncResult ar)
         {
-
-            if (ar.CompletedSynchronously)
-            {
-                ThreadPool.UnsafeQueueUserWorkItem((s) => Sent(ar), null);
-            }
-            else
-            {
-                Sent(ar);
-            }
+             Sent(ar);
         }
 
         private void Sent(IAsyncResult ar)
@@ -356,12 +349,9 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
             catch(Exception e)
             {
-                if (!IsSessionClosing())
-                {
-                    HandleError("Error on sent callback ssl", e);
-                }
+                HandleError("Error on sent callback ssl", e);
             }
-          
+
         }
 
         protected virtual void Receive()
@@ -469,6 +459,8 @@ namespace NetworkLibrary.TCP.SSL.Base
         #region Closure & Disposal
         protected virtual void HandleError(string context, Exception e)
         {
+            if (IsSessionClosing())
+                return;
             MiniLogger.Log(MiniLogger.LogLevel.Error, "Context : " + context + " Message : " + e.Message);
             EndSession();
         }
@@ -486,6 +478,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             {
                 sessionStream.Close();
                 OnSessionClosed?.Invoke(sessionId);
+                OnSessionClosed = null;
                 Dispose();
             }
 
@@ -538,17 +531,14 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (Interlocked.Exchange(ref disposedValue,1)== 0)
             {
-                if (disposing)
+                try
                 {
+                    sessionStream.Close();
                     sessionStream.Dispose();
                 }
-                enqueueLock.Take();
+                catch { }
 
                 OnBytesRecieved = null;
-                OnSessionClosed = null;
-
-                if (!SendSemaphore.IsTaken())
-                    ReleaseSendResourcesIdempotent();
 
                 if (!SendSemaphore.IsTaken())
                     ReleaseSendResourcesIdempotent();

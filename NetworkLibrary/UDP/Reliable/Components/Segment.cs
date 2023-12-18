@@ -12,6 +12,12 @@
             Offset = offset;
             Count = count;
         }
+        public Segment(byte[] array)
+        {
+            Array = array;
+            Offset = 0;
+            Count = array.Length;
+        }
     }
     internal readonly unsafe struct SegmentUnsafe
     {

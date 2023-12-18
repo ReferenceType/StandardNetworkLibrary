@@ -135,12 +135,27 @@ namespace NetworkLibrary.TCP.Base
         #endregion
 
         #region Send & Receive
+        /// <summary>
+        /// Sends a message without blocking.
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be added to queue without copy.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread.
+        /// </summary>
+        /// <param name="buffer"></param>
         public override void SendAsync(byte[] buffer)
         {
             if (IsConnected)
                 session?.SendAsync(buffer);
         }
 
+        /// <summary>
+        /// Sends a message without blocking
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be copied to single buffer before added into queue.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread,
+        /// <br/>ScatterGatherConfig.UseBuffer is the reccomeded configuration if your sends are buffer region
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
         public override void SendAsync(byte[] buffer, int offset, int count)
         {
             if (IsConnected)

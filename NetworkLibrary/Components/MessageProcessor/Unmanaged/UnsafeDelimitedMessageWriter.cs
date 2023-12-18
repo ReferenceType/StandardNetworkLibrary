@@ -37,10 +37,7 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
             {
                 fixed (byte* b = &bufferInternal[offset])
                     *(int*)b = message.Length;
-                //bufferInternal[offset] = (byte)message.Length;
-                //bufferInternal[offset + 1] = (byte)(message.Length >> 8);
-                //bufferInternal[offset + 2] = (byte)(message.Length >> 16);
-                //bufferInternal[offset + 3] = (byte)(message.Length >> 24);
+               
                 offset += 4;
                 count += 4;
             }
@@ -57,7 +54,6 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
 
             if (bufferInternal.Length - offset >= message.Length)
             {
-                //System.Buffer.BlockCopy(message, 0, bufferInternal, offset, message.Length);
                 fixed (byte* destination = &bufferInternal[offset])
                 {
                     fixed (byte* message_ = message)
@@ -93,7 +89,6 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
             }
             if (pendingRemaining <= bufferInternal.Length - offset)
             {
-                //System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, bufferInternal, offset, pendingRemaining);
                 fixed (byte* destination = &bufferInternal[offset])
                 {
                     fixed (byte* message_ = &pendingMessage[pendingMessageOffset])
@@ -110,7 +105,6 @@ namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
             }
             else
             {
-                //System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, bufferInternal, offset, bufferInternal.Length - offset);
                 fixed (byte* destination = &bufferInternal[offset])
                 {
                     fixed (byte* message_ = &pendingMessage[pendingMessageOffset])

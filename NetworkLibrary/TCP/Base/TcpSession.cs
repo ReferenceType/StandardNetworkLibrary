@@ -10,7 +10,6 @@ using System.Threading;
 
 namespace NetworkLibrary.TCP.Base
 {
-
     internal class TcpSession : IAsyncSession
     {
         #region Fields & Props

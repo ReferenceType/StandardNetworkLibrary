@@ -10,6 +10,10 @@ using static NetworkLibrary.TCP.Base.TcpServerBase;
 
 namespace NetworkLibrary.TCP.Generic
 {
+    /// <summary>
+    /// Given serialiser implementation, defines a generic Server
+    /// </summary>
+    /// <typeparam name="S"></typeparam>
     public class GenericServer<S> where S : ISerializer, new()
 
     {
@@ -44,6 +48,12 @@ namespace NetworkLibrary.TCP.Generic
         }
 
         public void StartServer() => server.StartServer();
+        /// <summary>
+        /// Serialisez and sends a message
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="clientId"></param>
+        /// <param name="instance"></param>
         public void SendAsync<T>(Guid clientId, T instance)
         {
             server.SendAsync(clientId, instance);

@@ -62,10 +62,10 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
            this.StateId = stateId;
             this.stateManager = stateManager;
             this.relayUdpEp = relayUdpEp;
-            //Runt();
+            //DebugSts();
         }
 
-        private async void Runt()
+        private async void DebugSts()
         {
             await Task.Delay(5000);
 
@@ -333,7 +333,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
 
         GenericMessageSerializer<MockSerializer> serializer = new GenericMessageSerializer<MockSerializer>();
         PooledMemoryStream stream = new PooledMemoryStream();
-       AsyncUdpClient cl = new AsyncUdpClient();
+        AsyncUdpClient cl = new AsyncUdpClient();
         private static object globalLock = new object();
         private void SendUdpPortMapMsg()
         {

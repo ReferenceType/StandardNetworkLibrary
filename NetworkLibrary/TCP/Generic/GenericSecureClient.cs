@@ -12,14 +12,23 @@ using static NetworkLibrary.TCP.Base.TcpClientBase;
 
 namespace NetworkLibrary.TCP.Generic
 {
-
     public class GenericSecureClient<S> where S : ISerializer, new()
     {
         public Action OnDisconnected;
         public BytesRecieved BytesReceived;
         private GenericSecureClientInternal<S> client;
         public S Serializer = new S();
+        /// <summary>
+        /// Override this if you wanna validate certificates, by default all certificates are accepted
+        /// </summary>
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
+
+        /// <summary>
+        /// Initialises new instance of GenericSecureClient
+        /// if certificate is null a self signed certificate will be generated.
+        /// </summary>
+        /// <param name="certificate"></param>
+        /// <param name="writeLenghtPrefix"></param>
         public GenericSecureClient(X509Certificate2 certificate, bool writeLenghtPrefix = true)
         {
             client = new GenericSecureClientInternal<S>(certificate, writeLenghtPrefix);

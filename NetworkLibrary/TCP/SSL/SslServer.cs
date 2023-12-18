@@ -16,11 +16,28 @@ namespace NetworkLibrary.TCP.SSL.Base
 {
     public class SslServer : TcpServerBase
     {
+        /// <summary>
+        /// Invoked when bytes are received. New receive operation will not be performed until this callback is finalised.
+        /// <br/><br/>Callback data is region of the socket buffer.
+        /// <br/>Do a copy if you intend to store the data or use it on different thread.
+        /// </summary>
         public BytesRecieved OnBytesReceived;
+
+        /// <summary>
+        /// Invoked when client is connected to server.
+        /// </summary>
         public ClientAccepted OnClientAccepted;
+
+        /// <summary>
+        /// Invoked when client is disconnected
+        /// </summary>
         public ClientDisconnected OnClientDisconnected;
+
+        /// <summary>
+        /// Assign if you need to validate certificates. By default all certificates are accepted.
+        /// </summary>
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
-        // this returns bool
+      
         public ClientConnectionRequest OnClientRequestedConnection;
         public bool Stopping { get; private set; }
 

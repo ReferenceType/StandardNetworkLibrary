@@ -85,11 +85,7 @@ namespace NetworkLibrary.MessageProtocol
                 EndSession();
                 return;
             }
-            ThreadPool.UnsafeQueueUserWorkItem((s) =>
-            {
-                mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-                WriteOnSessionStream(amountWritten);
-            }, null);
+            FlushAndSend();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -138,11 +134,7 @@ namespace NetworkLibrary.MessageProtocol
 
             //mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             //WriteOnSessionStream(amountWritten);
-            ThreadPool.UnsafeQueueUserWorkItem((s) =>
-            {
-                mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-                WriteOnSessionStream(amountWritten);
-            }, null);
+            FlushAndSend();
 
         }
 
@@ -189,11 +181,7 @@ namespace NetworkLibrary.MessageProtocol
                 EndSession();
                 return;
             }
-            ThreadPool.UnsafeQueueUserWorkItem((s) =>
-            {
-                mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-                WriteOnSessionStream(amountWritten);
-            }, null);
+            FlushAndSend();
             //mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             //WriteOnSessionStream(amountWritten);
 

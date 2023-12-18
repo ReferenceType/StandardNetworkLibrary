@@ -200,7 +200,7 @@ namespace RelayBenchmark
             Console.ReadLine();
             //Task.Run(async () => { while (true) { await Task.Delay(10000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
             var clients = new List<RelayClient>();
-            int numclients = 100;
+            int numclients = 50;
             var pending = new Task[numclients];
             Task.Run(async () => { while (true) { await Task.Delay(1000); Console.WriteLine(Interlocked.Exchange(ref sumsum, 0).ToString("N0")); } });
 

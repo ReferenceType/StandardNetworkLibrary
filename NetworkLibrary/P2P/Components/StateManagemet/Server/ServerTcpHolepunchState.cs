@@ -42,10 +42,10 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
         }
         public async void Initialize(MessageEnvelope message)
         {
-            MiniLogger.Log(MiniLogger.LogLevel.Debug, "Initialising Server HP State");
             requesterEndpoints = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
             requesterId = message.From;
             destinationId = message.To;
+            MiniLogger.Log(MiniLogger.LogLevel.Info, $"Initialising Server HP State between: {requesterId} -> {destinationId}");
 
             MessageEnvelope msg = new MessageEnvelope
             {
@@ -70,7 +70,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
 
             while (!portMapComplete && released == 0)
             {
-                MiniLogger.Log(MiniLogger.LogLevel.Warning, "awaiting port map");
+                MiniLogger.Log(MiniLogger.LogLevel.Debug, "awaiting port map");
                 if(DestinationRemoteEp == null)
                 {
                     var msg1 = new MessageEnvelope()
@@ -198,7 +198,7 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
             }
            if(Interlocked.CompareExchange(ref requesterSuccess,0,0) == 1 && Interlocked.CompareExchange(ref destinationSuccess, 0, 0) == 1)
             {
-               
+                MiniLogger.Log(MiniLogger.LogLevel.Info, $"Succesfully punched TCP hole between: {requesterId}  ->  {destinationId}");
                 var msg = new MessageEnvelope()
                 {
                     MessageId = StateId,
@@ -293,6 +293,11 @@ namespace NetworkLibrary.P2P.Components.StateManagemet.Server
             if (isCompletedSuccessfully)
             {
                 Status = StateStatus.Completed;
+            }
+            else
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Info, $"Failed to punch TCP hole between: {requesterId}  ->  {destinationId}");
+
             }
             Completed?.Invoke(this);
             Completed = null;

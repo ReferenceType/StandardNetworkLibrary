@@ -283,9 +283,6 @@ namespace NetworkLibrary.P2P.Generic
                     Header = Constants.InitiateHolepunch
                 };
 
-                //if (endpointsD.Last().ToIpEndpoint().Address == ((IPEndPoint)udpServer.LocalEndpoint).Address)
-                //    mreq.KeyValuePairs = new Dictionary<string, string>() { { "UseRelayIp", null } };
-
                 SendAsyncMessage(message.From,mreq,
                     (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                                 new EndpointTransferMessage()
@@ -305,9 +302,7 @@ namespace NetworkLibrary.P2P.Generic
                     Header = Constants.InitiateHolepunch
                 };
 
-                //if (endpointsR.Last().ToIpEndpoint().Address == ((IPEndPoint)udpServer.LocalEndpoint).Address)
-                //    mreq.KeyValuePairs = new Dictionary<string, string>() { { "UseRelayIp", null } };
-
+              
                 SendAsyncMessage(message.To, mdest,
                   (stream) => KnownTypeSerializer.SerializeEndpointTransferMessage(stream,
                               new EndpointTransferMessage() { 
@@ -483,11 +478,7 @@ namespace NetworkLibrary.P2P.Generic
                 return;
                 
             }
-            //if (count % 16 != 0)
-            //{
-            //    MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to decrypt unregistered peer message");
-            //    return;
-            //}
+          
             try
             {
                 byte[] result = relayDectriptor.Decrypt(bytes, offset, count);

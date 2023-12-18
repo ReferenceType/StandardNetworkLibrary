@@ -85,9 +85,10 @@ namespace NetworkLibrary.TCP.Generic
             }
 
             // you have to push it to queue because queue also does the processing.
+
             mq.TryEnqueueMessage(message);
-            mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            WriteOnSessionStream(amountWritten);
+            FlushAndSend();
+           
 
         }
 

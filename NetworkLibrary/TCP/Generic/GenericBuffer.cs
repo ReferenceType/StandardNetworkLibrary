@@ -13,7 +13,7 @@ namespace NetworkLibrary.TCP.Generic
         public bool TryEnqueueMessage<T>(T instance)
         {
 
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {

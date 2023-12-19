@@ -181,8 +181,7 @@ It is applicable to all serialization protocols.
 For more info : [Serialised Network](https://github.com/ReferenceType/StandardNetworkLibrary/wiki/5.SerialisedNetwork)
 </br>```Examples here is only given for Protobuf-net,
 but signature is identical for any other provided serialization protocol(MessagePack, Json etc)```.
-
-## Pure Message Server/Client
+### Protobuf Example
 Implements a server client model where serialized messages are transfered atomically.
 Declare your type:
 ```c#

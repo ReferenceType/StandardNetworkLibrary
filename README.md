@@ -70,6 +70,7 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 ### TCP/SSL Byte Message Server 
 1000 seed messages (32 bytes message + 4 header) each:
 
+AMD Ryzen 7 5800H Laptop
 |Mumber Of Clients|TCP Echo per Second|SSL Echo per Second
 |---|---|---|
 |100|53,400,000|41,600,000|
@@ -77,14 +78,18 @@ Infinite Echo benchmarks are done by sending set of messages to server and getti
 |5000|43,400,000|21,800,000|
 |10000|42,800,000|21,700,000|
 
-i9 13980HX Laptop
+Intel i9 13980HX Laptop
 |Mumber Of Clients|TCP Echo per Second|SSL Echo per Second
 |---|---|---|
 |100|128,800,000|79,400,000|
+|1000|110,400,000|72,100,000|
+|5000|102,100,000|67,500,000|
+|10000|100,500,000|65,500,000|
 
 ### MessageProtocol 
 1000 seed message envelopes ( 32 byte payload, 48 byte total):
 
+AMD Ryzen 7 5800H Laptop
 |Mumber Of Clients|Protobuf Echo per Second|Secure Protobuf Echo per Second|
 |---|---|---|
 |100|9,440,000|8,050,000|
@@ -92,10 +97,14 @@ i9 13980HX Laptop
 |5000|8,360,000|7,390,000|
 |10000|8,340,000|7,350,000|
 
-i9 13980HX Laptop
+Intel i9 13980HX Laptop
 |Mumber Of Clients|Protobuf Echo per Second|Secure Protobuf Echo per Second|
 |---|---|---|
-|100|30,200,000|20,650,000|
+|100|31,200,000|20,650,000|
+|1000|30,500,000|19,500,000|
+|5000|28,200,000|17,650,000|
+|10000|26,400,000|16,000,000|
+
 
 #### Note
 This benchmarks is only sending message envelope with raw byte payload. For serialization spesific performance please refer to:

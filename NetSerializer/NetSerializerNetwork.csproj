@@ -1,19 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net5.0;net6.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net5.0;net6.0;net7.0;net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>NetSerializer.Network.Library</PackageId>
     <Title>NetSerializer Network Library</Title>
-    <Version>1.1.0</Version>
+    <Version>2.0.0</Version>
     <Description>Message passing and P2P network library using .NetSerializer</Description>
     <Copyright>Apache-2.0</Copyright>
     <RepositoryUrl>https://github.com/ReferenceType/StandardNetworkLibrary</RepositoryUrl>
     <PackageTags>netserializer;network;p2p;holepunch;nat traversal;high performance;reliable udp</PackageTags>
     <PackageLicenseFile>Licence.txt</PackageLicenseFile>
     <Authors>ReferenceType</Authors>
-    <PackageReleaseNotes>Relay Server and Room Server is moved to NetworkLibrary.P2P.
-Minor fixes</PackageReleaseNotes>
+    <PackageReleaseNotes></PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

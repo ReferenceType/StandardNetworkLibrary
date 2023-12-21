@@ -3,9 +3,10 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components
 {
-    internal class PlainMessageWriter : IMessageProcessor
+    internal class MessageWriter
+        : IMessageProcessor
     {
-        public byte[] Buffer { get; private set; }
+        public byte[] bufferInternal { get; private set; }
         private int offset;
         private int origialOffset;
         public int count;
@@ -19,7 +20,7 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetBuffer(ref byte[] buffer, int offset)
         {
-            Buffer = buffer;
+            bufferInternal = buffer;
             this.offset = offset;
             origialOffset = offset;
             count = 0;
@@ -27,14 +28,20 @@ namespace NetworkLibrary.Components
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool ProcessMessage(byte[] message)
+        public unsafe bool ProcessMessage(byte[] message)
         {
             if (IsHoldingMessage)
                 throw new InvalidOperationException("You can not process new message before heldover message is fully flushed");
 
-            if (Buffer.Length - offset >= message.Length)
+            if (bufferInternal.Length - offset >= message.Length)
             {
-                System.Buffer.BlockCopy(message, 0, Buffer, offset, message.Length);
+                //System.Buffer.BlockCopy(message, 0, bufferInternal, offset, message.Length);
+                fixed (byte* destination = &bufferInternal[offset])
+                {
+                    fixed (byte* message_ = message)
+                        Buffer.MemoryCopy(message_, destination, message.Length, message.Length);
+                }
+
                 offset += message.Length;
                 count += message.Length;
                 return true;
@@ -53,12 +60,17 @@ namespace NetworkLibrary.Components
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Flush()
+        public unsafe bool Flush()
         {
 
-            if (pendingRemaining <= Buffer.Length - offset)
+            if (pendingRemaining <= bufferInternal.Length - offset)
             {
-                System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, Buffer, offset, pendingRemaining);
+                //System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, bufferInternal, offset, pendingRemaining);
+                fixed (byte* destination = &bufferInternal[offset])
+                {
+                    fixed (byte* message_ = &pendingMessage[pendingMessageOffset])
+                        Buffer.MemoryCopy(message_, destination, pendingRemaining, pendingRemaining);
+                }
                 offset += pendingRemaining;
                 count += pendingRemaining;
 
@@ -70,11 +82,17 @@ namespace NetworkLibrary.Components
             }
             else
             {
-                System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, Buffer, offset, Buffer.Length - offset);
-                count += (Buffer.Length - offset);
+                //System.Buffer.BlockCopy(pendingMessage, pendingMessageOffset, bufferInternal, offset, bufferInternal.Length - offset);
+                fixed (byte* destination = &bufferInternal[offset])
+                {
+                    fixed (byte* message_ = &pendingMessage[pendingMessageOffset])
+                        Buffer.MemoryCopy(message_, destination, bufferInternal.Length - offset, bufferInternal.Length - offset);
+                }
 
-                pendingMessageOffset += (Buffer.Length - offset);
-                pendingRemaining -= (Buffer.Length - offset);
+                count += (bufferInternal.Length - offset);
+
+                pendingMessageOffset += (bufferInternal.Length - offset);
+                pendingRemaining -= (bufferInternal.Length - offset);
                 return false;
             }
         }
@@ -83,14 +101,14 @@ namespace NetworkLibrary.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void GetBuffer(out byte[] Buffer, out int offset, out int count)
         {
-            Buffer = this.Buffer;
+            Buffer = this.bufferInternal;
             offset = origialOffset;
             count = this.count;
         }
 
         public void Dispose()
         {
-            Buffer = null;
+            //bufferInternal= null;
         }
     }
 }

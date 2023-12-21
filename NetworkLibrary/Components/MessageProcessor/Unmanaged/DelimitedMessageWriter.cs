@@ -3,7 +3,9 @@ using System.Runtime.CompilerServices;
 
 namespace NetworkLibrary.Components.MessageProcessor.Unmanaged
 {
-    internal sealed class UnsafeDelimitedMessageWriter : IMessageProcessor
+    internal sealed class DelimitedMessageWriter
+
+        : IMessageProcessor
     {
         private byte[] bufferInternal;
         private int offset;

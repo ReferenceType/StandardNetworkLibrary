@@ -110,7 +110,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (UseQueue)
             {
-                return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
+                return new MessageQueue<MessageWriter>(MaxIndexedMemory, new MessageWriter());
             }
             else
             {

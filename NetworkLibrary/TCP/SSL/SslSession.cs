@@ -78,7 +78,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected virtual IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
-                return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
+                return new MessageQueue<MessageWriter>(MaxIndexedMemory, new MessageWriter());
             else
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: false);
 

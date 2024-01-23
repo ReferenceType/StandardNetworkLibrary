@@ -10,7 +10,6 @@ using System.Threading;
 
 namespace NetworkLibrary.TCP.Base
 {
-
     internal class TcpSession : IAsyncSession
     {
         #region Fields & Props
@@ -19,7 +18,7 @@ namespace NetworkLibrary.TCP.Base
         public event Action<Guid> OnSessionClosed;
         public Guid SessionId;
         public int SocketRecieveBufferSize = 128000;
-        public int MaxIndexedMemory = 1280000;
+        public int MaxIndexedMemory = 128000000;
         public bool DropOnCongestion = false;
 
         protected IMessageQueue messageBuffer;
@@ -47,7 +46,9 @@ namespace NetworkLibrary.TCP.Base
         private long totalMessageReceived = 0;
         private long totalMsgReceivedPrev;
         private long totalMSgSentPrev;
-
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+        Memory<byte> receiveMemory;
+#endif
         #endregion
 
         public IPEndPoint RemoteEndpoint => (IPEndPoint)sessionSocket.RemoteEndPoint;
@@ -71,7 +72,7 @@ namespace NetworkLibrary.TCP.Base
             InitialiseSendArgs();
             InitialiseReceiveArgs();
             messageBuffer = CreateMessageQueue();
-            Receive();
+            ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(),null);
         }
 
         protected virtual void ConfigureSocket()
@@ -82,6 +83,9 @@ namespace NetworkLibrary.TCP.Base
         protected virtual void ConfigureBuffers()
         {
             recieveBuffer = BufferPool.RentBuffer(socketSendBufferSize);
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+            receiveMemory= new Memory<byte>(recieveBuffer);
+#endif
             if (UseQueue) sendBuffer = BufferPool.RentBuffer(SocketRecieveBufferSize);
 
         }
@@ -106,7 +110,7 @@ namespace NetworkLibrary.TCP.Base
         {
             if (UseQueue)
             {
-                return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
+                return new MessageQueue<MessageWriter>(MaxIndexedMemory, new MessageWriter());
             }
             else
             {
@@ -120,6 +124,10 @@ namespace NetworkLibrary.TCP.Base
         #region Recieve 
         protected virtual void Receive()
         {
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+            ReceiveModern();
+            return;
+#endif
             if (IsSessionClosing())
             {
                 ReleaseReceiveResourcesIdempotent();
@@ -140,7 +148,49 @@ namespace NetworkLibrary.TCP.Base
 
 
         }
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
 
+        private async void ReceiveModern()
+        {
+            try
+            {
+                while (true)
+                {
+                    if (IsSessionClosing())
+                    {
+                        ReleaseReceiveResourcesIdempotent();
+                        return;
+                    }
+
+                    int amountReceived = await sessionSocket.ReceiveAsync(receiveMemory,
+                        SocketFlags.None).ConfigureAwait(false);
+
+                    if (IsSessionClosing())
+                    {
+                        ReleaseReceiveResourcesIdempotent();
+                        return;
+                    }
+                    if (amountReceived == 0)
+                    {
+                        Disconnect();
+                        ReleaseReceiveResourcesIdempotent();
+                        return;
+                    }
+                    totalBytesReceived += amountReceived;
+                    HandleReceived(recieveBuffer, 0, amountReceived);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "While receiving on tcp session error occured;" +e.Message);
+                    EndSession();
+                }
+            }
+        }
+#endif
 
         private void BytesRecieved(object sender, SocketAsyncEventArgs e)
         {
@@ -279,6 +329,10 @@ namespace NetworkLibrary.TCP.Base
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected void FlushSendBuffer(int offset, int count)
         {
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+            //ThreadPool.UnsafeQueueUserWorkItem((e) => SendModern(offset,count),null);
+            //return;
+#endif
             try
             {
                 totalBytesSend += count;
@@ -291,71 +345,147 @@ namespace NetworkLibrary.TCP.Base
             }
             catch { EndSession(); ReleaseSendResourcesIdempotent(); }
         }
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+        private async void SendModern(int offset, int count)
+        {
+            try
+            {
+
+
+            Top:
+                await sessionSocket.SendAsync(new ReadOnlyMemory<byte>(sendBuffer, offset, count),
+                    SocketFlags.None).ConfigureAwait(false);
+
+                if (IsSessionClosing())
+                {
+                    SendSemaphore.Release();
+                    ReleaseSendResourcesIdempotent();
+                    return;
+                }
+
+                if (messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
+                {
+                    //FlushSendBuffer(0, amountWritten);
+                    offset = 0;
+                    count = amountWritten;
+                    goto Top;
+                }
+                else
+                {
+                    bool flushAgain = false;
+                    // here it means queue was empty and there was nothing to flush.
+                    // but this check is clearly not atomic, if during the couple cycles in between something is enqueued, 
+                    // i have to flush that part ,or it will stuck at queue since consumer is exiting.
+
+                    enqueueLock.Take();
+                    if (!messageBuffer.IsEmpty())
+                    {
+                        flushAgain = true;
+                        enqueueLock.Release();
+                    }
+                    else
+                    {
+                        messageBuffer.Flush();
+
+                        SendSemaphore.Release();
+                        enqueueLock.Release();
+                        if (IsSessionClosing())
+                        {
+                            ReleaseSendResourcesIdempotent();
+                        }
+                        return;
+                    }
+
+                    if (flushAgain && messageBuffer.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
+                    {
+                        // FlushSendBuffer(0, amountWritten);
+                        offset = 0;
+                        count = amountWritten;
+                        goto Top;
+                    }
+                }
+            }
+                        catch { EndSession(); ReleaseSendResourcesIdempotent(); }
+
+        }
+#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SendComplete(object ignored, SocketAsyncEventArgs e)
         {
-            if (IsSessionClosing())
+            try
             {
-                SendSemaphore.Release();
-                ReleaseSendResourcesIdempotent();
-                return;
-            }
-
-            if (e.SocketError != SocketError.Success)
-            {
-                SendSemaphore.Release();
-                HandleError(e, "While sending the client ");
-                ReleaseSendResourcesIdempotent();
-                return;
-            }
-            else if (e.BytesTransferred < e.Count)
-            {
-                e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
-                if (!sessionSocket.SendAsync(e))
+                if (IsSessionClosing())
                 {
-                    ThreadPool.UnsafeQueueUserWorkItem((ee) => SendComplete(null, e), null);
-                    MiniLogger.Log(MiniLogger.LogLevel.Info, "Resending");
-                }
-                return;
-            }
-
-
-            if (messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
-            {
-                FlushSendBuffer(0, amountWritten);
-            }
-            else
-            {
-                bool flushAgain = false;
-                // here it means queue was empty and there was nothing to flush.
-                // but this check is clearly not atomic, if during the couple cycles in between something is enqueued, 
-                // i have to flush that part ,or it will stuck at queue since consumer is exiting.
-
-                enqueueLock.Take();
-                if (!messageBuffer.IsEmpty())
-                {
-                    flushAgain = true;
-                    enqueueLock.Release();
-                }
-                else
-                {
-                    messageBuffer.Flush();
-
                     SendSemaphore.Release();
-                    enqueueLock.Release();
-                    if (IsSessionClosing())
+                    ReleaseSendResourcesIdempotent();
+                    return;
+                }
+
+                if (e.SocketError != SocketError.Success)
+                {
+                    SendSemaphore.Release();
+                    HandleError(e, "While sending the client ");
+                    ReleaseSendResourcesIdempotent();
+                    return;
+                }
+                else if (e.BytesTransferred < e.Count)
+                {
+                    e.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
+                    if (!sessionSocket.SendAsync(e))
                     {
-                        ReleaseSendResourcesIdempotent();
+                        ThreadPool.UnsafeQueueUserWorkItem((ee) => SendComplete(null, e), null);
+                        MiniLogger.Log(MiniLogger.LogLevel.Info, "Resending");
                     }
                     return;
                 }
 
-                if (flushAgain && messageBuffer.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
+
+                if (messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
                 {
                     FlushSendBuffer(0, amountWritten);
                 }
+                else
+                {
+                    bool flushAgain = false;
+                    // here it means queue was empty and there was nothing to flush.
+                    // but this check is clearly not atomic, if during the couple cycles in between something is enqueued, 
+                    // i have to flush that part ,or it will stuck at queue since consumer is exiting.
+
+                    enqueueLock.Take();
+                    if (!messageBuffer.IsEmpty())
+                    {
+                        flushAgain = true;
+                        enqueueLock.Release();
+                    }
+                    else
+                    {
+                        messageBuffer.Flush();
+
+                        SendSemaphore.Release();
+                        enqueueLock.Release();
+                        if (IsSessionClosing())
+                        {
+                            ReleaseSendResourcesIdempotent();
+                        }
+                        return;
+                    }
+
+                    if (flushAgain && messageBuffer.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
+                    {
+                        FlushSendBuffer(0, amountWritten);
+                    }
+                }
             }
+            catch (Exception ex)
+            {
+                if (!IsSessionClosing())
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,"Error on sent callback tcp session"+ ex.Message);
+                    EndSession();
+                }
+            }
+
         }
 
         #endregion Send
@@ -388,12 +518,16 @@ namespace NetworkLibrary.TCP.Base
                     sessionSocket.Shutdown(SocketShutdown.Both);
                 }
                 catch (Exception) { }
-                DcAndDispose();
+                try
+                {
+                    DcAndDispose();
+                }
+                catch { }
             }
 
         }
 
-        protected void ReleaseSendResourcesIdempotent()
+        protected virtual void ReleaseSendResourcesIdempotent()
         {
             if (Interlocked.CompareExchange(ref SendBufferReleased, 1, 0) == 0)
             {
@@ -401,15 +535,26 @@ namespace NetworkLibrary.TCP.Base
             }
 
         }
-        protected virtual void ReleaseSendResources()
+        private void ReleaseSendResources()
         {
-            enqueueLock.Take();
-            ClientSendEventArg.Dispose();
-            messageBuffer?.Dispose();
-           // messageBuffer = null;
-            if (UseQueue)
-                BufferPool.ReturnBuffer(sendBuffer);
-            enqueueLock.Release();
+            try
+            {
+                ClientSendEventArg.Dispose();
+                Interlocked.Exchange(ref messageBuffer, null)?.Dispose();
+
+                if (UseQueue)
+                    BufferPool.ReturnBuffer(sendBuffer);
+            }
+            catch (Exception e)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error,
+                "Error eccured while releasing tcp session send resources:" + e.Message);
+            }
+            finally
+            {
+                enqueueLock.Release();
+            }
+
         }
         private void ReleaseReceiveResourcesIdempotent()
         {
@@ -422,9 +567,14 @@ namespace NetworkLibrary.TCP.Base
 
         protected virtual void ReleaseReceiveResources()
         {
-            ClientRecieveEventArg.Dispose();
-            ClientRecieveEventArg = null;
-            BufferPool.ReturnBuffer(recieveBuffer);
+            try
+            {
+                ClientRecieveEventArg.Dispose();
+                ClientRecieveEventArg = null;
+                BufferPool.ReturnBuffer(recieveBuffer);
+            }
+            catch { }
+          
         }
 
         protected void DcAndDispose()
@@ -443,6 +593,7 @@ namespace NetworkLibrary.TCP.Base
         private void OnDisconnected(object ignored, SocketAsyncEventArgs e)
         {
             OnSessionClosed?.Invoke(SessionId);
+            OnSessionClosed = null;
             Dispose();
         }
 

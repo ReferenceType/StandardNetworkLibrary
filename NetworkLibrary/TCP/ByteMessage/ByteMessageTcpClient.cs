@@ -4,6 +4,10 @@ using System.Net.Sockets;
 
 namespace NetworkLibrary.TCP.ByteMessage
 {
+    /// <summary>
+    /// Sends and reveives messages with 4 byte lenght header.
+    /// messages are guarantied to be received atomically without fragmentation.
+    /// </summary>
     public class ByteMessageTcpClient : AsyncTpcClient
     {
 

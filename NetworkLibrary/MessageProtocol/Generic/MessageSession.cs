@@ -4,6 +4,7 @@ using NetworkLibrary.TCP.Base;
 using System;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace MessageProtocol
 {
@@ -125,13 +126,11 @@ namespace MessageProtocol
             mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
             FlushSendBuffer(0, amountWritten);
         }
-
         protected override void ReleaseReceiveResources()
         {
             base.ReleaseReceiveResources();
-            reader.ReleaseResources();
-            reader = null;
-            mq = null;
+            Interlocked.Exchange(ref mq, null)?.Dispose();
+            Interlocked.Exchange(ref reader, null)?.ReleaseResources();
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace NetworkLibrary.Components
 {
@@ -225,10 +226,17 @@ namespace NetworkLibrary.Components
             BufferPool.ReturnBuffer(internalBufer);
             internalBufer = BufferPool.RentBuffer(originalCapacity);
         }
-
+        
         public void ReleaseResources()
         {
-            if (internalBufer != null) { BufferPool.ReturnBuffer(internalBufer); internalBufer = null; }
+            OnMessageReady = null;
+
+            var b = Interlocked.Exchange(ref internalBufer, null);
+
+            if (b != null) 
+            { 
+                BufferPool.ReturnBuffer(b);
+            }
         }
         #endregion
     }

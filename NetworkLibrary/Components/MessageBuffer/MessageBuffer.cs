@@ -6,13 +6,13 @@ namespace NetworkLibrary.Components.MessageBuffer
 {
     public class MessageBuffer : IMessageQueue
     {
-        public int CurrentIndexedMemory { get => Volatile.Read(ref currentIndexedMemory); }
+        public int CurrentIndexedMemory { get => Interlocked.CompareExchange(ref currentIndexedMemory,0,0); }
         public int MaxIndexedMemory;
         public long TotalMessageDispatched { get; protected set; }
 
         protected PooledMemoryStream writeStream = new PooledMemoryStream();
         protected PooledMemoryStream flushStream = new PooledMemoryStream();
-        protected readonly object loki = new object();
+        protected readonly object bufferMtex = new object();
         protected bool writeLengthPrefix;
         protected int currentIndexedMemory;
         protected bool disposedValue;
@@ -30,7 +30,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 
         public bool TryEnqueueMessage(byte[] bytes)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
@@ -54,7 +54,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryEnqueueMessage(byte[] bytes, int offset, int count)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
@@ -77,7 +77,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryFlushQueue(ref byte[] buffer, int offset, out int amountWritten)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (IsEmpty())
                 {
@@ -102,7 +102,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         public bool TryEnqueueMessage(byte[] data1, int offset1, int count1, byte[] data2, int offset2, int count2)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
                 {
@@ -126,7 +126,7 @@ namespace NetworkLibrary.Components.MessageBuffer
         }
         protected virtual void Dispose(bool disposing)
         {
-            lock (loki)
+            lock (bufferMtex)
             {
                 if (!disposedValue)
                 {

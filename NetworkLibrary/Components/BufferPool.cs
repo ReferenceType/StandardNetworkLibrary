@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+
 #if NET5_0_OR_GREATER
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
@@ -24,12 +26,12 @@ namespace NetworkLibrary
      */
     public class BufferPool
     {
+        static ConcurrentDictionary<byte[], string> AAA = new ConcurrentDictionary<byte[], string>();
         public static bool ForceGCOnCleanup = true;
         public static int MaxMemoryBeforeForceGc = 100000000;
         public const int MaxBufferSize = 1073741824;
         public const int MinBufferSize = 256;
-        private static readonly ConcurrentBag<WeakReference<byte[]>> weakReferencePool = new ConcurrentBag<WeakReference<byte[]>>();
-        private static readonly ConcurrentBag<WeakReference<byte[]>>[] bufferBuckets = new ConcurrentBag<WeakReference<byte[]>>[32];
+        private static readonly ConcurrentBag<byte[]>[] bufferBuckets = new ConcurrentBag<byte[]>[32];
         private static SortedDictionary<int, int> bucketCapacityLimits = new SortedDictionary<int, int>()
         {
             { 256,10000 },
@@ -63,9 +65,8 @@ namespace NetworkLibrary
 
         static BufferPool()
         {
-            Init();
-            memoryMaintainer = new Thread(MaintainMemory);
-            memoryMaintainer.Priority = ThreadPriority.Lowest;
+           Init();
+           MaintainMemory();
         }
 
         /// <summary>
@@ -94,25 +95,24 @@ namespace NetworkLibrary
             //bufferBuckets = new ConcurrentDictionary<int, ConcurrentBag<byte[]>>();
             for (int i = 8; i < 31; i++)
             {
-                bufferBuckets[i] = new ConcurrentBag<WeakReference<byte[]>>();
+                bufferBuckets[i] = new ConcurrentBag<byte[]>();
             }
         }
 
-        private static void MaintainMemory()
+        private static async void MaintainMemory()
         {
-            var lastTime = process.TotalProcessorTime;
             while (true)
             {
-                autoGcHandle.WaitOne();
-                Thread.Sleep(10000);
-                var currentProcTime = process.TotalProcessorTime;
-                var deltaT = (lastTime - currentProcTime).TotalMilliseconds;
-                lastTime = currentProcTime;
-
-                if (deltaT < 100 && process.WorkingSet64 < MaxMemoryBeforeForceGc)
-                    GC.Collect();
+                await Task.Delay(10000);
+                for (int i = 8; i < 31; i++)
+                {
+                    while(bufferBuckets[i].Count> bucketCapacityLimits[GetBucketSize(i)])
+                    {
+                        if(bufferBuckets[i].TryTake(out var buffer))
+                            AAA.TryRemove(buffer, out _);
+                    }
+                }
             }
-
         }
 
 
@@ -125,6 +125,7 @@ namespace NetworkLibrary
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] RentBuffer(int size)
         {
+            //return new byte[size];
             byte[] buffer;
             if (MaxBufferSize < size)
                 throw new InvalidOperationException(
@@ -133,13 +134,10 @@ namespace NetworkLibrary
 
             int idx = GetBucketIndex(size);
 
-            while (bufferBuckets[idx].TryTake(out WeakReference<byte[]> bufferRef))
+            if (bufferBuckets[idx].TryTake(out buffer))
             {
-                if (bufferRef.TryGetTarget(out buffer))
-                {
-                    weakReferencePool.Add(bufferRef);
-                    return buffer;
-                }
+                AAA.TryRemove(buffer,out _);
+                return buffer;
             }
 
             buffer = ByteCopy.GetNewArray(GetBucketSize(idx));
@@ -156,15 +154,14 @@ namespace NetworkLibrary
         {
             if (buffer.Length <= MinBufferSize) return;
 
-            int idx = GetBucketIndex(buffer.Length);
-            if (weakReferencePool.TryTake(out var wr))
+            if (!AAA.TryAdd(buffer, null))
             {
-                wr.SetTarget(buffer);
-                bufferBuckets[idx - 1].Add(wr);
-
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Buffer Pool Duplicated return detected");
+                return;
             }
-            else
-                bufferBuckets[idx - 1].Add(new WeakReference<byte[]>(buffer));
+
+            int idx = GetBucketIndex(buffer.Length);
+            bufferBuckets[idx - 1].Add(buffer);
             buffer = null;
         }
 

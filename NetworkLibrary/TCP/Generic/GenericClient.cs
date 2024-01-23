@@ -9,6 +9,10 @@ using static NetworkLibrary.TCP.Base.TcpClientBase;
 
 namespace NetworkLibrary.TCP.Generic
 {
+    /// <summary>
+    /// Given a serialiser imlpmentation, creates generic client.
+    /// </summary>
+    /// <typeparam name="S"></typeparam>
     public class GenericClient<S> where S : ISerializer, new()
     {
         public Action OnDisconnected;
@@ -79,6 +83,7 @@ namespace NetworkLibrary.TCP.Generic
             ses.MaxIndexedMemory = MaxIndexedMemory;
             ses.DropOnCongestion = DropOnCongestion;
             ses.OnSessionClosed += (id) => OnDisconnected?.Invoke();
+            ses.UseQueue = false;
             session = ses;
 
             return ses;

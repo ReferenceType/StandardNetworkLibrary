@@ -25,15 +25,14 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
             switch (message.Header)
             {
                 case Constants.ServerRegisterAck:
-                    AddState(UpdateConnectionState(message));
+                    UpdateConnectionState(message);
                     return true;
                 case Constants.InitiateHolepunch:
-                    AddState(CreateHolepunchState(message));
+                    CreateHolepunchState(message);
                     return true;
                 case Constants.InitTCPHPRemote:
-                    var state = CreateTcpHolePunchStateRemote(message);
-                    AddState(state);
-                    state.InitiateByRemote(message);
+                    CreateTcpHolePunchStateRemote(message);
+                   
                     return true;
                    
                 default:
@@ -52,6 +51,7 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
             var state = new ClientHolepunchState(message.From, message.MessageId, this, client.relayServerEndpoint, client.AESMode);
             state.Completed += (x) => { OnHolepunchComplete(state); };
             state.KeyReceived += (key, associatedEndpoints) => client.RegisterCrypto(key, associatedEndpoints, state.destinationId);
+            AddState(state);
             state.InitiateByRemote(message);
             return state;
         }
@@ -108,8 +108,9 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
                 return null;
             }
             state.StateId = message.MessageId;
-            state.HandleMessage(message);
             AddState(state);
+
+            state.HandleMessage(message);
             return state;
         }
 
@@ -148,6 +149,8 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
                     client.RegisterTcpNode(Istate);
                 }
             };
+            AddState(state);
+            state.InitiateByRemote(msg);
             return state;
         }
     }

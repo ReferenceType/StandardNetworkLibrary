@@ -145,6 +145,7 @@ namespace NetworkLibrary.MessageProtocol
         public override void Dispose()
         {
             OnMessageReceived = null;
+            base.Dispose();
         }
     }
 

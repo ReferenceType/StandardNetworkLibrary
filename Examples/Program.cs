@@ -7,11 +7,11 @@ using ProtoBuf;
 using Protobuff;
 using Protobuff.P2P;
 using Protobuff.Pure;
-using System.Net.Http.Headers;
-using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-
+using NetworkLibrary.Components.Crypto.Certificate;
+using NetworkLibrary.TCP.Base;
+using NetworkLibrary.TCP.SSL.Base;
 namespace Examples
 {
     internal class Program
@@ -34,6 +34,59 @@ namespace Examples
             
             Console.ReadLine();
         }
+        #region AsyncTcp 
+        private static void ExampleAsyncTcp()
+        {
+            AsyncTcpServer server = new AsyncTcpServer(20008);
+            server.OnBytesReceived += ServerBytesReceived;
+            server.StartServer();
+
+            AsyncTpcClient client = new AsyncTpcClient();
+            client.OnBytesReceived += ClientBytesReceived;
+            client.Connect("127.0.0.1", 20008);
+            client.SendAsync(Encoding.UTF8.GetBytes("Hello I'm a client!"));
+
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(Encoding.UTF8.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, Encoding.UTF8.GetBytes("Hello I'm the server"));
+            }
+
+            void ClientBytesReceived(byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(Encoding.UTF8.GetString(bytes, offset, count));
+            }
+        }
+        private static void ExampleSSL()
+        {
+            //var scert = new X509Certificate2("server.pfx", "greenpass");
+            //var cert = new X509Certificate2("client.pfx", "greenpass");
+            var scert = CertificateGenerator.GenerateSelfSignedCertificate();
+            var cert = CertificateGenerator.GenerateSelfSignedCertificate();
+
+            SslServer server = new SslServer(20008,scert);
+            server.OnBytesReceived += ServerBytesReceived;
+            server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
+            server.StartServer();
+
+            SslClient client = new SslClient(cert);
+            client.OnBytesReceived += ClientBytesReceived;
+            client.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
+            client.Connect("127.0.0.1", 20008);
+            client.SendAsync(Encoding.UTF8.GetBytes("Hello I'm a client!"));
+
+            void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(Encoding.UTF8.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, Encoding.UTF8.GetBytes("Hello I'm the server"));
+            }
+
+            void ClientBytesReceived(byte[] bytes, int offset, int count)
+            {
+                Console.WriteLine(Encoding.UTF8.GetString(bytes, offset, count));
+            }
+        }
+        #endregion
         #region Byte Message
         private static void ExampleByteMessage()
         {
@@ -44,7 +97,6 @@ namespace Examples
             ByteMessageTcpClient client = new ByteMessageTcpClient();
             client.OnBytesReceived += ClientBytesReceived;
             client.Connect("127.0.0.1", 20008);
-
             client.SendAsync(Encoding.UTF8.GetBytes("Hello I'm a client!"));
 
             void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
@@ -61,34 +113,36 @@ namespace Examples
 
         private static void ExampleSecureByteMessage()
         {
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            var cert = new X509Certificate2("client.pfx", "greenpass");
+            //var scert = new X509Certificate2("server.pfx", "greenpass");
+            //var cert = new X509Certificate2("client.pfx", "greenpass");
+            var scert = CertificateGenerator.GenerateSelfSignedCertificate();
+            var cert = CertificateGenerator.GenerateSelfSignedCertificate();
 
             var server = new SslByteMessageServer(20008, scert);
             server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
 
             server.OnBytesReceived += ServerBytesReceived;
             // since certificate is self-signed it will give chain errors, here we bypass it
-            server.RemoteCertificateValidationCallback += (a, b, c, d) => true;
+            server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
             server.StartServer();
-
 
             var client = new SslByteMessageClient(cert);
             client.OnBytesReceived += ClientBytesReceived;
             client.RemoteCertificateValidationCallback += (a, b, c, d) => true;
+
             client.Connect("127.0.0.1", 20008);
+            client.SendAsync(UTF8Encoding.UTF8.GetBytes("Hello I'm a client!"));
 
-            client.SendAsync(UTF8Encoding.ASCII.GetBytes("Hello I'm a client!"));
-
+            // Callback handlers
             void ServerBytesReceived(Guid clientId, byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
-                server.SendBytesToClient(clientId, UTF8Encoding.ASCII.GetBytes("Hello I'm the server"));
+                Console.WriteLine(UTF8Encoding.UTF8.GetString(bytes, offset, count));
+                server.SendBytesToClient(clientId, UTF8Encoding.UTF8.GetBytes("Hello I'm the server"));
             }
 
             void ClientBytesReceived(byte[] bytes, int offset, int count)
             {
-                Console.WriteLine(UTF8Encoding.ASCII.GetString(bytes, offset, count));
+                Console.WriteLine(UTF8Encoding.UTF8.GetString(bytes, offset, count));
             }
         }
         #endregion
@@ -129,8 +183,10 @@ namespace Examples
 
         private static void ExamplePureSecureProto()
         {
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            var ccert = new X509Certificate2("client.pfx", "greenpass");
+            //var scert = new X509Certificate2("server.pfx", "greenpass");
+            //var ccert = new X509Certificate2("client.pfx", "greenpass");
+            var scert = CertificateGenerator.GenerateSelfSignedCertificate();
+            var ccert = CertificateGenerator.GenerateSelfSignedCertificate();
 
             var server = new PureSecureProtoServer(11111,scert);
             server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
@@ -153,6 +209,7 @@ namespace Examples
                 SampleMessage msg = client.Serializer.Deserialize<SampleMessage>(bytes, offset, count);
                 Console.WriteLine(msg.sample);
             };
+
             client.SendAsync(new SampleMessage() { sample = "Yo! Mr White" });
             Console.ReadLine();
         }
@@ -169,8 +226,10 @@ namespace Examples
 
         private static async Task ExampleProtoMessageProtocolSecure()
         {
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            var cert = new X509Certificate2("client.pfx", "greenpass");
+            //var scert = new X509Certificate2("server.pfx", "greenpass");
+            //var cert = new X509Certificate2("client.pfx", "greenpass");
+            var scert = CertificateGenerator.GenerateSelfSignedCertificate();
+            var cert = CertificateGenerator.GenerateSelfSignedCertificate();
 
             SecureProtoMessageServer server = new SecureProtoMessageServer(20008, scert);
             server.StartServer();
@@ -242,9 +301,11 @@ namespace Examples
         #region P2P
         private static void ExampleSecureP2P()
         {
-            var cert = new X509Certificate2("client.pfx", "greenpass");
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            
+            //var cert = new X509Certificate2("client.pfx", "greenpass");
+            //var scert = new X509Certificate2("server.pfx", "greenpass");
+            var scert = CertificateGenerator.GenerateSelfSignedCertificate();
+            var cert = CertificateGenerator.GenerateSelfSignedCertificate();
+
             var server = new SecureProtoRelayServer(20010, scert);
             server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
             server.StartServer();

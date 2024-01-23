@@ -54,7 +54,7 @@ namespace NetworkLibrary.Components
                     return noEncryption;
                
                 default:
-                    throw new NotSupportedException(val.ToString());
+                    throw new NotImplementedException(val.ToString()+" - type of encryption algorithm is not implemented");
             }
         }
         public byte[] Decrypt(byte[] bytes) => Decrypt(bytes, 0, bytes.Length);

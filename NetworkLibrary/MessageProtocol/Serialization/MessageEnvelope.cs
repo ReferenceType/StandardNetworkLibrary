@@ -93,7 +93,7 @@ namespace NetworkLibrary
             IsLocked = false;
         }
 
-        internal static MessageEnvelope CloneFromNoRouter(MessageEnvelope message)
+        internal static MessageEnvelope CloneWithNoRouter(MessageEnvelope message)
         {
             var msg = new MessageEnvelope();
             msg.Header = message.Header;

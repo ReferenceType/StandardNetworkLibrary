@@ -11,9 +11,23 @@ namespace NetworkLibrary.TCP.Base
 {
     public class AsyncTcpServer : TcpServerBase
     {
+        /// <summary>
+        /// Invoked when client is connected to server.
+        /// </summary>
         public ClientAccepted OnClientAccepted;
+        /// <summary>
+        /// Invoked when bytes are received. New receive operation will not be performed until this callback is finalised.
+        /// <br/><br/>Callback data is region of the socket buffer.
+        /// <br/>Do a copy if you intend to store the data or use it on different thread.
+        /// </summary>
         public BytesRecieved OnBytesReceived;
+        /// <summary>
+        /// Invoked when client is disconnected
+        /// </summary>
         public ClientDisconnected OnClientDisconnected;
+        /// <summary>
+        /// if returned true client will be accepted by server else it will be dropped
+        /// </summary>
         public ClientConnectionRequest OnClientAccepting = (socket) => true;
         public int SessionCount => Sessions.Count;
         public bool Stopping { get; private set; }
@@ -146,12 +160,29 @@ namespace NetworkLibrary.TCP.Base
             });
         }
 
+        /// <summary>
+        /// Sends a message to client without blocking.
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be added to queue without copy.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="bytes"></param>
         public override void SendBytesToClient(Guid id, byte[] bytes)
         {
             if (Sessions.TryGetValue(id, out var session))
                 session.SendAsync(bytes);
         }
 
+        /// <summary>
+        /// Sends a message without blocking
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be copied to single buffer before added into queue.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread,
+        /// <br/>ScatterGatherConfig.UseBuffer is the reccomeded configuration if your sends are buffer region
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="bytes"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
         public void SendBytesToClient(Guid id, byte[] bytes, int offset, int count)
         {
             if (Sessions.TryGetValue(id, out var session))

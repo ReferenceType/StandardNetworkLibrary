@@ -10,8 +10,14 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.TCP.SSL.Base
 {
+    /// <summary>
+    /// Standard SSL client
+    /// </summary>
     public class SslClient : TcpClientBase, IDisposable
     {
+        /// <summary>
+        /// Assign if you need to validate certificates. By default all certificates are accepted.
+        /// </summary>
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         protected Socket clientSocket;
         protected SslStream sslStream;
@@ -19,6 +25,11 @@ namespace NetworkLibrary.TCP.SSL.Base
         private X509Certificate2 certificate;
         private TcpClientStatisticsPublisher statisticsPublisher;
 
+        /// <summary>
+        /// initialises new instace with given certificate
+        /// if certificate is null, a self signed certificate will be generated
+        /// </summary>
+        /// <param name="certificate"></param>
         public SslClient(X509Certificate2 certificate)
         {
             if(certificate == null)
@@ -28,6 +39,10 @@ namespace NetworkLibrary.TCP.SSL.Base
             RemoteCertificateValidationCallback += DefaultValidationCallbackHandler;
         }
 
+        /// <summary>
+        /// initialises new instace and generates self signed certificate.
+        /// </summary>
+        /// <param name="certificate"></param>
         public SslClient()
         {
             this.certificate = CertificateGenerator.GenerateSelfSignedCertificate();
@@ -184,11 +199,26 @@ namespace NetworkLibrary.TCP.SSL.Base
             OnBytesReceived?.Invoke(bytes, offset, count);
         }
 
+        /// <summary>
+        /// Sends a message without blocking.
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be added to queue without copy.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread.
+        /// </summary>
+        /// <param name="buffer"></param>
         public override void SendAsync(byte[] bytes)
         {
             clientSession.SendAsync(bytes);
         }
 
+        /// <summary>
+        /// Sends a message without blocking
+        /// <br/>If ScatterGatherConfig.UseQueue is selected message will be copied to single buffer before added into queue.
+        /// <br/>If ScatterGatherConfig.UseBuffer message will be copied to message buffer on caller thread,
+        /// <br/> <br/>ScatterGatherConfig.UseBuffer is the reccomeded configuration if your sends are buffer region
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
         public override void SendAsync(byte[] buffer, int offset, int count)
         {
             clientSession.SendAsync(buffer, offset, count);

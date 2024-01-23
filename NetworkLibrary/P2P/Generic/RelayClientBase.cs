@@ -290,7 +290,7 @@ namespace NetworkLibrary.P2P.Generic
         {
             CheckDisposedAndThrow();
             tcpMessageClient?.Disconnect();
-
+           
         }
 
         private void HandleDisconnect()
@@ -303,7 +303,7 @@ namespace NetworkLibrary.P2P.Generic
                 {
                     OnPeerUnregistered?.Invoke(peer.Key);
                 }
-                PeerInfos = new ConcurrentDictionary<Guid, PeerInformation>();
+                PeerInfos.Clear();
                 Peers.Clear();
 
                 peerCryptos.Clear();
@@ -1438,7 +1438,10 @@ namespace NetworkLibrary.P2P.Generic
                 peerCryptos.TryRemove(ep.ToSend, out _);
 
             }
-
+            if(punchedTcpModules.TryRemove(peerId,out var module))
+            {
+                module.Dispose();
+            }
             RemoveRudpModule(peerId);
             RemoveJudpModule(peerId);
             pinger.PeerUnregistered(peerId);
@@ -1643,7 +1646,7 @@ namespace NetworkLibrary.P2P.Generic
             if (RUdpModules.TryGetValue(to, out var mod))
             {
                 //WriteRudpRouterHeaderIfNeeded(msg, to);
-                msg = MessageEnvelope.CloneFromNoRouter(msg);
+                msg = MessageEnvelope.CloneWithNoRouter(msg);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();//ClientUdpModule.GetTLSStream();
 
@@ -1675,7 +1678,7 @@ namespace NetworkLibrary.P2P.Generic
             if (RUdpModules.TryGetValue(to, out var mod))
             {
                 //WriteRudpRouterHeaderIfNeeded(msg, to);
-                msg = MessageEnvelope.CloneFromNoRouter(msg);
+                msg = MessageEnvelope.CloneWithNoRouter(msg);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();//ClientUdpModule.GetTLSStream();
                 serialiser.EnvelopeMessageWithInnerMessage(stream, msg, innerMessage);
@@ -1699,7 +1702,7 @@ namespace NetworkLibrary.P2P.Generic
             if (RUdpModules.TryGetValue(to, out var mod))
             {
                 //WriteRudpRouterHeaderIfNeeded(msg, to);
-                msg = MessageEnvelope.CloneFromNoRouter(msg);
+                msg = MessageEnvelope.CloneWithNoRouter(msg);
 
                 msg.MessageId = Guid.NewGuid();
                 var task = Awaiter.RegisterWait(msg.MessageId, timeoutMs);
@@ -1739,7 +1742,7 @@ namespace NetworkLibrary.P2P.Generic
             if (RUdpModules.TryGetValue(to, out var mod))
             {
                 //WriteRudpRouterHeaderIfNeeded(msg, to);
-                msg = MessageEnvelope.CloneFromNoRouter(msg);
+                msg = MessageEnvelope.CloneWithNoRouter(msg);
 
 
                 msg.MessageId = Guid.NewGuid();
@@ -1812,8 +1815,8 @@ namespace NetworkLibrary.P2P.Generic
         {
             if (Interlocked.CompareExchange(ref disposed, 1, 0) == 0)
             {
-                udpServer.Dispose();
-                tcpMessageClient.Dispose();
+                udpServer?.Dispose();
+                tcpMessageClient?.Dispose();
                 OnPeerRegistered = null;
                 OnPeerUnregistered = null;
                 OnUdpMessageReceived = null;

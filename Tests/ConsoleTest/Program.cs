@@ -1143,62 +1143,62 @@ Date: Fri, 27 Jan 2023 18:06:10 GMT
 
         }
 
-        private static void SSlTest2()
-        {
-            Stopwatch sw = new Stopwatch();
-            int totMsgClient = 0;
-            int totMsgServer = 0;
-            byte[] req = new byte[32];
-            byte[] resp = new byte[32];
-            var scert = new X509Certificate2("server.pfx", "greenpass");
-            var cert = new X509Certificate2("client.pfx", "greenpass");
-            CustomSslServer server = new CustomSslServer(2008, scert);
-            server.OnBytesReceived += ServerReceived;
-            server.StartServer();
+        //private static void SSlTest2()
+        //{
+        //    Stopwatch sw = new Stopwatch();
+        //    int totMsgClient = 0;
+        //    int totMsgServer = 0;
+        //    byte[] req = new byte[32];
+        //    byte[] resp = new byte[32];
+        //    var scert = new X509Certificate2("server.pfx", "greenpass");
+        //    var cert = new X509Certificate2("client.pfx", "greenpass");
+        //    CustomSslServer server = new CustomSslServer(2008, scert);
+        //    server.OnBytesReceived += ServerReceived;
+        //    server.StartServer();
 
-            CustomSslClient client = new CustomSslClient(cert);
-            client.OnBytesReceived += ClientReceived;
-            client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
-            sw.Start();
-            for (int i = 0; i < 1000000; i++)
-            {
-                client.SendAsync(req);
+        //    CustomSslClient client = new CustomSslClient(cert);
+        //    client.OnBytesReceived += ClientReceived;
+        //    client.ConnectAsyncAwaitable("127.0.0.1", 2008).Wait();
+        //    sw.Start();
+        //    for (int i = 0; i < 1000000; i++)
+        //    {
+        //        client.SendAsync(req);
 
-            }
-            client.SendAsync(new byte[502]);
+        //    }
+        //    client.SendAsync(new byte[502]);
 
-            while (Console.ReadLine() != "e")
-            {
-                Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
-                Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
-            }
+        //    while (Console.ReadLine() != "e")
+        //    {
+        //        Console.WriteLine("Tot server" + Volatile.Read(ref totMsgServer));
+        //        Console.WriteLine("Tot client" + Volatile.Read(ref totMsgClient));
+        //    }
 
-            void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
-            {
-                Interlocked.Increment(ref totMsgServer);
-                if (arg4 == 502)
-                {
-                    server.SendBytesToClient(arg1, new byte[502]);
-                    return;
-                }
-                server.SendBytesToClient(arg1, resp);
-            }
+        //    void ServerReceived(Guid arg1, byte[] arg2, int arg3, int arg4)
+        //    {
+        //        Interlocked.Increment(ref totMsgServer);
+        //        if (arg4 == 502)
+        //        {
+        //            server.SendBytesToClient(arg1, new byte[502]);
+        //            return;
+        //        }
+        //        server.SendBytesToClient(arg1, resp);
+        //    }
 
-            void ClientReceived(byte[] arg2, int arg3, int arg4)
-            {
-                Interlocked.Increment(ref totMsgClient);
-                if (arg4 != 32)
-                {
+        //    void ClientReceived(byte[] arg2, int arg3, int arg4)
+        //    {
+        //        Interlocked.Increment(ref totMsgClient);
+        //        if (arg4 != 32)
+        //        {
 
-                }
-                if (arg4 == 502)
-                {
-                    sw.Stop();
-                    Console.WriteLine(sw.ElapsedMilliseconds);
-                }
-                // client.SendAsync(req);
-            }
-        }
+        //        }
+        //        if (arg4 == 502)
+        //        {
+        //            sw.Stop();
+        //            Console.WriteLine(sw.ElapsedMilliseconds);
+        //        }
+        //        // client.SendAsync(req);
+        //    }
+        //}
 
 
 

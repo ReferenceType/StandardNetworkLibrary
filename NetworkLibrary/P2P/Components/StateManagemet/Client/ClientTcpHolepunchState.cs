@@ -62,10 +62,10 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
            this.StateId = stateId;
             this.stateManager = stateManager;
             this.relayUdpEp = relayUdpEp;
-            Runt();
+            //DebugSts();
         }
 
-        private async void Runt()
+        private async void DebugSts()
         {
             await Task.Delay(5000);
 
@@ -192,11 +192,15 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
 
         private void InitialiseSocket(EndPoint toBind)
         {
-            var s = new Socket(AddressFamily.InterNetwork,SocketType.Stream, ProtocolType.Tcp);
-            s.NoDelay = true;
-            s.ReceiveBufferSize = 12800000;
-            s.Bind(toBind);
-            Interlocked.Exchange(ref selfSocket, s);
+            lock (globalLock)
+            {
+                var s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                s.NoDelay = true;
+                s.ReceiveBufferSize = 12800000;
+                s.Bind(toBind);
+                Interlocked.Exchange(ref selfSocket, s);
+            }
+           
         }
         private void SwapToClient(MessageEnvelope message)
         {
@@ -329,30 +333,22 @@ namespace NetworkLibrary.P2P.Components.StateManagement.Client
 
         GenericMessageSerializer<MockSerializer> serializer = new GenericMessageSerializer<MockSerializer>();
         PooledMemoryStream stream = new PooledMemoryStream();
-       AsyncUdpClient cl = new AsyncUdpClient();
-
+        AsyncUdpClient cl = new AsyncUdpClient();
+        private static object globalLock = new object();
         private void SendUdpPortMapMsg()
         {
-
-            //Task.Delay(1000).ContinueWith((t) =>
-            //{
-            //    if (Status == StateStatus.Pending && Interlocked.CompareExchange(ref PortmapAcked, 0, 0) != 1)
-            //    {
-            //        SendUdpPortMapMsg();
-            //    }
-            //    else
-            //    {
-            //        currentsts = Sts.idle;
-            //    }
-            //});
             try
             {
-                if (!cl.clientSocket.IsBound)
+                lock (globalLock)
                 {
-                    cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
-                    cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                    cl.Bind(((IPEndPoint)selfLocalEndpoint));
+                    if (!cl.clientSocket.IsBound)
+                    {
+                        cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
+                        cl.clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                        cl.Bind(((IPEndPoint)selfLocalEndpoint));
+                    }
                 }
+               
                 
                 MessageEnvelope message = new MessageEnvelope()
                 {

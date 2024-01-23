@@ -34,6 +34,7 @@ namespace NetworkLibrary.TCP.AES
             session.SocketRecieveBufferSize = SocketRecieveBufferSize;
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.DropOnCongestion = DropOnCongestion;
+            session.UseQueue = false;
             sessionInternal = session;
             return session;
 
@@ -50,6 +51,7 @@ namespace NetworkLibrary.TCP.AES
             session.SocketRecieveBufferSize = SocketRecieveBufferSize;
             session.MaxIndexedMemory = MaxIndexedMemory;
             session.DropOnCongestion = DropOnCongestion;
+            session.UseQueue = false;
             sessionInternal = session;
             return session;
         }

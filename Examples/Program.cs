@@ -322,13 +322,13 @@ namespace Examples
             Thread.Sleep(1000);
             Console.WriteLine("");
 
-            client1.SendUdpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Udp", Payload = new byte[128000] });
-            client1.SendRudpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Rudp", Payload = new byte[128000] });
-            client1.SendMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Tcp", Payload = new byte[128000] });
+            client1.BroadcastUdpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Udp", Payload = new byte[128000] });
+            client1.BroadcastRudpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Rudp", Payload = new byte[128000] });
+            client1.BroadcastMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Tcp", Payload = new byte[128000] });
 
-            client1.SendUdpMessageToPeer(peerId, new MessageEnvelope() { Header = "Hello Private Udp", Payload = new byte[128000] });
-            client1.SendRudpMessageToPeer(peerId, new MessageEnvelope() { Header = "Hello Private Rudp", Payload = new byte[128000] });
-            client1.SendMessageToPeer(peerId, new MessageEnvelope() { Header = "Hello Private Tcp", Payload = new byte[128000] });
+            client1.SendUdpMessage(peerId, new MessageEnvelope() { Header = "Hello Private Udp", Payload = new byte[128000] });
+            client1.SendRudpMessage(peerId, new MessageEnvelope() { Header = "Hello Private Rudp", Payload = new byte[128000] });
+            client1.SendAsyncMessage(peerId, new MessageEnvelope() { Header = "Hello Private Tcp", Payload = new byte[128000] });
         }
         #endregion
     }

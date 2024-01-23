@@ -183,10 +183,10 @@ namespace ConsoleTest
             for (int i = 0; i < numClients; i++)
             {
                 var cl = new SecureProtoRoomClient(cert);
-                cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - " + m.Header);
-                cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - " + m.Header);
-                cl.OnTcpMessageReceived += (m) => Console.WriteLine("Driect Tcp - " + m.Header);
-                cl.OnUdpMessageReceived += (m) => Console.WriteLine("Driect Udp - " + m.Header);
+                //cl.OnTcpRoomMesssageReceived += (r, m) => Console.WriteLine("Tcp - " + m.Header);
+                //cl.OnUdpRoomMesssageReceived += (r, m) => Console.WriteLine("Udp - " + m.Header);
+                cl.OnTcpMessageReceived += (m) => Console.WriteLine(" Tcp - " + m.Header);
+                cl.OnUdpMessageReceived += (m) => Console.WriteLine(" Udp - " + m.Header);
 
                 cl.Connect(ip, port);
                 cl.CreateOrJoinRoom("WA");
@@ -210,11 +210,11 @@ namespace ConsoleTest
 
             for (int i = 0; i < 1; i++)
             {
-                clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo", Payload = new byte[128000] });
-                clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" , Payload = new byte[128000] });
-                clients[0].SendMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct TCp Yo" , Payload = new byte[128000] });
-                clients[0].SendUdpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct UDp Yo", Payload = new byte[128000] });
-                clients[0].SendRudpMessageToPeer(clients[1].SessionId, new MessageEnvelope() { Header = "Direct RUDp Yo" , Payload = new byte[128000] });
+                clients[0].BroadcastMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo", Payload = new byte[128000] });
+                clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" , Payload = new byte[128000] });
+                clients[0].SendAsyncMessage(clients[1].SessionId, new MessageEnvelope() { Header = "Direct TCp Yo" , Payload = new byte[128000] });
+                clients[0].SendUdpMessage(clients[1].SessionId, new MessageEnvelope() { Header = "Direct UDp Yo", Payload = new byte[128000] });
+                clients[0].SendRudpMessage(clients[1].SessionId, new MessageEnvelope() { Header = "Direct RUDp Yo" , Payload = new byte[128000] });
             }
 
             Console.ReadLine();

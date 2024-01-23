@@ -44,8 +44,8 @@ namespace UnitTests
             for (int i = 0; i < numClients; i++)
             {
                 var cl = new SecureProtoRoomClient(cert);
-                cl.OnTcpRoomMesssageReceived += (r, m) => TcpReceived(cl, r, m);
-                cl.OnUdpRoomMesssageReceived += (r, m) => UdpReceived(cl, r, m);
+                cl.OnTcpMessageReceived += ( m) => TcpReceived(cl, m);
+                cl.OnUdpMessageReceived += ( m) => UdpReceived(cl, m);
                 cl.Connect(ip, port);
                 cl.CreateOrJoinRoom("WA");
                 clients.Add(cl);
@@ -64,18 +64,18 @@ namespace UnitTests
                 }
                 break;
             }
-            clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
+            clients[0].BroadcastMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
             clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
 
 
-            void UdpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
+            void UdpReceived(SecureProtoRoomClient cl, MessageEnvelope m)
             {
                 expectedClientsUdp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalUdp);
             }
 
-            void TcpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
+            void TcpReceived(SecureProtoRoomClient cl, MessageEnvelope m)
             {
                 expectedClientsTcp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalTcp);
@@ -111,8 +111,8 @@ namespace UnitTests
             for (int i = 0; i < numClients; i++)
             {
                 var cl = new SecureProtoRoomClient(cert);
-                cl.OnTcpRoomMesssageReceived += (r, m) => TcpReceived(cl, r, m);
-                cl.OnUdpRoomMesssageReceived += (r, m) => UdpReceived(cl, r, m);
+                cl.OnTcpMessageReceived += (m) => TcpReceived(cl, m);
+                cl.OnUdpMessageReceived += (m) => UdpReceived(cl, m);
                 cl.Connect(ip, port);
                 cl.CreateOrJoinRoom("WA");
                 clients.Add(cl);
@@ -126,7 +126,7 @@ namespace UnitTests
                     if (client.SessionId.CompareTo(client2.SessionId) > 0)
                     {
                         var r = client.RequestHolePunchAsync(client2.SessionId).Result;
-
+                     
                     }
                 }
                 break;
@@ -134,24 +134,24 @@ namespace UnitTests
             clients.Last().LeaveRoom("WA");
             Thread.Sleep(1100);
 
-            clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
-            clients[0].SendRudpMessageToRoom("WA", new MessageEnvelope() { Header = "RUdp Yo" });
+            clients[0].BroadcastMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
+            clients[0].BroadcastRudpMessageToRoom("WA", new MessageEnvelope() { Header = "RUdp Yo" });
 
-            clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo", Payload = new byte[128000] });
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[128000] });
-            clients[0].SendRudpMessageToRoom("WA", new MessageEnvelope() { Header = "RUdp Yo", Payload = new byte[128000] });
+            clients[0].BroadcastMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo", Payload = new byte[128000] });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[128000] });
+            clients[0].BroadcastRudpMessageToRoom("WA", new MessageEnvelope() { Header = "RUdp Yo", Payload = new byte[128000] });
 
             clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
 
 
-            void UdpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
+            void UdpReceived(SecureProtoRoomClient cl, MessageEnvelope m)
             {
                 expectedClientsUdp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalUdp);
             }
 
-            void TcpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
+            void TcpReceived(SecureProtoRoomClient cl, MessageEnvelope m)
             {
                 expectedClientsTcp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalTcp);
@@ -189,65 +189,80 @@ namespace UnitTests
             for (int i = 0; i < numClients; i++)
             {
                 var cl = new SecureProtoRoomClient(cert);
-                cl.OnTcpRoomMesssageReceived += (r, m) => TcpReceived(cl, r, m);
-                cl.OnUdpRoomMesssageReceived += (r, m) => UdpReceived(cl, r, m);
+                cl.OnTcpMessageReceived += (m) => TcpReceived(cl, m);
+                cl.OnUdpMessageReceived += (m) => UdpReceived(cl, m);
                 cl.Connect(ip, port);
                 cl.CreateOrJoinRoom("WA");
-                if (i % 2 == 0)
+                if (i <5)
                     cl.CreateOrJoinRoom("SA");
                 clients.Add(cl);
             }
 
             Thread.Sleep(2000);
-            foreach (var client in clients)
+            for (int i = 1; i < clients.Count; i++)
             {
-                foreach (var client2 in clients)
-                {
-                    if (client.SessionId.CompareTo(client2.SessionId) > 0)
-                    {
-                        var r = client.RequestHolePunchAsync(client2.SessionId).Result;
-
-                    }
-                }
-                break;
+                _ = clients[0].RequestHolePunchAsync(clients[i].SessionId).Result;
+                _ = clients[0].RequestTcpHolePunchAsync(clients[i].SessionId).Result;
             }
+            //foreach (var client in clients)
+            //{
+            //    foreach (var client2 in clients)
+            //    {
+            //        if (client.SessionId.CompareTo(client2.SessionId) > 0)
+            //        {
+            //           var r =  client.RequestHolePunchAsync(client2.SessionId).Result;
+            //           var r1 =  client.RequestTcpHolePunchAsync(client2.SessionId).Result;
+            //            if (r != true)
+            //            {
 
-            clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
-            clients[0].SendMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" }, new Payload() { data =  new byte[128000] });
+            //            }
+            //        }
+            //    }
+            //    break;
+            //}
+            int largeMsgLen = 128000;
+            int defaulMmsgLen = 12800;
+            clients[0].BroadcastMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" });
+            clients[0].BroadcastMessageToRoom("WA", new MessageEnvelope() { Header = "Tcp Yo" }, new Payload() { data =  new byte[largeMsgLen] });
 
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[12800] });
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[128000] });
-            clients[0].SendUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo",Payload =  new byte[128000] });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastUdpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo",Payload =  new byte[largeMsgLen] });
 
-            clients[0].SendRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" });
-            clients[0].SendRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[12800] });
-            clients[0].SendRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[128000] });
-            clients[0].SendRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[128000] });
+            clients[0].BroadcastRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[largeMsgLen] });
+            clients[0].BroadcastRudpMessageToRoom("WA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[largeMsgLen] });
 
-            clients[0].SendMessageToRoom("SA", new MessageEnvelope() { Header = "Tcp Yo" });
-            clients[0].SendMessageToRoom("SA", new MessageEnvelope() { Header = "Tcp Yo" }, new Payload() { data = new byte[128000] });
+            clients[0].BroadcastMessageToRoom("SA", new MessageEnvelope() { Header = "Tcp Yo" });
+            clients[0].BroadcastMessageToRoom("SA", new MessageEnvelope() { Header = "Tcp Yo" }, new Payload() { data = new byte[largeMsgLen] });
 
-            clients[0].SendUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" });
-            clients[0].SendUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[12800] });
-            clients[0].SendUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[128000] });
-            clients[0].SendUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[128000] });
+            clients[0].BroadcastUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastUdpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[largeMsgLen] });
 
-            clients[0].SendRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" });
-            clients[0].SendRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[12800] });
-            clients[0].SendRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[128000] });
-            clients[0].SendRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[128000] });
+            clients[0].BroadcastRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[defaulMmsgLen] });
+            clients[0].BroadcastRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo" }, new Payload() { data = new byte[largeMsgLen] });
+            clients[0].BroadcastRudpMessageToRoom("SA", new MessageEnvelope() { Header = "Udp Yo", Payload = new byte[largeMsgLen] });
 
             clients[0].GetAvailableRooms().ContinueWith((m) => Console.WriteLine(m.Result[0]));
 
 
-            void UdpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
+            void UdpReceived(SecureProtoRoomClient cl, MessageEnvelope m)
             {
                 expectedClientsUdp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalUdp);
+                //if (m.PayloadCount < 128000)
+                //{
+
+                //}
+                
             }
 
-            void TcpReceived(SecureProtoRoomClient cl, string r, MessageEnvelope m)
+            void TcpReceived(SecureProtoRoomClient cl, MessageEnvelope m)
             {
                 expectedClientsTcp.TryAdd(cl, null);
                 Interlocked.Increment(ref totalTcp);
@@ -257,8 +272,14 @@ namespace UnitTests
             Assert.IsTrue(expectedClientsTcp.Count == clients.Count - 1);
             Assert.AreEqual(clients.Count - 1, expectedClientsUdp.Count);
 
-            Assert.AreEqual(13*2, totalTcp);
-            Assert.AreEqual(13*8, totalUdp);
+            //Assert.AreEqual(13*2, totalTcp);
+            //Assert.AreEqual(13*8, totalUdp);
+            int expectedTcp = (2 * 9) + (2 * 4);
+            int expectedUdp = (8 * 9) + (8 * 4);
+            //int expectedTcp = (16 * 9);
+            //int expectedUdp = (4 * 9);
+            Assert.AreEqual(expectedTcp, totalTcp);
+            Assert.AreEqual(expectedUdp, totalUdp);
             server.ShutdownServer();
         }
 

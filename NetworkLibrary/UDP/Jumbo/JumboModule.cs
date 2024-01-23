@@ -28,11 +28,6 @@ namespace NetworkLibrary.UDP.Jumbo
             SendToSocket?.Invoke(arg1, arg2, arg3);
         }
 
-        public void Send(byte[] data, int offset, int count)
-        {
-            sender.ProcessBytes(data, offset, count);
-        }
-
         public void HandleReceivedSegment(byte[] buffer, int offset, int count)
         {
             receiver.ProccesReceivedDatagram(buffer, offset, count);
@@ -45,7 +40,10 @@ namespace NetworkLibrary.UDP.Jumbo
             sender.Release();
             receiver.Release();
         }
-
+        public void Send(byte[] data, int offset, int count)
+        {
+            sender.ProcessBytes(data, offset, count);
+        }
         internal void Send(in Segment s1, in Segment s2)
         {
             sender.ProcessBytes(in s1, in s2);

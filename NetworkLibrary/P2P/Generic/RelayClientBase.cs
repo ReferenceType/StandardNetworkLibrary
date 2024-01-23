@@ -164,8 +164,8 @@ namespace NetworkLibrary.P2P.Generic
             {
                 udpClient.EnableBroadcast = true;
 
-                if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    udpClient.AllowNatTraversal(true);
+                //if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                //    udpClient.AllowNatTraversal(true);
 
                 var broadcastAddress = new IPEndPoint(IPAddress.Broadcast, port);
 
@@ -772,7 +772,6 @@ namespace NetworkLibrary.P2P.Generic
 
         internal void MulticastUdpMessage<T>(MessageEnvelope message, ICollection<Guid> targets, T innerMessage)
         {
-
             if (Peers.Count < 0)
                 return;
             message.From = sessionId;

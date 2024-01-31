@@ -428,6 +428,14 @@ namespace NetworkLibrary.P2P.Generic.Room
         }
         private void HandleDisconnected()
         {
+            foreach (var room in rooms)
+            {
+                foreach (var peerId in room.Value.PeerIds)
+                {
+                    OnPeerDisconnected?.Invoke(peerId);
+                }
+            }
+            peersInRooms.Clear();
             rooms.Clear();
             OnDisconnected?.Invoke();
         }
@@ -467,6 +475,8 @@ namespace NetworkLibrary.P2P.Generic.Room
         public void Dispose()
         {
             client.Dispose();
+            peersInRooms.Clear();
+            rooms.Clear();
         }
 
         class Room

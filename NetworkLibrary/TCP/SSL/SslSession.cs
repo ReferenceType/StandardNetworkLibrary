@@ -476,8 +476,16 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
             {
-                sessionStream.Close();
-                OnSessionClosed?.Invoke(sessionId);
+                try
+                {
+                    sessionStream.Close();
+                }
+                catch { }
+                try
+                {
+                    OnSessionClosed?.Invoke(sessionId);
+                }
+                catch { }
                 OnSessionClosed = null;
                 Dispose();
             }

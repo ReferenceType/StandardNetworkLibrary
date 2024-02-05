@@ -197,7 +197,7 @@ namespace NetworkLibrary.P2P.Generic.Room
             if (CanSend(roomName))
             {
                 PrepareEnvelopeBC(roomName, ref message);
-                client.tcpMessageClient.SendAsyncMessage(message);
+                client.tcpMessageClient.SendAsyncMessage(message, innerMessage);
             }
         }
 
@@ -220,6 +220,7 @@ namespace NetworkLibrary.P2P.Generic.Room
                     client.MulticastUdpMessage(message, dict.PeerIds, innerMessage);
             }
         }
+
         public void BroadcastRudpMessageToRoom(string roomName, MessageEnvelope message, RudpChannel channel = RudpChannel.Ch1)
         {
             if (CanSend(roomName))
@@ -230,7 +231,7 @@ namespace NetworkLibrary.P2P.Generic.Room
                     foreach (var peerId in roomDict.PeerIds)
                     {
                         if (peerId != SessionId)
-                            client.SendRudpMessage(peerId, message);
+                            client.SendRudpMessage(peerId, message, channel);
                     }
                 }
             }
@@ -259,6 +260,10 @@ namespace NetworkLibrary.P2P.Generic.Room
         {
             client.SendAsyncMessage(peerId, message);
         }
+        public void SendAsyncMessage<T>(Guid peerId, T message, string messageHeader = null)
+        {
+            client.SendAsyncMessage(peerId, message, messageHeader);
+        }
         public void SendAsyncMessage<T>(Guid peerId, MessageEnvelope message, T innerMessage)
         {
             client.SendAsyncMessage(peerId, message, innerMessage);
@@ -273,6 +278,10 @@ namespace NetworkLibrary.P2P.Generic.Room
         {
             return client.SendRequestAndWaitResponse(peerId, message, innerMessage, timeoutMs);
         }
+        public Task<MessageEnvelope> SendRequestAndWaitResponse<T>(Guid peerId, T innerMessage, string messageHeader = null, int timeoutMs = 10000)
+        {
+            return client.SendRequestAndWaitResponse(peerId, innerMessage, messageHeader, timeoutMs);
+        }
         //---
         // Udp
         public void SendUdpMessage(Guid peerId, MessageEnvelope message)
@@ -284,6 +293,7 @@ namespace NetworkLibrary.P2P.Generic.Room
         {
             client.SendUdpMessage(peerId, message, innerMessage);
         }
+
         //--
         // Rudp
         public void SendRudpMessage(Guid peerId, MessageEnvelope message, RudpChannel channel = RudpChannel.Ch1)

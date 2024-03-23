@@ -349,48 +349,48 @@ namespace Examples
 
             }
         }
-        private static void ExampleRoomServer()
-        {
-            var cert = new X509Certificate2("client.pfx", "greenpass");
-            var scert = new X509Certificate2("server.pfx", "greenpass");
+        //private static void ExampleRoomServer()
+        //{
+        //    var cert = new X509Certificate2("client.pfx", "greenpass");
+        //    var scert = new X509Certificate2("server.pfx", "greenpass");
 
-            var server = new RoomServer(20010, scert);
-            server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
-            server.StartServer();
+        //    var server = new RoomServer(20010, scert);
+        //    server.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
+        //    server.StartServer();
 
-            var client1 = new SecureProtoRoomClient(cert);
-            client1.OnTcpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Tcp Received from Room [{roomName}] -> " + m.Header);
-            client1.OnUdpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Udp Received from Room [{roomName}] -> " + m.Header);
-            client1.OnTcpMessageReceived += (m) => Console.WriteLine("Private Tcp Received -> " + m.Header);
-            client1.OnUdpMessageReceived += (m) => Console.WriteLine("Private Udp Received ->" + m.Header);
+        //    var client1 = new SecureProtoRoomClient(cert);
+        //    client1.OnTcpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Tcp Received from Room [{roomName}] -> " + m.Header);
+        //    client1.OnUdpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Udp Received from Room [{roomName}] -> " + m.Header);
+        //    client1.OnTcpMessageReceived += (m) => Console.WriteLine("Private Tcp Received -> " + m.Header);
+        //    client1.OnUdpMessageReceived += (m) => Console.WriteLine("Private Udp Received ->" + m.Header);
 
-            client1.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
-            client1.Connect("127.0.0.1", 20010);
-            client1.CreateOrJoinRoom("MyGarage");
+        //    client1.RemoteCertificateValidationCallback += (_, _, _, _) => { return true; };
+        //    client1.Connect("127.0.0.1", 20010);
+        //    client1.CreateOrJoinRoom("MyGarage");
            
-            var client2 = new SecureProtoRoomClient(cert);
-            client2.OnTcpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Tcp Received from Room [{roomName}] -> " + m.Header);
-            client2.OnUdpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Udp Received from Room [{roomName}] -> " + m.Header);
-            client2.OnTcpMessageReceived += (m) => Console.WriteLine("Private Tcp Received -> " + m.Header);
-            client2.OnUdpMessageReceived += (m) => Console.WriteLine("Private Udp Received ->" + m.Header);
+        //    var client2 = new SecureProtoRoomClient(cert);
+        //    client2.OnTcpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Tcp Received from Room [{roomName}] -> " + m.Header);
+        //    client2.OnUdpRoomMesssageReceived += (roomName, m) => Console.WriteLine($"Udp Received from Room [{roomName}] -> " + m.Header);
+        //    client2.OnTcpMessageReceived += (m) => Console.WriteLine("Private Tcp Received -> " + m.Header);
+        //    client2.OnUdpMessageReceived += (m) => Console.WriteLine("Private Udp Received ->" + m.Header);
 
-            client2.Connect("127.0.0.1", 20010);
-            client2.CreateOrJoinRoom("MyGarage");
-            Thread.Sleep(1000);
+        //    client2.Connect("127.0.0.1", 20010);
+        //    client2.CreateOrJoinRoom("MyGarage");
+        //    Thread.Sleep(1000);
 
-            Guid peerId = client2.SessionId;
-            var succes = client1.RequestHolePunchAsync(peerId, 5000).Result;
-            Thread.Sleep(1000);
-            Console.WriteLine("");
+        //    Guid peerId = client2.SessionId;
+        //    var succes = client1.RequestHolePunchAsync(peerId, 5000).Result;
+        //    Thread.Sleep(1000);
+        //    Console.WriteLine("");
 
-            client1.BroadcastUdpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Udp", Payload = new byte[128000] });
-            client1.BroadcastRudpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Rudp", Payload = new byte[128000] });
-            client1.BroadcastMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Tcp", Payload = new byte[128000] });
+        //    client1.BroadcastUdpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Udp", Payload = new byte[128000] });
+        //    client1.BroadcastRudpMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Rudp", Payload = new byte[128000] });
+        //    client1.BroadcastMessageToRoom("MyGarage", new MessageEnvelope() { Header = "Hello Tcp", Payload = new byte[128000] });
 
-            client1.SendUdpMessage(peerId, new MessageEnvelope() { Header = "Hello Private Udp", Payload = new byte[128000] });
-            client1.SendRudpMessage(peerId, new MessageEnvelope() { Header = "Hello Private Rudp", Payload = new byte[128000] });
-            client1.SendAsyncMessage(peerId, new MessageEnvelope() { Header = "Hello Private Tcp", Payload = new byte[128000] });
-        }
+        //    client1.SendUdpMessage(peerId, new MessageEnvelope() { Header = "Hello Private Udp", Payload = new byte[128000] });
+        //    client1.SendRudpMessage(peerId, new MessageEnvelope() { Header = "Hello Private Rudp", Payload = new byte[128000] });
+        //    client1.SendAsyncMessage(peerId, new MessageEnvelope() { Header = "Hello Private Tcp", Payload = new byte[128000] });
+        //}
         #endregion
     }
 }

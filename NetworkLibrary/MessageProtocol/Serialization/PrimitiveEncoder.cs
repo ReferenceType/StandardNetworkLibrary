@@ -209,7 +209,7 @@ namespace NetworkLibrary
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteInt32(byte[] buffer, ref int offset, int value)
+        internal static void WriteInt32(byte[] buffer, ref int offset, int value)
         {
             var encoded = (uint)(value << 1 ^ value >> 31);
 

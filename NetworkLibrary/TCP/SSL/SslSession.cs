@@ -188,6 +188,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             FlushAndSend();
         }
 
+        // this can only be called inside send lock critical section
         protected void FlushAndSend()
         {
             //ThreadPool.UnsafeQueueUserWorkItem((s) => 

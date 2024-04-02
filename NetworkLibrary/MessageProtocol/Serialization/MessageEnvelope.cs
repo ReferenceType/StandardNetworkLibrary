@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.P2P.Components;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,16 @@ namespace NetworkLibrary
     {
         public const string RequestTimeout = "RequestTimedOut";
         public const string RequestCancelled = "RequestCancelled";
-        public static IMessageSerialiser Serializer { get; internal set; }
+        public static IMessageSerialiser Serializer
+        {
+            get => serializer;
+            internal set
+            {
+                if (serializer == null && value is GenericMessageSerializer<MockSerializer>)
+                    return;
+                serializer = value;
+            }
+        }
         public DateTime TimeStamp { get; set; }
 
         public Guid MessageId { get; set; }
@@ -27,6 +37,8 @@ namespace NetworkLibrary
         public bool IsLocked { get; private set; } = true;
 
         private byte[] payload;
+        private static IMessageSerialiser serializer;
+
         public byte[] Payload
         {
             get => payload; set

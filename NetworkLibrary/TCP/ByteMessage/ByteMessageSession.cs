@@ -39,7 +39,7 @@ namespace NetworkLibrary.TCP.ByteMessage
         {
             if (UseQueue)
             {
-                var q = new MessageQueue<UnsafeDelimitedMessageWriter>(MaxIndexedMemory, new UnsafeDelimitedMessageWriter());
+                var q = new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
                 return q;
             }
             else

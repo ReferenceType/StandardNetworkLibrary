@@ -6,7 +6,7 @@ namespace NetworkLibrary.Components.MessageBuffer
 {
     public class MessageBuffer : IMessageQueue
     {
-        public int CurrentIndexedMemory { get => Volatile.Read(ref currentIndexedMemory); }
+        public int CurrentIndexedMemory { get => Interlocked.CompareExchange(ref currentIndexedMemory,0,0); }
         public int MaxIndexedMemory;
         public long TotalMessageDispatched { get; protected set; }
 

@@ -29,7 +29,7 @@ namespace NetworkLibrary.TCP.SSL.ByteMessage
         protected override IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
-                return new MessageQueue<UnsafeDelimitedMessageWriter>(MaxIndexedMemory, new UnsafeDelimitedMessageWriter());
+                return new MessageQueue<DelimitedMessageWriter>(MaxIndexedMemory, new DelimitedMessageWriter());
 
             else
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: true);

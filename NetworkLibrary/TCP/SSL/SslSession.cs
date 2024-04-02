@@ -26,9 +26,9 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected Spinlock enqueueLock = new Spinlock();
         protected SslStream sessionStream;
         protected byte[] receiveBuffer;
-#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-        protected Memory<byte> receiveMemory;
-#endif
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+//        protected Memory<byte> receiveMemory;
+//#endif
         protected byte[] sendBuffer;
         protected Guid sessionId;
         protected IPEndPoint RemoteEP;
@@ -66,10 +66,10 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             receiveBuffer = /*new byte[ReceiveBufferSize];*/ BufferPool.RentBuffer(ReceiveBufferSize);
 
-#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
 
-            receiveMemory = new Memory<byte>(receiveBuffer);
-#endif
+//            receiveMemory = new Memory<byte>(receiveBuffer);
+//#endif
 
             if (UseQueue) sendBuffer = BufferPool.RentBuffer(SendBufferSize);
 
@@ -78,7 +78,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         protected virtual IMessageQueue CreateMessageQueue()
         {
             if (UseQueue)
-                return new MessageQueue<UnsafePlainMessageWriter>(MaxIndexedMemory, new UnsafePlainMessageWriter());
+                return new MessageQueue<MessageWriter>(MaxIndexedMemory, new MessageWriter());
             else
                 return new MessageBuffer(MaxIndexedMemory, writeLengthPrefix: false);
 
@@ -188,10 +188,11 @@ namespace NetworkLibrary.TCP.SSL.Base
             FlushAndSend();
         }
 
+        // this can only be called inside send lock critical section
         protected void FlushAndSend()
         {
-            ThreadPool.UnsafeQueueUserWorkItem((s) => 
-            {
+            //ThreadPool.UnsafeQueueUserWorkItem((s) => 
+            //{
                 try
                 {
                     messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
@@ -203,15 +204,15 @@ namespace NetworkLibrary.TCP.SSL.Base
                         throw;
                 }
 
-            }, null);
+           // }, null);
            
         }
         protected void WriteOnSessionStream(int count)
         {
-#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-            WriteModern(count);
-            return;
-#endif
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+//            WriteModern(count);
+//            return;
+//#endif
 
             try
             {
@@ -223,71 +224,79 @@ namespace NetworkLibrary.TCP.SSL.Base
             }
             totalBytesSend += count;
         }
-#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
 
-        private async void WriteModern(int count)
-        {
-            try
-            {
-                //somehow faster than while loop...
-            Top:
-                totalBytesSend += count;
-                await sessionStream.WriteAsync(new ReadOnlyMemory<byte>(sendBuffer, 0, count)).ConfigureAwait(false);
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+
+//        private async void WriteModern(int count)
+//        {
+//            try
+//            {
+//                //somehow faster than while loop...
+//            Top:
+//                totalBytesSend += count;
+//                await sessionStream.WriteAsync(new ReadOnlyMemory<byte>(sendBuffer, 0, count)).ConfigureAwait(false);
                
-                if (IsSessionClosing())
-                {
-                    ReleaseSendResourcesIdempotent();
-                    return;
-                }
-                if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
-                {
-                    count = amountWritten;
-                    goto Top;
+//                if (IsSessionClosing())
+//                {
+//                    ReleaseSendResourcesIdempotent();
+//                    return;
+//                }
+//                if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
+//                {
+//                    count = amountWritten;
+//                    goto Top;
 
-                }
+//                }
 
-                // here there was nothing to flush
-                bool flush = false;
+//                // here there was nothing to flush
+//                bool flush = false;
 
-                enqueueLock.Take();
-                // ask again safely
-                if (messageQueue.IsEmpty())
-                {
-                    messageQueue.Flush();
+//                enqueueLock.Take();
+//                // ask again safely
+//                if (messageQueue.IsEmpty())
+//                {
+//                    messageQueue.Flush();
 
-                    SendSemaphore.Release();
-                    enqueueLock.Release();
-                    if (IsSessionClosing())
-                        ReleaseSendResourcesIdempotent();
-                    return;
-                }
-                else
-                {
-                    flush = true;
+//                    SendSemaphore.Release();
+//                    enqueueLock.Release();
+//                    if (IsSessionClosing())
+//                        ReleaseSendResourcesIdempotent();
+//                    return;
+//                }
+//                else
+//                {
+//                    flush = true;
 
-                }
-                enqueueLock.Release();
+//                }
+//                enqueueLock.Release();
 
-                // something got into queue just before i exit, we need to flush it
-                if (flush)
-                {
-                    if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten_))
-                    {
-                        count = amountWritten_;
-                        goto Top;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                HandleError("Error on sent callback ssl", e);
-            }
-        }
-#endif
+//                // something got into queue just before i exit, we need to flush it
+//                if (flush)
+//                {
+//                    if (messageQueue.TryFlushQueue(ref sendBuffer, 0, out int amountWritten_))
+//                    {
+//                        count = amountWritten_;
+//                        goto Top;
+//                    }
+//                }
+//            }
+//            catch (Exception e)
+//            {
+//                HandleError("Error on sent callback ssl", e);
+//            }
+//        }
+//#endif
 
         private void SentInternal(IAsyncResult ar)
         {
-             Sent(ar);
+            if (ar.CompletedSynchronously)
+            {
+                ThreadPool.UnsafeQueueUserWorkItem((s) => Sent(ar), null);
+            }
+            else
+            {
+                Sent(ar);
+            }
         }
 
         private void Sent(IAsyncResult ar)
@@ -356,10 +365,10 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         protected virtual void Receive()
         {
-#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-            ReceiveNew();
-            return;
-#endif
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+//            ReceiveNew();
+//            return;
+//#endif
             if (IsSessionClosing())
             {
                 ReleaseReceiveResourcesIdempotent();
@@ -375,39 +384,39 @@ namespace NetworkLibrary.TCP.SSL.Base
                 ReleaseReceiveResourcesIdempotent();
             }
         }
-#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
 
-        private async void ReceiveNew()
-        {
-            try
-            {
-                while (true)
-                {
-                    if (IsSessionClosing())
-                    {
-                        ReleaseReceiveResourcesIdempotent();
-                        return;
-                    }
-                    var amountRead = await sessionStream.ReadAsync(receiveMemory).ConfigureAwait(false);
-                    if (amountRead > 0)
-                    {
-                        HandleReceived(receiveBuffer, 0, amountRead);
-                    }
-                    else
-                    {
-                        EndSession();
-                        ReleaseReceiveResourcesIdempotent();
-                    }
-                    totalBytesReceived += amountRead;
-                }
-            }
-            catch (Exception ex)
-            {
-                HandleError("White receiving from SSL socket an error occurred", ex);
-                ReleaseReceiveResourcesIdempotent();
-            }
-        }
-#endif
+//        private async void ReceiveNew()
+//        {
+//            try
+//            {
+//                while (true)
+//                {
+//                    if (IsSessionClosing())
+//                    {
+//                        ReleaseReceiveResourcesIdempotent();
+//                        return;
+//                    }
+//                    var amountRead = await sessionStream.ReadAsync(receiveMemory).ConfigureAwait(false);
+//                    if (amountRead > 0)
+//                    {
+//                        HandleReceived(receiveBuffer, 0, amountRead);
+//                    }
+//                    else
+//                    {
+//                        EndSession();
+//                        ReleaseReceiveResourcesIdempotent();
+//                    }
+//                    totalBytesReceived += amountRead;
+//                }
+//            }
+//            catch (Exception ex)
+//            {
+//                HandleError("White receiving from SSL socket an error occurred", ex);
+//                ReleaseReceiveResourcesIdempotent();
+//            }
+//        }
+//#endif
         protected virtual void Received(IAsyncResult ar)
         {
             if (IsSessionClosing())
@@ -476,8 +485,16 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (Interlocked.CompareExchange(ref SessionClosing, 1, 0) == 0)
             {
-                sessionStream.Close();
-                OnSessionClosed?.Invoke(sessionId);
+                try
+                {
+                    sessionStream.Close();
+                }
+                catch { }
+                try
+                {
+                    OnSessionClosed?.Invoke(sessionId);
+                }
+                catch { }
                 OnSessionClosed = null;
                 Dispose();
             }

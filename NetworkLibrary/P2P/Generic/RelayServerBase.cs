@@ -493,6 +493,12 @@ namespace NetworkLibrary.P2P.Generic
           
         }
 
+        public override void ShutdownServer()
+        {
+            base.ShutdownServer();
+            udpServer.Dispose();
+        }
+
         void INetworkNode.SendUdpAsync(IPEndPoint ep, MessageEnvelope message, Action<PooledMemoryStream> callback, ConcurrentAesAlgorithm aesAlgorithm)
         {
             throw new NotImplementedException();

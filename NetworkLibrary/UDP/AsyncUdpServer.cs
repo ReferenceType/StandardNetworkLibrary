@@ -10,7 +10,7 @@ using System.Threading;
 namespace NetworkLibrary.UDP
 {
 
-    public class AsyncUdpServer
+    public class AsyncUdpServer:IDisposable
     {
         public delegate void ClientAccepted(SocketAsyncEventArgs ClientSocket);
         public delegate void BytesRecieved(IPEndPoint adress, byte[] bytes, int offset, int count);
@@ -97,10 +97,15 @@ namespace NetworkLibrary.UDP
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Receive(SocketAsyncEventArgs e)
         {
-            if (!ServerSocket.ReceiveFromAsync(e))
+            try
             {
-                ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e), null);
+                if (!ServerSocket.ReceiveFromAsync(e))
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem((cb) => Received(null, e), null);
+                }
             }
+            catch (Exception ex) when (ex is ObjectDisposedException) {  }
+           
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -198,5 +203,9 @@ namespace NetworkLibrary.UDP
 
         }
 
+        public void Dispose()
+        {
+           ServerSocket?.Close();
+        }
     }
 }

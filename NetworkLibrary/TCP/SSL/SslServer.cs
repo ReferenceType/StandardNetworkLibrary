@@ -77,6 +77,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         public override void StartServer()
         {
             serverSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            serverSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
             serverSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
             serverSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
 

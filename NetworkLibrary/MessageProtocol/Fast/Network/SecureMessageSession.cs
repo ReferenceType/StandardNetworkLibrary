@@ -51,7 +51,7 @@ namespace NetworkLibrary.MessageProtocol
             {
                 SendAsyncInternal(message);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch { if (!IsSessionClosing()) { EndSession(); throw; } }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -97,7 +97,7 @@ namespace NetworkLibrary.MessageProtocol
             {
                 SendAsyncInternal(envelope, message);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch { if (!IsSessionClosing()) { EndSession(); throw; } }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -132,8 +132,6 @@ namespace NetworkLibrary.MessageProtocol
                 return;
             }
 
-            //mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            //WriteOnSessionStream(amountWritten);
             FlushAndSend();
 
         }
@@ -147,7 +145,7 @@ namespace NetworkLibrary.MessageProtocol
             {
                 SendAsyncInternal(envelope, serializationCallback);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch { if (!IsSessionClosing()) { EndSession(); throw; } }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -182,10 +180,9 @@ namespace NetworkLibrary.MessageProtocol
                 return;
             }
             FlushAndSend();
-            //mq.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
-            //WriteOnSessionStream(amountWritten);
-
+           
         }
+
         protected override void ReleaseSendResources()
         {
             base.ReleaseSendResources();

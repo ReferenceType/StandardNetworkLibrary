@@ -53,6 +53,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         private Socket GetSocket()
         {
             Socket socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
             return socket;
         }
 

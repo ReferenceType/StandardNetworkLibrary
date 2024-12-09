@@ -29,8 +29,13 @@ namespace NetworkLibrary.Components.Crypto.Algorithms
         const int tagSize = 14;
         public AesGcmAlgorithm(byte[] Key, byte[] IV)
         {
+#if NET8_0_OR_GREATER
+            aes = new AesGcm(Key,tagSize);
+            aes2 = new AesGcm(Key,tagSize);
+#else
             aes = new AesGcm(Key);
             aes2 = new AesGcm(Key);
+#endif
             iv = IV;
         }
 
@@ -220,4 +225,4 @@ namespace NetworkLibrary.Components.Crypto.Algorithms
     }
 #endif
 
-}
+        }

@@ -214,8 +214,15 @@ namespace NetworkLibrary.TCP.Base
                 return;
             }
             totalBytesReceived += e.BytesTransferred;
-
-            HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
+            try
+            {
+                HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
+            }
+            catch (Exception ex)
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, ex.Message + "\n" + ex.StackTrace);
+                EndSession();
+            }
             Receive();
 
         }

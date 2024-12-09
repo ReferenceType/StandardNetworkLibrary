@@ -31,6 +31,7 @@ namespace NetworkLibrary.P2P.Generic
         private ConcurrentDictionary<Guid, IPEndPoint> RegisteredUdpEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<Guid, List<EndpointData>> ClientUdpEndpoints = new ConcurrentDictionary<Guid, List<EndpointData>>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> UdpCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
+        private ConcurrentDictionary<IPEndPoint, Guid> endpointMap = new ConcurrentDictionary<IPEndPoint, Guid>();
         internal ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, string>> peerReachabilityMatrix
            = new ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, string>>();
         private TaskCompletionSource<bool> PushPeerList = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -166,7 +167,7 @@ namespace NetworkLibrary.P2P.Generic
         {
             UdpCryptos.TryAdd(remoteEndpoint, new ConcurrentAesAlgorithm(random, AESMode));
             RegisteredUdpEndpoints.TryAdd(clientId, remoteEndpoint);
-
+            endpointMap.TryAdd(remoteEndpoint, clientId);
             localEndpoints.Add(new EndpointData(remoteEndpoint));
             ClientUdpEndpoints.TryAdd(clientId, localEndpoints);
             RegisteredPeers[clientId] = null;
@@ -192,6 +193,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 UdpCryptos.TryRemove(key, out _);
                 udpServer.RemoveClient(key);
+                endpointMap.TryRemove(key, out _);
             }
 
             PublishPeerUnregistered(clientId);
@@ -220,6 +222,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "While deserializing envelope, an error occured: " +
                     e.Message);
+                CloseSession(guid);
             }
 
         }
@@ -411,6 +414,9 @@ namespace NetworkLibrary.P2P.Generic
             catch (Exception e)
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to deserialise envelope message " + e.Message);
+                //kill client here.
+                if (endpointMap.TryGetValue(adress, out var id))
+                    CloseSession(id);
                 return;
             }
             finally

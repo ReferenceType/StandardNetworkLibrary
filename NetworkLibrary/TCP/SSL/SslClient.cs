@@ -92,6 +92,20 @@ namespace NetworkLibrary.TCP.SSL.Base
                 earg.RemoteEndPoint = new IPEndPoint(IPAddress.Parse(ip), port);
                 earg.Completed += (ignored, arg) => { HandleResult(arg); };
 
+                Task.Delay(10000).ContinueWith(t =>
+                {
+                    if (IsConnecting)
+                    {
+                        try
+                        {
+                            clientSocket.Close();
+
+                        }
+                        catch { }
+                        tcs.SetResult(false);
+                    }
+                });
+
                 if (!clientSocket.ConnectAsync(earg))
                 {
                     HandleResult(earg);

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace NetworkLibrary.Components
 {
@@ -17,6 +18,7 @@ namespace NetworkLibrary.Components
         /// <param name="bytes"></param>
         /// <returns>true if message is enqueued.</returns>
         bool TryEnqueueMessage(byte[] bytes, int offset, int count);
+        bool TryEnqueueMessage(List<ArraySegment<byte>> segments);
 
         /// <summary>
         /// Flushes the queue if there is anything to flush.

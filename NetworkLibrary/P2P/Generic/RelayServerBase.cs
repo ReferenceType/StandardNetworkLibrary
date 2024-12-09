@@ -11,6 +11,8 @@ using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -27,7 +29,7 @@ namespace NetworkLibrary.P2P.Generic
         private AsyncUdpServer udpServer;
         internal GenericMessageSerializer<S> serialiser = new GenericMessageSerializer<S>();
 
-        private ConcurrentDictionary<Guid, string> RegisteredPeers = new ConcurrentDictionary<Guid, string>();
+        protected ConcurrentDictionary<Guid, double> RegisteredPeers = new ConcurrentDictionary<Guid, double>();
         private ConcurrentDictionary<Guid, IPEndPoint> RegisteredUdpEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<Guid, List<EndpointData>> ClientUdpEndpoints = new ConcurrentDictionary<Guid, List<EndpointData>>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> UdpCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
@@ -43,6 +45,7 @@ namespace NetworkLibrary.P2P.Generic
         public AesMode AESMode;
         bool initialised = false;
         int port = 0;
+        Stopwatch serverClock = new Stopwatch();
         public SecureRelayServerBase(int port, X509Certificate2 certificate, string serverName = "Andromeda") : base(port, certificate)
         {
             this.port = port;
@@ -65,8 +68,14 @@ namespace NetworkLibrary.P2P.Generic
         }
         public override void StartServer()
         {
+            serverClock.Start();
             Initialise();
             base.StartServer();
+        }
+
+        public virtual double GetTime()
+        {
+            return serverClock.Elapsed.TotalMilliseconds;
         }
         private void Initialise()
         {
@@ -142,7 +151,9 @@ namespace NetworkLibrary.P2P.Generic
                     peerList[peer.Key] = new PeerInfo()
                     {
                         Address = GetIPEndPoint(peer.Key).Address.GetAddressBytes(),
-                        Port = (ushort)GetIPEndPoint(peer.Key).Port
+                        Port = (ushort)GetIPEndPoint(peer.Key).Port,
+                        RegisteryTime = peer.Value
+
                     };
                 }
             }
@@ -170,7 +181,7 @@ namespace NetworkLibrary.P2P.Generic
             endpointMap.TryAdd(remoteEndpoint, clientId);
             localEndpoints.Add(new EndpointData(remoteEndpoint));
             ClientUdpEndpoints.TryAdd(clientId, localEndpoints);
-            RegisteredPeers[clientId] = null;
+            RegisteredPeers[clientId] = GetTime();
 
             PublishPeerRegistered(clientId);
         }
@@ -246,6 +257,15 @@ namespace NetworkLibrary.P2P.Generic
 
                     case Constants.InitiateHolepunch:
                         InitiateHolepunchBetweenPeers(message);
+                        break;
+                    case Constants.TimeSync:
+
+                        byte[] time = new byte[8];
+                        message.Payload = time;
+                        PrimitiveEncoder.WriteFixedDouble(time, 0, serverClock.Elapsed.TotalMilliseconds);
+                        message.TimeStamp = DateTime.UtcNow;
+                        SendAsyncMessage(clientId, message);
+
                         break;
                     case Constants.NotifyServerHolepunch:
                         HandleHolepunchcompletion(message);

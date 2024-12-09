@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.Threading;
 
 namespace NetworkLibrary.Components.MessageBuffer
@@ -151,6 +153,30 @@ namespace NetworkLibrary.Components.MessageBuffer
         public void Flush()
         {
             flushStream.Clear();
+        }
+
+        public bool TryEnqueueMessage(List<ArraySegment<byte>> segments)
+        {
+            foreach (var segment in segments)
+            {
+                if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
+                {
+
+
+                    writeStream.Reserve(segment.Count + 256);
+
+                    int amount = aesAlgorithm.EncryptInto(segment.Array, segment.Offset, segment.Count, writeStream.GetBuffer(), writeStream.Position32 + 4);
+
+                    writeStream.WriteInt(amount);
+                    writeStream.Position32 += amount;
+
+                    currentIndexedMemory += segment.Count;
+                }
+                else return false;
+            }
+            TotalMessageDispatched++;
+
+            return true;
         }
     }
 }

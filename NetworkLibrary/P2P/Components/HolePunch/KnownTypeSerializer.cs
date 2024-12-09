@@ -145,6 +145,11 @@ namespace NetworkLibrary.P2P.Components.HolePunch
                 stream.WriteUshort(data.Port);
                 index += 2;
             }
+            if (data.RegisteryTime != default)
+            {
+                PrimitiveEncoder.WriteDouble(stream, data.RegisteryTime);
+                index += 4;
+            }
 
             var buf = stream.GetBuffer();
             buf[oldPos] = index;
@@ -168,6 +173,11 @@ namespace NetworkLibrary.P2P.Components.HolePunch
             {
                 data.Port = BitConverter.ToUInt16(buffer, offset);
                 offset += 2;
+            }
+
+            if ((index & 1 << 2) != 0)
+            {
+                data.RegisteryTime = PrimitiveEncoder.ReadDouble(buffer, ref offset);
             }
 
             return data;

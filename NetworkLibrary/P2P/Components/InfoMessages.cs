@@ -12,6 +12,7 @@ namespace NetworkLibrary.P2P.Components
     {
         public byte[] Address { get; set; }
         public ushort Port { get; set; }
+        public double RegisteryTime { get; set; }
     }
 
     public class RoomPeerList

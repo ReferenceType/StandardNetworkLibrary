@@ -22,6 +22,7 @@
 
 
         public const string RoomUpdate = "12";
+        public const string RoomAvalibalilityUpdate = "12a";
         public const string JoinRoom = "13";
         public const string LeaveRoom = "14";
         public const string GetAvailableRooms = "15";
@@ -32,7 +33,9 @@
         public const string Judp = "20";
 
         // key of a dict, picked some unusual control char.
-        public const string RoomName = "\v";
+        public const string RoomBroadcast = "\v";
+        public const string RoomBroadcastBatched = "\t";
+        public const string TimeSync = "ntp";
 
         public const string ReqTCPHP = "ReqTCPHP";
         public const string TcpPortMap = "TcpPortMap";

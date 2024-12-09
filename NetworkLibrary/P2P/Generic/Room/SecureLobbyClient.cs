@@ -5,6 +5,7 @@ using NetworkLibrary.P2P.Generic;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
@@ -18,13 +19,14 @@ namespace NetworkLibrary.P2P.Generic.Room
         public Guid SessionId => client.SessionId;
         public bool IsConnected => client.IsConnected;
 
-        public Action<string, Guid> OnPeerJoinedRoom;
-        public Action<string, Guid> OnPeerLeftRoom;
+        public Action<string, Guid, PeerInfo> OnPeerJoinedRoom;
+        public Action<string, Guid, PeerInfo> OnPeerLeftRoom;
         public Action<Guid> OnPeerDisconnected;
         //public Action<string, MessageEnvelope> OnTcpRoomMesssageReceived;
         //public Action<string, MessageEnvelope> OnUdpRoomMesssageReceived;
         public Action<MessageEnvelope> OnTcpMessageReceived;
         public Action<MessageEnvelope> OnUdpMessageReceived;
+        public Action<List<string>> AvailableRoomsChanged;
         public Action OnDisconnected;
         public RemoteCertificateValidationCallback RemoteCertificateValidationCallback;
         private RelayClientBase<S> client;
@@ -35,7 +37,6 @@ namespace NetworkLibrary.P2P.Generic.Room
         // [peerId] => Collection<RoomName>
         private ConcurrentDictionary<Guid, ConcurrentDictionary<string, string>>
             peersInRooms = new ConcurrentDictionary<Guid, ConcurrentDictionary<string, string>>();
-
         public SecureLobbyClient(X509Certificate2 clientCert)
         {
             client = new RelayClientBase<S>(clientCert);
@@ -43,9 +44,15 @@ namespace NetworkLibrary.P2P.Generic.Room
             client.OnUdpMessageReceived += HandleUdpMessage;
             client.OnDisconnected += HandleDisconnected;
             client.RemoteCertificateValidationCallback += CertificateValidation;
-           
+          
         }
+        public Task<bool> SyncTime() => client.SyncTime();
+        public void StartAutoTimeSync(int periodMS, bool disconnectOnTimeout, bool usePTP = false) => client.StartAutoTimeSync(periodMS,disconnectOnTimeout, usePTP);
 
+        public void StopAutoTimeSync()=>client.StopAutoTimeSync();
+
+        public double GetTime() => client.GetTime();
+        public DateTime GetDateTime() => client.GetDateTime();
         private bool CertificateValidation(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             if (RemoteCertificateValidationCallback == null)
@@ -78,14 +85,15 @@ namespace NetworkLibrary.P2P.Generic.Room
             return client.RequestTcpHolePunchAsync(destinationId);
         }
 
-        public void CreateOrJoinRoom(string roomName)
+        public RoomPeerList CreateOrJoinRoom(string roomName)
         {
-            _ = CreateOrJoinRoomAsync(roomName).Result;
+            return CreateOrJoinRoomAsync(roomName).Result;
         }
 
-        public Task<bool> CreateOrJoinRoomAsync(string roomName)
+
+        public Task<RoomPeerList> CreateOrJoinRoomAsync(string roomName)
         {
-            var returnVal = new TaskCompletionSource<bool>();
+            var returnVal = new TaskCompletionSource<RoomPeerList>();
 
             var message = new MessageEnvelope();
             message.IsInternal = true;
@@ -102,12 +110,13 @@ namespace NetworkLibrary.P2P.Generic.Room
                 {
                     if (response.Result.Header != MessageEnvelope.RequestTimeout)
                     {
-                        returnVal.TrySetResult(true);
+                        var currentList = KnownTypeSerializer.DeserializeRoomPeerList(response.Result.Payload, response.Result.PayloadOffset);
+                        returnVal.TrySetResult(currentList);
                     }
                     else
                     {
                         rooms.TryRemove(roomName, out _);
-                        returnVal.TrySetResult(false);
+                        returnVal.TrySetResult(null);
                     }
                 });
             return returnVal.Task;
@@ -167,9 +176,19 @@ namespace NetworkLibrary.P2P.Generic.Room
             if (messageEnvelope.KeyValuePairs == null)
                 messageEnvelope.KeyValuePairs = new Dictionary<string, string>();
 
-            messageEnvelope.KeyValuePairs[Constants.RoomName] = roomName;
+            messageEnvelope.KeyValuePairs[Constants.RoomBroadcast] = roomName;
             messageEnvelope.To = Guid.Empty;
-            messageEnvelope.From = client.SessionId;
+            messageEnvelope.From = Guid.Empty;
+        }
+
+        private void PrepareEnvelopeBCBatched(string roomName, ref MessageEnvelope messageEnvelope)
+        {
+            if (messageEnvelope.KeyValuePairs == null)
+                messageEnvelope.KeyValuePairs = new Dictionary<string, string>();
+
+            messageEnvelope.KeyValuePairs[Constants.RoomBroadcastBatched] = roomName;
+            messageEnvelope.To = Guid.Empty;
+            messageEnvelope.From = Guid.Empty;
         }
 
         private void PrepareEnvelopeDM(string roomName, ref MessageEnvelope messageEnvelope)
@@ -177,7 +196,7 @@ namespace NetworkLibrary.P2P.Generic.Room
             if (messageEnvelope.KeyValuePairs == null)
                 messageEnvelope.KeyValuePairs = new Dictionary<string, string>();
 
-            messageEnvelope.KeyValuePairs[Constants.RoomName] = roomName;
+            messageEnvelope.KeyValuePairs[Constants.RoomBroadcast] = roomName;
             messageEnvelope.From = client.SessionId;
         }
 
@@ -252,6 +271,27 @@ namespace NetworkLibrary.P2P.Generic.Room
                 }
             }
         }
+
+        //---
+        public void BroadcastMessageToRoomBatched(string roomName, MessageEnvelope message)
+        {
+            if (CanSend(roomName))
+            {
+                PrepareEnvelopeBCBatched(roomName, ref message);
+                client.tcpMessageClient.SendAsyncMessage(message);
+            }
+        }
+
+        public void BroadcastMessageToRoomBatched<T>(string roomName, MessageEnvelope message, T innerMessage)
+        {
+            if (CanSend(roomName))
+            {
+                PrepareEnvelopeBCBatched(roomName, ref message);
+                client.tcpMessageClient.SendAsyncMessage(message, innerMessage);
+            }
+        }
+
+        //---
         #endregion
 
         #region Direct Messages
@@ -334,6 +374,10 @@ namespace NetworkLibrary.P2P.Generic.Room
             {
                 UpdateRooms(message);
             }
+            else if(message.Header == Constants.RoomAvalibalilityUpdate)
+            {
+                AvailableRoomsChanged?.Invoke(message.KeyValuePairs?.Keys?.ToList()?? new List<string>());
+            }
             else if (message.Header == Constants.PeerDisconnected)
             {
                 HandlePeerDisconnected(message);
@@ -359,13 +403,16 @@ namespace NetworkLibrary.P2P.Generic.Room
             var roomUpdateMessage = KnownTypeSerializer.DeserializeRoomPeerList(message.Payload, message.PayloadOffset);
 
             Dictionary<Guid, PeerInfo> JoinedList = new Dictionary<Guid, PeerInfo>();
-            List<Guid> LeftList = new List<Guid>();
+            Dictionary<Guid, PeerInfo> LeftList = new Dictionary<Guid, PeerInfo>();
 
             var remoteList = roomUpdateMessage.Peers.PeerIds;
             if (!rooms.TryGetValue(roomUpdateMessage.RoomName, out var localRoom))
             {
                 return;
             }
+            
+            if(remoteList.ContainsKey(SessionId))
+                remoteList.Remove(SessionId);
 
             foreach (var remotePeer in remoteList)
             {
@@ -380,7 +427,8 @@ namespace NetworkLibrary.P2P.Generic.Room
             {
                 if (!remoteList.ContainsKey(localPeerId))
                 {
-                    LeftList.Add(localPeerId);
+                    localRoom.TryGetPeerInfo(localPeerId, out PeerInfo peerInfo);// cant fail
+                    LeftList[localPeerId] = peerInfo;
                 }
 
             }
@@ -399,28 +447,28 @@ namespace NetworkLibrary.P2P.Generic.Room
                 peersInRooms[peerKV.Key].TryAdd(roomUpdateMessage.RoomName, null);
 
                 client.HandleRegistered(peerKV.Key, roomUpdateMessage.Peers.PeerIds);
-                OnPeerJoinedRoom?.Invoke(roomUpdateMessage.RoomName, peerKV.Key);
+                OnPeerJoinedRoom?.Invoke(roomUpdateMessage.RoomName, peerKV.Key, peerKV.Value);
             }
 
             foreach (var peerId in LeftList)
             {
                 if (rooms.TryGetValue(roomUpdateMessage.RoomName, out var room))
                 {
-                    room.Remove(peerId);
+                    room.Remove(peerId.Key);
                 }
 
-                if (peersInRooms.TryGetValue(peerId, out var roomList))
+                if (peersInRooms.TryGetValue(peerId.Key, out var roomList))
                 {
                     roomList.TryRemove(roomUpdateMessage.RoomName, out _);
                     if(roomList.Count == 0)
                     {
-                        peersInRooms.TryRemove(peerId, out _);
-                        HandlePeerDisconnected_(peerId);
+                        peersInRooms.TryRemove(peerId.Key, out _);
+                        HandlePeerDisconnected_(peerId.Key);
                     }
                 }
                
                 //client.HandleUnRegistered(peerId);
-                OnPeerLeftRoom?.Invoke(roomUpdateMessage.RoomName, peerId);
+                OnPeerLeftRoom?.Invoke(roomUpdateMessage.RoomName, peerId.Key, peerId.Value);
             }
         }
 

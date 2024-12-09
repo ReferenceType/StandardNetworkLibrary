@@ -545,6 +545,28 @@ namespace NetworkLibrary
             ulong v = *(ulong*)&value;
             WriteUInt64(stream, v);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void WriteFixedDouble(byte[] buffer, int offset, double value)
+        {
+
+           fixed( byte* b = &buffer[offset])
+            {
+                *(double*)b = value;
+            }
+         
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe double ReadFixedDouble(byte[] buffer, int offset)
+        {
+            double ret = 0;
+            fixed (byte* b = &buffer[offset])
+            {
+                ret = *(double*)b;
+            }
+            return ret;
+
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe double ReadDouble(PooledMemoryStream stream)

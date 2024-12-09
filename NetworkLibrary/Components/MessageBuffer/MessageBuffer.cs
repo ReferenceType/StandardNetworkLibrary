@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 
@@ -152,6 +153,31 @@ namespace NetworkLibrary.Components.MessageBuffer
         public void Flush()
         {
             flushStream.Clear();
+        }
+
+        public bool TryEnqueueMessage(List<ArraySegment<byte>> segments)
+        {
+            lock (bufferMtex)
+            {
+                foreach (var segment in segments)
+                {
+                    if (currentIndexedMemory < MaxIndexedMemory && !disposedValue)
+                    {
+                        if (writeLengthPrefix)
+                        {
+                            currentIndexedMemory += 4;
+                            writeStream.WriteInt(segment.Count);
+                        }
+
+                        writeStream.Write(segment.Array, segment.Offset, segment.Count);
+                        currentIndexedMemory += segment.Count;
+                        
+                    }
+                    else return false;
+                }
+                TotalMessageDispatched++;
+            }
+            return true;
         }
     }
 }

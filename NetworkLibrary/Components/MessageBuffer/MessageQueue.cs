@@ -1,5 +1,8 @@
 ﻿using NetworkLibrary.Utils;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -30,6 +33,7 @@ namespace NetworkLibrary.Components
             {
                 Interlocked.Add(ref currentIndexedMemory, bytes.Length);
                 SendQueue.Enqueue(bytes);
+                totalMessageFlushed++;
                 return true;
             }
             return false;
@@ -52,8 +56,6 @@ namespace NetworkLibrary.Components
             int memcount = 0;
             while (SendQueue.TryDequeue(out byte[] bytes))
             {
-                totalMessageFlushed++;
-
                 memcount += bytes.Length;
                 if (!processor.ProcessMessage(bytes))
                 {
@@ -85,5 +87,24 @@ namespace NetworkLibrary.Components
         }
 
         public void Flush() { }
+
+        public bool TryEnqueueMessage(List<ArraySegment<byte>> segments)
+        {
+            foreach (var segment in segments) 
+            {
+                var array = ByteCopy.ToArray(segment.Array, segment.Offset, segment.Count);
+                if (Volatile.Read(ref currentIndexedMemory) < MaxIndexedMemory)
+                {
+                    Interlocked.Add(ref currentIndexedMemory, array.Length);
+                    SendQueue.Enqueue(array);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            totalMessageFlushed++;
+            return true;
+        }
     }
 }

@@ -3,6 +3,7 @@ using NetworkLibrary.Components.MessageBuffer;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -236,6 +237,69 @@ namespace NetworkLibrary.TCP.Base
         #endregion Recieve
 
         #region Send
+
+        public void SendAsync(List<ArraySegment<byte>> batch)
+        {
+            if (IsSessionClosing())
+                return;
+            try
+            {
+                SendAsync_(batch);
+            }
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "Unexpected error while sending async with ssl session" + e.Message + "Trace " + e.StackTrace);
+            }
+        }
+
+        private void SendAsync_(List<ArraySegment<byte>> batch)
+        {
+            enqueueLock.Take();
+            if (IsSessionClosing())
+            {
+                ReleaseSendResourcesIdempotent();
+                return;
+            }
+            if (SendSemaphore.IsTaken())
+            {
+                foreach (var segment in batch)
+                {
+                    if (!messageBuffer.TryEnqueueMessage(segment.Array, segment.Offset, segment.Count))
+                    {
+                        MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
+                        EndSession();
+                        return;
+                    }
+                }
+            }
+            enqueueLock.Release();
+
+            if (DropOnCongestion && SendSemaphore.IsTaken()) return;
+
+            SendSemaphore.Take();
+            if (IsSessionClosing())
+            {
+                ReleaseSendResourcesIdempotent();
+                SendSemaphore.Release();
+                return;
+            }
+
+            foreach (var segment in batch)
+            {
+                // you have to push it to queue because queue also does the processing.
+                if (!messageBuffer.TryEnqueueMessage(segment.Array, segment.Offset, segment.Count))
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Message is too large to fit on buffer");
+                    EndSession();
+                    return;
+                }
+            }
+
+            messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten);
+            FlushSendBuffer(0, amountWritten);
+        }
         public virtual void SendAsync(byte[] bytes)
         {
             if (IsSessionClosing())

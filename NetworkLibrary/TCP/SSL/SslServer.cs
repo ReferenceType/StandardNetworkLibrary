@@ -4,6 +4,7 @@ using NetworkLibrary.TCP.Base;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -216,6 +217,12 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             if (Sessions.TryGetValue(clientId, out var session))
                 session.SendAsync(bytes);
+        }
+
+        public void SendSegmentsToClient(Guid clientId, List<ArraySegment<byte>> segments)
+        {
+            if (Sessions.TryGetValue(clientId, out var session))
+                session.SendAsync(segments);
         }
 
         public void SendBytesToClient(Guid clientId, byte[] bytes, int offset, int count)

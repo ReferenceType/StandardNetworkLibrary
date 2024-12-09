@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.Components.Statistics;
 using System;
+using System.Collections.Generic;
 using System.Net;
 
 namespace NetworkLibrary.TCP.Base
@@ -34,6 +35,8 @@ namespace NetworkLibrary.TCP.Base
         /// <param name="offset"></param>
         /// <param name="count"></param>
         void SendAsync(byte[] buffer, int offset, int count);
+
+        void SendAsync(List<ArraySegment<byte>> batch);
 
         /// <summary>
         /// Starts the session

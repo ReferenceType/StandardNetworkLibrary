@@ -14,7 +14,7 @@ namespace ConsoleTest
 
     internal class Program
     {
-        static int port = 20007;
+        static int port = 20008;
         static bool runAsServer;
         static bool isFixedMessage;
         static int fixedMessageSize;

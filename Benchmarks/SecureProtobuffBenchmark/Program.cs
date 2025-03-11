@@ -1,6 +1,7 @@
 ﻿using NetworkLibrary;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.Utils;
+using ProtoBuf;
 using Protobuff;
 using System;
 using System.Collections.Generic;
@@ -75,10 +76,95 @@ internal class Program
     }
     static void EchoStatic(Guid arg1, MessageEnvelope arg2)
     {
-        server.SendAsyncMessage(arg1, fixedMessage);
+        server.SendAsyncMessage(arg1, arg2);
     }
+   
+  
+[ProtoContract]
+public class LargeDataClass
+{
+    [ProtoMember(1)]
+    public int Id { get; set; }
 
-    private static void InitializeClients()
+    [ProtoMember(2)]
+    public string Name { get; set; }
+
+    [ProtoMember(3)]
+    public double Value { get; set; }
+
+    [ProtoMember(4)]
+    public DateTime Timestamp { get; set; }
+
+    [ProtoMember(5)]
+    public NestedData Nested { get; set; }
+
+    [ProtoMember(6)]
+    public List<string> Tags { get; set; }
+
+    [ProtoMember(7)]
+    public Dictionary<string, int> Metadata { get; set; }
+
+    [ProtoMember(8)]
+    public bool IsActive { get; set; }
+
+    [ProtoMember(9)]
+    public byte[] RawData { get; set; }
+
+    [ProtoMember(10)]
+    public List<NestedData> NestedList { get; set; }
+
+    public LargeDataClass()
+    {
+        // Initialize with some non-default values
+        Id = 1001;
+        Name = "Example Name";
+        Value = 123.45;
+        Timestamp = DateTime.UtcNow;
+        Nested = new NestedData
+        {
+            NestedId = 42,
+            Description = "Nested description",
+            Data = new byte[] { 1, 2, 3, 4 }
+        };
+        Tags = new List<string> { "tag1", "tag2", "tag3" };
+        Metadata = new Dictionary<string, int>
+        {
+            { "key1", 1 },
+            { "key2", 2 },
+            { "key3", 3 }
+        };
+        IsActive = true;
+        RawData = new byte[] { 10, 20, 30, 40 };
+        NestedList = new List<NestedData>
+        {
+            new NestedData { NestedId = 101, Description = "First nested", Data = new byte[] { 5, 6, 7 } },
+            new NestedData { NestedId = 102, Description = "Second nested", Data = new byte[] { 8, 9, 10 } }
+        };
+    }
+}
+
+[ProtoContract]
+public class NestedData
+{
+    [ProtoMember(1)]
+    public int NestedId { get; set; }
+
+    [ProtoMember(2)]
+    public string Description { get; set; }
+
+    [ProtoMember(3)]
+    public byte[] Data { get; set; }
+
+    public NestedData()
+    {
+        // Initialize with non-default values
+        NestedId = 0;
+        Description = "Default description";
+        Data = Array.Empty<byte>();
+    }
+}
+
+private static void InitializeClients()
     {
 
         clientMessage = new MessageEnvelope()
@@ -129,8 +215,10 @@ internal class Program
             InitializeClients();
         }
     }
+   
     private static void Benchmark()
     {
+        var large = new LargeDataClass();
         Console.WriteLine("Press Enter To Benchmark");
         Console.ReadLine();
         sw2.Start();
@@ -139,7 +227,7 @@ internal class Program
         {
             for (int i = 0; i < numMessages; i++)
             {
-                client.SendAsyncMessage(clientMessage);
+                client.SendAsyncMessage(clientMessage,large);
             }
 
         });

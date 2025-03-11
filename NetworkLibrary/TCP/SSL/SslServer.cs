@@ -51,7 +51,9 @@ namespace NetworkLibrary.TCP.SSL.Base
         private Socket serverSocket;
         private X509Certificate2 certificate;
         private TcpServerStatisticsPublisher statisticsPublisher;
-
+        const int TcpKeepAliveTime = 15;      // Start keepalive after 60 seconds
+        const int TcpKeepAliveInterval = 5;  // Send probes every 10 seconds
+        const int TcpKeepAliveProbes = 2;     // Retry 5 times before dropping
         public SslServer(int port, X509Certificate2 certificate)
         {
             ServerPort = port;
@@ -79,6 +81,17 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             serverSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             serverSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+            int dscpValue = 40; // Critical services
+            byte tos = (byte)(dscpValue << 2); // Shift left by 2 bits
+            serverSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, tos);
+
+#if NET5_0_OR_GREATER
+
+            serverSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, TcpKeepAliveTime);
+            serverSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, TcpKeepAliveInterval);
+            serverSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, TcpKeepAliveProbes);
+#endif
             serverSocket.ReceiveBufferSize = ServerSockerReceiveBufferSize;
             serverSocket.Bind(new IPEndPoint(IPAddress.Any, ServerPort));
 
@@ -117,6 +130,18 @@ namespace NetworkLibrary.TCP.SSL.Base
                 return;
             }
 
+            acceptedArg.AcceptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+            int dscpValue = 40; // Critical services
+            byte tos = (byte)(dscpValue << 2); // Shift left by 2 bits
+            acceptedArg.AcceptSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, tos);
+
+#if NET5_0_OR_GREATER
+
+            acceptedArg.AcceptSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, TcpKeepAliveTime);
+            acceptedArg.AcceptSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, TcpKeepAliveInterval);
+            acceptedArg.AcceptSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, TcpKeepAliveProbes);
+#endif
             if (!ValidateConnection(acceptedArg.AcceptSocket))
             {
                 return;

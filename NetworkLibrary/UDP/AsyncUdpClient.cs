@@ -60,6 +60,10 @@ namespace NetworkLibrary.UDP
             //clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             //clientSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.PacketInformation, true);
 
+            int dscpValue = 40; // Critical services
+            byte tos = (byte)(dscpValue << 2); // Shift left by 2 bits
+            clientSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, tos);
+
             clientSocket.ReceiveBufferSize = ReceiveBufferSize;
             clientSocket.SendBufferSize = SocketSendBufferSize;
             clientSocket.Blocking = true;

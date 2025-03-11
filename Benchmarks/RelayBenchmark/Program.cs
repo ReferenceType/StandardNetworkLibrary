@@ -186,7 +186,10 @@ namespace RelayBenchmark
            
             //string ip = "79.52.134.220";
            //string ip = "172.25.3.45";
-            string ip = "127.0.0.1";
+            //string ip = "35.159.121.192";
+           // string ip = "79.33.180.225";
+            string ip = "192.168.1.8";
+           // string ip = "127.0.0.1";
 
             MiniLogger.AllLog += Console.WriteLine;
 
@@ -207,8 +210,8 @@ namespace RelayBenchmark
             var pending = new Task[numclients];
             Task.Run(async () => { while (true) { await Task.Delay(1000); Console.WriteLine(Interlocked.Exchange(ref sumsum, 0).ToString("N0")); } });
 
-            // Parallel.For(0, numclients, (i) =>
-            for (int i = 0; i < numclients; i++)
+             Parallel.For(0, numclients, (i) =>
+            //for (int i = 0; i < numclients; i++)
 
             {
                 var client = new RelayClient(cert,0);
@@ -227,7 +230,7 @@ namespace RelayBenchmark
 
                 //Thread.Sleep(1000);
             }
-            // );
+             );
             Task.WaitAll(pending);
             Console.WriteLine("All Connected");
             Thread.Sleep(2000);
@@ -269,20 +272,20 @@ namespace RelayBenchmark
                 var testMessage = new MessageEnvelope()
                 {
                     Header = "Test",
-                    Payload = new byte[32000]
+                    Payload = new byte[32]
                 };
                 for (int i = 0; i < testMessage.PayloadCount; i++)
                 {
                     testMessage.Payload[i] = (byte)i;
                 }
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 100; i++)
                 {
                     //return;
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
                         client.SendAsyncMessage(peer, testMessage);
-                      client.SendUdpMessage(peer, testMessage);
+                      //client.SendUdpMessage(peer, testMessage);
                       // client.SendRudpMessage(peer, testMessage);
                         //  client.BroadcastMessage(testMessage);
                         //client.BroadcastUdpMessage(testMessage);

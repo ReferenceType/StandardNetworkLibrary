@@ -135,6 +135,7 @@ namespace NetworkLibrary.MessageProtocol
             SendAsyncMessage(clientId, message);
             return task;
         }
+
         public IPEndPoint GetIPEndPoint(Guid cliendId)
         {
             return GetSessionEndpoint(cliendId);

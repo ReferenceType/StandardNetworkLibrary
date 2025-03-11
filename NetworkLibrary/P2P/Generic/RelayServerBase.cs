@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components;
+﻿using MessageProtocol;
+using NetworkLibrary.Components;
 using NetworkLibrary.Components.Crypto;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
@@ -96,6 +97,48 @@ namespace NetworkLibrary.P2P.Generic
             udpServer.StartServer();
 
             Task.Run(PeerListPushRoutine);
+            Task.Run(VerifyHangedClients);
+        }
+        public void FlushAllClients()
+        {
+            foreach (var session in Sessions.ToList())
+            {
+                session.Value.EndSession();
+            }
+        }
+        private async void VerifyHangedClients()
+        {
+            MessageEnvelope envelope = new MessageEnvelope();
+            envelope.Header = Constants.KeepAlieve;
+            envelope.IsInternal = true;
+            while (!shutdown) 
+            {
+                await Task.Delay(10000);
+                foreach (var session in Sessions.ToList())
+                {
+                    bool badSession = await VerifyTcp(envelope, session);
+                    if (badSession)
+                    {
+                        session.Value.EndSession();
+                    }
+                }
+            }
+
+            async Task<bool> VerifyTcp(MessageEnvelope envelope_, KeyValuePair<Guid, TCP.Base.IAsyncSession> session)
+            {
+                bool badSession = true;
+                for (var i = 0; i < 2; i++)
+                {
+                    var response = await SendMessageAndWaitResponse(session.Key, envelope_, timeoutMs: 5000);
+                    if (response != null && response.Header != MessageEnvelope.RequestTimeout)
+                    {
+                        badSession = false;
+                        break;
+                    }
+                }
+
+                return badSession;
+            }
         }
 
         public void GetTcpStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
@@ -336,8 +379,6 @@ namespace NetworkLibrary.P2P.Generic
             }
         }
 
-
-
         private void HandleHolepunchcompletion(MessageEnvelope message)
         {
             peerReachabilityMatrix.TryAdd(message.From, new ConcurrentDictionary<Guid, string>());
@@ -481,16 +522,17 @@ namespace NetworkLibrary.P2P.Generic
                     udpServer.SendBytesToClient(destEp, tempBuff, 0, reEncryptedBytesAmount);
                 }
             }
-
         }
 
         private void HandleUnregistreredMessage(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
+            // local discovery udp bc
             if(count == 1 && bytes[offset] == 91)
             {
                 udpServer.SendBytesToClient(adress, serverNameBytes,0,serverNameBytes.Length);
                 return;
             }
+            //EndpointTransferMessage
             if (bytes[offset] == 92 && bytes[offset+1] == 93)
             {
                 try

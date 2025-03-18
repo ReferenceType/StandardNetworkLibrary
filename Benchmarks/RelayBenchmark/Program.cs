@@ -185,7 +185,11 @@ namespace RelayBenchmark
         {
            
             //string ip = "79.52.134.220";
-            string ip = "127.0.0.1";
+           //string ip = "172.25.3.45";
+            //string ip = "35.159.121.192";
+           // string ip = "79.33.180.225";
+            string ip = "192.168.1.8";
+           // string ip = "127.0.0.1";
 
             MiniLogger.AllLog += Console.WriteLine;
 
@@ -202,12 +206,12 @@ namespace RelayBenchmark
             Console.ReadLine();
             //Task.Run(async () => { while (true) { await Task.Delay(10000); server.GetTcpStatistics(out var generalStats, out _); Console.WriteLine(generalStats.ToString()); } });
             var clients = new List<RelayClient>();
-            int numclients = 2;
+            int numclients = 100;
             var pending = new Task[numclients];
             Task.Run(async () => { while (true) { await Task.Delay(1000); Console.WriteLine(Interlocked.Exchange(ref sumsum, 0).ToString("N0")); } });
 
-            // Parallel.For(0, numclients, (i) =>
-            for (int i = 0; i < numclients; i++)
+             Parallel.For(0, numclients, (i) =>
+            //for (int i = 0; i < numclients; i++)
 
             {
                 var client = new RelayClient(cert,0);
@@ -226,7 +230,7 @@ namespace RelayBenchmark
 
                 //Thread.Sleep(1000);
             }
-            // );
+             );
             Task.WaitAll(pending);
             Console.WriteLine("All Connected");
             Thread.Sleep(2000);
@@ -236,7 +240,7 @@ namespace RelayBenchmark
             {
                 if (client.SessionId == Guid.Empty)
                     throw new Exception();
-                client.StartPingService();
+               // client.StartPingService();
                 // Console.WriteLine("--- -- - | "+client.sessionId+" count: " + client.Peers.Count);
                 foreach (var peer in client.Peers)
                 {
@@ -247,8 +251,8 @@ namespace RelayBenchmark
 
                         //var a = client.RequestTcpHolePunchAsync(peer.Key);
                         //pndg.Add(a);
-                        var aa = client.RequestHolePunchAsync(peer.Key, 10000, false);
-                        pndg.Add(aa);
+                        //var aa = client.RequestHolePunchAsync(peer.Key, 10000, false);
+                        //pndg.Add(aa);
                         //client.TestHP(peer.Key, 10000, false);
                         //  Console.WriteLine(peer.Key+" cnt=> "+ ++cc);
                     }
@@ -280,8 +284,8 @@ namespace RelayBenchmark
                     foreach (var peer in client.Peers.Keys)
                     {
                         //await client.SendRequestAndWaitResponse(peer, testMessage,1000);
-                        //client.SendAsyncMessage(peer, testMessage);
-                     // client.SendUdpMessage(peer, testMessage);
+                        client.SendAsyncMessage(peer, testMessage);
+                      //client.SendUdpMessage(peer, testMessage);
                       // client.SendRudpMessage(peer, testMessage);
                         //  client.BroadcastMessage(testMessage);
                         //client.BroadcastUdpMessage(testMessage);

@@ -67,6 +67,14 @@ namespace NetworkLibrary.TCP.SSL.Base
             receiveBuffer = BufferPool.RentBuffer(ReceiveBufferSize);
             if (UseQueue) 
                 sendBuffer = BufferPool.RentBuffer(SendBufferSize);
+            receiveBuffer =  BufferPool.RentBuffer(ReceiveBufferSize);
+
+//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+
+//            receiveMemory = new Memory<byte>(receiveBuffer);
+//#endif
+
+            if (UseQueue) sendBuffer = BufferPool.RentBuffer(SendBufferSize);
 
         }
 
@@ -152,6 +160,8 @@ namespace NetworkLibrary.TCP.SSL.Base
                 if (!IsSessionClosing())
                     MiniLogger.Log(MiniLogger.LogLevel.Error, 
                         "Unexpected error while sending async with ssl session" + e.Message+"Trace " +e.StackTrace);
+                EndSession();
+                throw;
             }
         }
         private void SendAsyncInternal(byte[] buffer, int offset, int count)
@@ -205,6 +215,8 @@ namespace NetworkLibrary.TCP.SSL.Base
                 if (!IsSessionClosing())
                     MiniLogger.Log(MiniLogger.LogLevel.Error,
                         "Unexpected error while sending async with ssl session" + e.Message + "Trace " + e.StackTrace);
+                EndSession();
+                throw;
             }
         }
         private void SendAsyncInternal(byte[] buffer)
@@ -388,7 +400,15 @@ namespace NetworkLibrary.TCP.SSL.Base
 
             if (amountRead > 0)
             {
-                HandleReceived(receiveBuffer, 0, amountRead);
+                try
+                {
+                    HandleReceived(receiveBuffer, 0, amountRead);
+                }
+                catch (Exception e)
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, e.Message + "\n" + e.StackTrace);
+                    EndSession();
+                }
             }
             else
             {
@@ -410,7 +430,6 @@ namespace NetworkLibrary.TCP.SSL.Base
         {
             totalMessageReceived++;
             OnBytesRecieved?.Invoke(sessionId, buffer, offset, count);
-
         }
 
         #region Closure & Disposal

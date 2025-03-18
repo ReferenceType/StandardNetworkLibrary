@@ -53,6 +53,7 @@ namespace NetworkLibrary.TCP.SSL.Base
         private Socket GetSocket()
         {
             Socket socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
             return socket;
         }
 
@@ -158,6 +159,32 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         private void Connected(string domainName, Socket clientSocket)
         {
+            clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+            int dscpValue = 40; // Critical services
+            byte tos = (byte)(dscpValue << 2); // Shift left by 2 bits
+            clientSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, tos);
+
+#if NET5_0_OR_GREATER
+            const int TcpKeepAliveTime = 15;      // Start keepalive after 60 seconds
+            const int TcpKeepAliveInterval = 5;  // Send probes every 10 seconds
+            const int TcpKeepAliveProbes = 2;     // Retry 5 times before dropping
+
+            clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, TcpKeepAliveTime);
+            clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, TcpKeepAliveInterval);
+            clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, TcpKeepAliveProbes);
+#endif
+            //const int KeepAliveEnable = 1;  // Enable keepalive
+            //const int KeepAliveTime = 60000;  // Time (ms) to start keepalive (1 min)
+            //const int KeepAliveInterval = 10000;  // Interval (ms) between keepalive probes (10 sec)
+
+            //byte[] inOptionValues = new byte[12];
+            //BitConverter.GetBytes(KeepAliveEnable).CopyTo(inOptionValues, 0);
+            //BitConverter.GetBytes(KeepAliveTime).CopyTo(inOptionValues, 4);
+            //BitConverter.GetBytes(KeepAliveInterval).CopyTo(inOptionValues, 8);
+
+            //clientSocket.IOControl(IOControlCode.KeepAliveValues, inOptionValues, null);
+
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
             sslStream.AuthenticateAsClient(domainName,
                 new X509CertificateCollection(new[] { certificate }), System.Security.Authentication.SslProtocols.None, true);

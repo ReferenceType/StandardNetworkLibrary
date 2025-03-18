@@ -7,7 +7,7 @@ using System.Security.Cryptography.X509Certificates;
 namespace Protobuff.P2P
 {
     public class RelayClient : RelayClientBase<ProtoSerializer>
-    {
+    { 
         public RelayClient(X509Certificate2 clientCert, int udpPort = 0) : base(clientCert,udpPort)
         {
         }

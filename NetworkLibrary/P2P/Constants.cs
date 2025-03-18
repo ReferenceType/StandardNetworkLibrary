@@ -19,6 +19,7 @@
 
         public const string Ping = "Ping";
         public const string Pong = "Pong";
+        public const string KeepAlieve = ".K";
 
 
         public const string RoomUpdate = "12";

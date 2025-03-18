@@ -57,7 +57,9 @@ namespace NetworkLibrary.UDP
             ServerSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
             // Not compatible with Unity..
             //ServerSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
-
+            int dscpValue = 40; // Critical services
+            byte tos = (byte)(dscpValue << 2); // Shift left by 2 bits
+            ServerSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, tos);
 
             ServerSocket.ReceiveBufferSize = SocketReceiveBufferSize;
             ServerSocket.SendBufferSize = SocketSendBufferSize;

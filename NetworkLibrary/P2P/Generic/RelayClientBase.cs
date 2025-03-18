@@ -604,39 +604,48 @@ namespace NetworkLibrary.P2P.Generic
 
                 MessageEnvelope msg = new MessageEnvelope();
                 msg.Header = Constants.Ping;
-                if (IsConnected)
+                try
                 {
-                    var time = DateTime.Now;
-
-                    if (sendToServer)
+                    if (IsConnected)
                     {
-                        msg.From = sessionId;
-                        msg.To = sessionId;
+                        var time = DateTime.Now;
 
-                        tcpMessageClient.SendAsyncMessage(msg);
-                        pinger.NotifyTcpPingSent(sessionId, time);
-
-                        SendUdpMessage(sessionId, msg);
-                        pinger.NotifyUdpPingSent(sessionId, time);
-                    }
-
-                    time = DateTime.Now;
-
-                    if (sendTcpToPeers)
-                        BroadcastMessage(msg);
-                    if (sendUdpToPeers)
-                        BroadcastUdpMessage(msg);
-                    foreach (var peer in Peers.Keys)
-                    {
-                        if (sendTcpToPeers)
-                            pinger.NotifyTcpPingSent(peer, time);
-                        if (sendUdpToPeers)
+                        if (sendToServer)
                         {
-                            //SendUdpMesssage(peer, msg);
-                            pinger.NotifyUdpPingSent(peer, time);
+                            msg.From = sessionId;
+                            msg.To = sessionId;
+
+                            tcpMessageClient.SendAsyncMessage(msg);
+                            pinger.NotifyTcpPingSent(sessionId, time);
+
+                            SendUdpMessage(sessionId, msg);
+                            pinger.NotifyUdpPingSent(sessionId, time);
                         }
 
+                        time = DateTime.Now;
+
+                        if (sendTcpToPeers)
+                            BroadcastMessage(msg);
+                        if (sendUdpToPeers)
+                            BroadcastUdpMessage(msg);
+                        foreach (var peer in Peers.Keys)
+                        {
+                            if (sendTcpToPeers)
+                                pinger.NotifyTcpPingSent(peer, time);
+                            if (sendUdpToPeers)
+                            {
+                                //SendUdpMesssage(peer, msg);
+                                pinger.NotifyUdpPingSent(peer, time);
+                            }
+
+                        }
                     }
+
+                }
+                catch 
+                { 
+                    Disconnect();
+                    return;
                 }
             }
 
@@ -791,15 +800,23 @@ namespace NetworkLibrary.P2P.Generic
                 SendLargeUdpMessage(toId,message);
                 return;
             }
-
-            if (!udpServer.TrySendAsync(endpoint, message, algo, out var excessStream))
+            try
             {
+                if (!udpServer.TrySendAsync(endpoint, message, algo, out var excessStream))
+                {
 
-                if (JumboUdpModules.TryGetValue(toId, out var mod))
-                    mod.Send(excessStream.GetBuffer(), 0, excessStream.Position32);
-                else
-                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable To find jumbo module with Id: " + toId + " in session " + sessionId);
+                    if (JumboUdpModules.TryGetValue(toId, out var mod))
+                        mod.Send(excessStream.GetBuffer(), 0, excessStream.Position32);
+                    else
+                        MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable To find jumbo module with Id: " + toId + " in session " + sessionId);
+                }
             }
+            catch (Exception ex) 
+            {
+                MiniLogger.Log(MiniLogger.LogLevel.Error, "Unable To send udp message: " + ex.StackTrace);
+                Disconnect();
+            }
+
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1316,7 +1333,6 @@ namespace NetworkLibrary.P2P.Generic
             if (peerCryptos.TryGetValue(adress, out var crypto))
             {
                 byte[] decryptBuffer = null;
-
                 try
                 {
                     MessageEnvelope msg;
@@ -1404,6 +1420,9 @@ namespace NetworkLibrary.P2P.Generic
                         mod3[2].HandleBytes(message.Payload, message.PayloadOffset, message.PayloadCount);
                     }
                     break;
+                case Constants.KeepAlieve:
+                    tcpMessageClient.SendAsyncMessage(message);
+                    break;
                 default:
                     HandleUdpMessage(message);
                     break;
@@ -1427,6 +1446,9 @@ namespace NetworkLibrary.P2P.Generic
                     UpdatePeerList(message);
                 else if (message.Header == "CmdTcpHp")
                     InitiateRemoteTcpHolepunch(message);
+                 else if(message.Header == Constants.KeepAlieve)
+                    tcpMessageClient.SendAsyncMessage(message);
+                    
                 else
                     HandleMessage(message);
             }
@@ -1446,7 +1468,7 @@ namespace NetworkLibrary.P2P.Generic
                     case Constants.Pong:
                         HandlePong(message);
                         break;
-
+                   
                     default:
                         HandleMessage(message);
                         break;

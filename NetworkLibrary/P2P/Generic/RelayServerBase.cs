@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components;
+﻿using MessageProtocol;
+using NetworkLibrary.Components;
 using NetworkLibrary.Components.Crypto;
 using NetworkLibrary.Components.Statistics;
 using NetworkLibrary.MessageProtocol;
@@ -33,6 +34,7 @@ namespace NetworkLibrary.P2P.Generic
         private ConcurrentDictionary<Guid, IPEndPoint> RegisteredUdpEndpoints = new ConcurrentDictionary<Guid, IPEndPoint>();
         private ConcurrentDictionary<Guid, List<EndpointData>> ClientUdpEndpoints = new ConcurrentDictionary<Guid, List<EndpointData>>();
         private ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm> UdpCryptos = new ConcurrentDictionary<IPEndPoint, ConcurrentAesAlgorithm>();
+        private ConcurrentDictionary<IPEndPoint, Guid> endpointMap = new ConcurrentDictionary<IPEndPoint, Guid>();
         internal ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, string>> peerReachabilityMatrix
            = new ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, string>>();
         private TaskCompletionSource<bool> PushPeerList = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -95,6 +97,48 @@ namespace NetworkLibrary.P2P.Generic
             udpServer.StartServer();
 
             Task.Run(PeerListPushRoutine);
+            Task.Run(VerifyHangedClients);
+        }
+        public void FlushAllClients()
+        {
+            foreach (var session in Sessions.ToList())
+            {
+                session.Value.EndSession();
+            }
+        }
+        private async void VerifyHangedClients()
+        {
+            MessageEnvelope envelope = new MessageEnvelope();
+            envelope.Header = Constants.KeepAlieve;
+            envelope.IsInternal = true;
+            while (!shutdown) 
+            {
+                await Task.Delay(10000);
+                foreach (var session in Sessions.ToList())
+                {
+                    bool badSession = await VerifyTcp(envelope, session);
+                    if (badSession)
+                    {
+                        session.Value.EndSession();
+                    }
+                }
+            }
+
+            async Task<bool> VerifyTcp(MessageEnvelope envelope_, KeyValuePair<Guid, TCP.Base.IAsyncSession> session)
+            {
+                bool badSession = true;
+                for (var i = 0; i < 2; i++)
+                {
+                    var response = await SendMessageAndWaitResponse(session.Key, envelope_, timeoutMs: 5000);
+                    if (response != null && response.Header != MessageEnvelope.RequestTimeout)
+                    {
+                        badSession = false;
+                        break;
+                    }
+                }
+
+                return badSession;
+            }
         }
 
         public void GetTcpStatistics(out TcpStatistics generalStats, out ConcurrentDictionary<Guid, TcpStatistics> sessionStats)
@@ -177,7 +221,7 @@ namespace NetworkLibrary.P2P.Generic
         {
             UdpCryptos.TryAdd(remoteEndpoint, new ConcurrentAesAlgorithm(random, AESMode));
             RegisteredUdpEndpoints.TryAdd(clientId, remoteEndpoint);
-
+            endpointMap.TryAdd(remoteEndpoint, clientId);
             localEndpoints.Add(new EndpointData(remoteEndpoint));
             ClientUdpEndpoints.TryAdd(clientId, localEndpoints);
             RegisteredPeers[clientId] = GetTime();
@@ -203,6 +247,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 UdpCryptos.TryRemove(key, out _);
                 udpServer.RemoveClient(key);
+                endpointMap.TryRemove(key, out _);
             }
 
             PublishPeerUnregistered(clientId);
@@ -231,6 +276,7 @@ namespace NetworkLibrary.P2P.Generic
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "While deserializing envelope, an error occured: " +
                     e.Message);
+                CloseSession(guid);
             }
 
         }
@@ -333,8 +379,6 @@ namespace NetworkLibrary.P2P.Generic
             }
         }
 
-
-
         private void HandleHolepunchcompletion(MessageEnvelope message)
         {
             peerReachabilityMatrix.TryAdd(message.From, new ConcurrentDictionary<Guid, string>());
@@ -431,6 +475,9 @@ namespace NetworkLibrary.P2P.Generic
             catch (Exception e)
             {
                 MiniLogger.Log(MiniLogger.LogLevel.Error, "Udp Relay failed to deserialise envelope message " + e.Message);
+                //kill client here.
+                if (endpointMap.TryGetValue(adress, out var id))
+                    CloseSession(id);
                 return;
             }
             finally
@@ -475,16 +522,17 @@ namespace NetworkLibrary.P2P.Generic
                     udpServer.SendBytesToClient(destEp, tempBuff, 0, reEncryptedBytesAmount);
                 }
             }
-
         }
 
         private void HandleUnregistreredMessage(IPEndPoint adress, byte[] bytes, int offset, int count)
         {
+            // local discovery udp bc
             if(count == 1 && bytes[offset] == 91)
             {
                 udpServer.SendBytesToClient(adress, serverNameBytes,0,serverNameBytes.Length);
                 return;
             }
+            //EndpointTransferMessage
             if (bytes[offset] == 92 && bytes[offset+1] == 93)
             {
                 try

@@ -57,7 +57,7 @@ namespace NetworkLibrary.TCP.Generic
             {
                 SendAsyncInternal(message);
             }
-            catch { if (!IsSessionClosing()) throw; }
+            catch { if (!IsSessionClosing()) { EndSession(); throw; } }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

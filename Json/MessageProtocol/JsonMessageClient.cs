@@ -3,7 +3,7 @@ using NetworkLibrary.MessageProtocol.Fast;
 
 namespace JsonNetwork.MessageProtocol
 {
-    internal class JsonMessageClient : GenericMessageClientWrapper<JsonSerializer>
+    public class JsonMessageClient : GenericMessageClientWrapper<JsonSerializer>
     {
     }
 }

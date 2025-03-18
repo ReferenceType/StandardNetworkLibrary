@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace MessagePackNetwork.Pure
 {
-    internal class MessagePackClient:GenericClient<MessagepackSerializer>
+    public class MessagePackClient:GenericClient<MessagepackSerializer>
     {
     }
 }

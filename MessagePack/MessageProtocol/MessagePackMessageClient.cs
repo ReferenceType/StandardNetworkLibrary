@@ -3,7 +3,7 @@ using NetworkLibrary.MessageProtocol.Fast;
 
 namespace MessagePackNetwork.MessageProtocol
 {
-    internal class MessagePackMessageClient:GenericMessageClientWrapper<MessagepackSerializer>
+    public class MessagePackMessageClient:GenericMessageClientWrapper<MessagepackSerializer>
     {
        
     }

@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MessagePackNetwork.Pure
 {
-    internal class SecureMessagePackServer : GenericSecureServer<MessagepackSerializer>
+    public class SecureMessagePackServer : GenericSecureServer<MessagepackSerializer>
     {
         public SecureMessagePackServer(int port, X509Certificate2 certificate, bool writeLenghtPrefix = true) : base(port, certificate, writeLenghtPrefix)
         {

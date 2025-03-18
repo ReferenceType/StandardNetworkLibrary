@@ -4,7 +4,7 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace NetSerializerNetwork.P2P.Room
 {
-    internal class NetSerialiserRoomClient : SecureLobbyClient<NetSerialiser>
+    public class NetSerialiserRoomClient : SecureLobbyClient<NetSerialiser>
     {
         public NetSerialiserRoomClient(X509Certificate2 clientCert) : base(clientCert)
         {

@@ -114,7 +114,7 @@ namespace ConsoleTest
             int j = 0;
             foreach (var client1 in clients)
             {
-                client1.Connect("127.0.0.1", port);
+                client1.Connect("172.28.255.247", port);
                 j++;
             }
             Console.WriteLine("All Clients Connected");

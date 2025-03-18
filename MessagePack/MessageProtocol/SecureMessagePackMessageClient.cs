@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MessagePackNetwork.MessageProtocol
 {
-    internal class SecureMessagePackMessageClient : GenericSecureMessageClientWrapper<MessagepackSerializer>
+    public class SecureMessagePackMessageClient : GenericSecureMessageClientWrapper<MessagepackSerializer>
     {
         public SecureMessagePackMessageClient(X509Certificate2 certificate) : base(certificate)
         {

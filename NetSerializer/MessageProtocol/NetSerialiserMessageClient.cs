@@ -3,7 +3,7 @@ using NetworkLibrary.MessageProtocol.Fast;
 
 namespace NetSerializerNetwork.MessageProtocol
 {
-    internal class NetSerialiserMessageClient : GenericMessageClientWrapper<NetSerialiser>
+    public class NetSerialiserMessageClient : GenericMessageClientWrapper<NetSerialiser>
     {
     }
 }

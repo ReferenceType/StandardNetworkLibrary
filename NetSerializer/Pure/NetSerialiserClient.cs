@@ -3,7 +3,7 @@ using NetworkLibrary.TCP.Generic;
 
 namespace NetSerializerNetwork.Pure
 {
-    internal class NetSerialiserClient : GenericClient<NetSerialiser>
+    public class NetSerialiserClient : GenericClient<NetSerialiser>
     {
     }
 }

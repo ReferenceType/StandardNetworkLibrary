@@ -8,7 +8,7 @@ using System.Text;
 
 namespace MessagePackNetwork.P2P
 {
-    internal class MessagePackRelayClient : RelayClientBase<MessagepackSerializer>
+    public class MessagePackRelayClient : RelayClientBase<MessagepackSerializer>
     {
         public MessagePackRelayClient(X509Certificate2 clientCert) : base(clientCert)
         {

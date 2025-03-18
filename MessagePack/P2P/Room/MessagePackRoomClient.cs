@@ -7,7 +7,7 @@ using System.Text;
 
 namespace MessagePackNetwork.P2P.Lobby
 {
-    internal class MessagePackRoomClient : SecureLobbyClient<MessagepackSerializer>
+    public class MessagePackRoomClient : SecureLobbyClient<MessagepackSerializer>
     {
         public MessagePackRoomClient(X509Certificate2 clientCert) : base(clientCert)
         {

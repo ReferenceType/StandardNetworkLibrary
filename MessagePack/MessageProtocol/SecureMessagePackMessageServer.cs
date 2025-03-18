@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace MessagePackNetwork.MessageProtocol
 {
-    internal class SecureMessagePackMessageServer : GenericSecureMessageServerWrapper<MessagepackSerializer>
+    public class SecureMessagePackMessageServer : GenericSecureMessageServerWrapper<MessagepackSerializer>
     {
         public SecureMessagePackMessageServer(int port, X509Certificate2 cerificate) : base(port, cerificate)
         {

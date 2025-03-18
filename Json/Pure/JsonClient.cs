@@ -3,7 +3,7 @@ using NetworkLibrary.TCP.Generic;
 
 namespace JsonNetwork.Pure
 {
-    internal class JsonClient : GenericClient<JsonSerializer>
+    public class JsonClient : GenericClient<JsonSerializer>
     {
     }
 }

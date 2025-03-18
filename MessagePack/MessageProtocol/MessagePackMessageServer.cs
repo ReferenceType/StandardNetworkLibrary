@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace MessagePackNetwork.MessageProtocol
 {
-    internal class MessagePackMessageServer : GenericMessageServerWrapper<MessagepackSerializer>
+    public class MessagePackMessageServer : GenericMessageServerWrapper<MessagepackSerializer>
     {
         public MessagePackMessageServer(int port) : base(port)
         {

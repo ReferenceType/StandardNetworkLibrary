@@ -69,11 +69,6 @@ namespace NetworkLibrary.TCP.SSL.Base
                 sendBuffer = BufferPool.RentBuffer(SendBufferSize);
             receiveBuffer =  BufferPool.RentBuffer(ReceiveBufferSize);
 
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-
-//            receiveMemory = new Memory<byte>(receiveBuffer);
-//#endif
-
             if (UseQueue) sendBuffer = BufferPool.RentBuffer(SendBufferSize);
 
         }

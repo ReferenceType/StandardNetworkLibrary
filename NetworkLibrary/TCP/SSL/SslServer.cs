@@ -44,16 +44,16 @@ namespace NetworkLibrary.TCP.SSL.Base
 
         public int SessionCount => Sessions.Count;
 
-        private protected ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
+        internal ConcurrentDictionary<Guid, IAsyncSession> Sessions = new ConcurrentDictionary<Guid, IAsyncSession>();
         internal ConcurrentDictionary<Guid, TcpStatistics> Stats { get; } = new ConcurrentDictionary<Guid, TcpStatistics>();
 
 
         private Socket serverSocket;
         private X509Certificate2 certificate;
         private TcpServerStatisticsPublisher statisticsPublisher;
-        const int TcpKeepAliveTime = 15;      // Start keepalive after 60 seconds
-        const int TcpKeepAliveInterval = 5;  // Send probes every 10 seconds
-        const int TcpKeepAliveProbes = 2;     // Retry 5 times before dropping
+        const int TcpKeepAliveTime = 30;      // Start keepalive after 30 seconds
+        const int TcpKeepAliveInterval = 10;  // Send probes every 10 seconds
+        const int TcpKeepAliveProbes = 2;     // Retry 3 times before dropping
         public SslServer(int port, X509Certificate2 certificate)
         {
             ServerPort = port;

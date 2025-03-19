@@ -174,16 +174,7 @@ namespace NetworkLibrary.TCP.SSL.Base
             clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, TcpKeepAliveInterval);
             clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, TcpKeepAliveProbes);
 #endif
-            //const int KeepAliveEnable = 1;  // Enable keepalive
-            //const int KeepAliveTime = 60000;  // Time (ms) to start keepalive (1 min)
-            //const int KeepAliveInterval = 10000;  // Interval (ms) between keepalive probes (10 sec)
-
-            //byte[] inOptionValues = new byte[12];
-            //BitConverter.GetBytes(KeepAliveEnable).CopyTo(inOptionValues, 0);
-            //BitConverter.GetBytes(KeepAliveTime).CopyTo(inOptionValues, 4);
-            //BitConverter.GetBytes(KeepAliveInterval).CopyTo(inOptionValues, 8);
-
-            //clientSocket.IOControl(IOControlCode.KeepAliveValues, inOptionValues, null);
+          
 
             sslStream = new SslStream(new NetworkStream(clientSocket, true), false, ValidateCeriticate);
             sslStream.AuthenticateAsClient(domainName,

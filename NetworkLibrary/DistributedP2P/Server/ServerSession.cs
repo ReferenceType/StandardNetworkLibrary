@@ -1,11 +1,10 @@
-﻿using NetworkLibrary.DistributedP2P.Components;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace NetworkLibrary.DistributedP2P
+namespace NetworkLibrary.DistributedP2P.Server
 {
-    enum Sessionstate 
+    enum Sessionstate
     {
         Uninitialized,
         Authenticating,
@@ -15,13 +14,16 @@ namespace NetworkLibrary.DistributedP2P
     }
 
     // should hold the data about the client. Keys etc everything.
-    
+
     internal class ServerSession
     {
         public Sessionstate state;
-
-        public ServerSession()
+        public IClientDbInfo ClientInfo { get; }
+        public ServerSession(IClientDbInfo clientInfo)
         {
+            ClientInfo = clientInfo;
         }
+
+
     }
 }

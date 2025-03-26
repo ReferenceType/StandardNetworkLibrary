@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Generic;
 using NetworkLibrary.Utils;
 using System;
@@ -8,6 +9,39 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 {
     public class KnownTypeSerializer
     {
+
+
+        #region PipeData
+
+        //internal static void SerializeSignedPipeData(PooledMemoryStream stream, SignedPipeData signed)
+        //{
+        //    SerializePipeData(stream, signed.PipeData);
+        //    stream.Write(signed.Signature, 0, signed.Signature.Length);
+        //}
+
+       
+
+        internal static void SerializePipeData(PooledMemoryStream stream, PipeToken pipeData)
+        {
+            SerializeEndpointData(stream, pipeData.serverEndpoint);
+            PrimitiveEncoder.WriteGuid(stream, pipeData.Token);
+            PrimitiveEncoder.WriteDatetime(stream, pipeData.Expiration);
+        }
+
+        internal static PipeToken DeserializePipeData(byte[] buffer,ref int offset)
+        {
+            PipeToken pipeData = new PipeToken();
+
+            pipeData.serverEndpoint = DeserializeEndpointData(buffer, ref offset);
+            pipeData.Token = PrimitiveEncoder.ReadGuid(buffer, ref offset);
+            pipeData.Expiration = PrimitiveEncoder.ReadDatetime(buffer, ref offset);
+          
+            return pipeData;
+        }
+
+     
+        #endregion
+
         #region Endpoint Data
         public static void SerializeEndpointData(PooledMemoryStream stream, EndpointData data)
         {

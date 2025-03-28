@@ -14,6 +14,7 @@ using NetworkLibrary.Components.Crypto.DiffieHellman;
 using NetworkLibrary.Components.Crypto.KeyDerivation;
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Client.StateManagement;
+using NetworkLibrary.TCP.SSL.Base;
 
 namespace NetworkLibrary.DistributedP2P.Client
 {
@@ -27,7 +28,10 @@ namespace NetworkLibrary.DistributedP2P.Client
         {
             this.clientDbConnector = clientDbConnector;
             sslClient = new SecureMessageClient<S>(certificate);
+            sslClient.OnMessageReceived += HandleServerMsg;
         }
+
+       
 
         public async Task<bool> ConnectAsync(string ip, int port)
         {
@@ -65,36 +69,22 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public async Task<ITcpChannel> OpenTcpChannel(Guid destinationPeer, ChannelInfo Info)
         {
-            // so here somehow we will get a socet.
-            // its either through holepunch or through the server
+           var pipeState = new ClientPipeState(Guid.NewGuid(), this);
+           stateManager.RegisterState(pipeState);
+           pipeState.Start(destinationPeer);
 
-            Socket socket = await OpenTcpPipeWithPeer(destinationPeer);
+            await pipeState.WaitCompletion();
 
-            // Socket is either a server or a client.
-
-
-            if (socket != null)
+            if (pipeState.IsSuccesful)
             {
-                if (Info.AesMode != AesMode.None)
+                var symetricKey = await PerformDHWithPeer(destinationPeer);
+                if (symetricKey != null)
                 {
-                    // we obtain here shared Key with peer;
-                    byte[] sharedSecret = await PerformDHWithPeer(destinationPeer);
-
-
-                    var alg = new ConcurrentAesAlgorithm(sharedSecret, Info.AesMode);
-                    return new SecureTcpChannel(new AesTcpClient(socket, alg), Info);
-
+                    var channel = new SecureTcpChannel(Info, pipeState.ConnectedSocket, symetricKey);
+                    return channel;
                 }
-                else
-                {
-                    return new SecureTcpChannel(new AesTcpClient(socket, new ConcurrentAesAlgorithm(new byte[16], Info.AesMode)), Info);
-                }
-                    
             }
-            else
-            {
-                return null;
-            }
+            return null;
         }
 
         private async Task<byte[]> PerformDHWithPeer(Guid destinationPeer)
@@ -125,13 +115,35 @@ namespace NetworkLibrary.DistributedP2P.Client
             return null;
         }
 
-        private Task<Socket> OpenTcpPipeWithPeer(Guid destinationPeer)
-        {
-            // Shenanigans with server
-            // First try holepunch
-            // Then open a pipe with the server
 
-            return null;
+
+        private void HandleServerMsg(MessageEnvelope envelope)
+        {
+            if (envelope.IsInternal)
+            {
+                if (stateManager.HandleMessage(envelope))
+                    return;
+
+                switch (envelope.Header) 
+                {
+                    case InternalConstants.PipeTokenDelivery:
+
+                        var pipeState = new ClientPipeState(envelope.MessageId, this);
+                        pipeState.OnComplete += HandlePipeCreated;
+                        stateManager.RegisterState(pipeState);
+                        pipeState.HandleMessage(envelope);
+                        break;
+                
+                }
+            }
+        }
+
+        private void HandlePipeCreated(IConversationState state)
+        {
+           if(state.IsSuccesful)
+           {
+               // notify that a connection is opened, like socket accept
+           }
         }
 
         public void Disconnect()

@@ -1,9 +1,12 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.DistributedP2P.Server;
+using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using NetworkLibrary.P2P.Generic;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Threading;
 
 namespace NetworkLibrary.P2P.Components.HolePunch
 {
@@ -13,33 +16,38 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 
         #region PipeData
 
-        //internal static void SerializeSignedPipeData(PooledMemoryStream stream, SignedPipeData signed)
-        //{
-        //    SerializePipeData(stream, signed.PipeData);
-        //    stream.Write(signed.Signature, 0, signed.Signature.Length);
-        //}
-
-       
-
-        internal static void SerializePipeData(PooledMemoryStream stream, PipeToken pipeData)
+        internal static void SerializePipeData(PooledMemoryStream stream, PipeData pipeData)
         {
-            SerializeEndpointData(stream, pipeData.serverEndpoint);
-            PrimitiveEncoder.WriteGuid(stream, pipeData.Token);
-            PrimitiveEncoder.WriteDatetime(stream, pipeData.Expiration);
+            stream.Write(pipeData.Token, 0, PipeData.TokenLength);
+
+            if (pipeData.PipeEndpoints != null && pipeData.PipeEndpoints.Count > 0)
+            {
+                PrimitiveEncoder.WriteInt32(stream, pipeData.PipeEndpoints.Count);
+                foreach (EndpointData ep in pipeData.PipeEndpoints)
+                {
+                    SerializeEndpointData(stream, ep);
+                }
+            }
+            else
+                throw new InvalidOperationException("PipeData.PipeEndpoints is null or empty");
         }
 
-        internal static PipeToken DeserializePipeData(byte[] buffer,ref int offset)
+        internal static PipeData DeserializePipeData(byte[] buffer, ref int offset)
         {
-            PipeToken pipeData = new PipeToken();
+            PipeData pipeData = new PipeData();
+            pipeData.Token = ByteCopy.ToArray(buffer, offset, PipeData.TokenLength);
+            offset += PipeData.TokenLength;
 
-            pipeData.serverEndpoint = DeserializeEndpointData(buffer, ref offset);
-            pipeData.Token = PrimitiveEncoder.ReadGuid(buffer, ref offset);
-            pipeData.Expiration = PrimitiveEncoder.ReadDatetime(buffer, ref offset);
-          
+            int count = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+            for (int i = 0; i < count; i++)
+            {
+                pipeData.PipeEndpoints.Add(DeserializeEndpointData(buffer, ref offset));
+            }
+
             return pipeData;
         }
 
-     
+
         #endregion
 
         #region Endpoint Data

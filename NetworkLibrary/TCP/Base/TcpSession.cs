@@ -125,10 +125,7 @@ namespace NetworkLibrary.TCP.Base
         #region Recieve 
         protected virtual void Receive()
         {
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-//            ReceiveModern();
-//            return;
-//#endif
+
             if (IsSessionClosing())
             {
                 ReleaseReceiveResourcesIdempotent();
@@ -149,49 +146,7 @@ namespace NetworkLibrary.TCP.Base
 
 
         }
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
 
-//        private async void ReceiveModern()
-//        {
-//            try
-//            {
-//                while (true)
-//                {
-//                    if (IsSessionClosing())
-//                    {
-//                        ReleaseReceiveResourcesIdempotent();
-//                        return;
-//                    }
-
-//                    int amountReceived = await sessionSocket.ReceiveAsync(receiveMemory,
-//                        SocketFlags.None).ConfigureAwait(false);
-
-//                    if (IsSessionClosing())
-//                    {
-//                        ReleaseReceiveResourcesIdempotent();
-//                        return;
-//                    }
-//                    if (amountReceived == 0)
-//                    {
-//                        Disconnect();
-//                        ReleaseReceiveResourcesIdempotent();
-//                        return;
-//                    }
-//                    totalBytesReceived += amountReceived;
-//                    HandleReceived(recieveBuffer, 0, amountReceived);
-//                }
-//            }
-//            catch (Exception e)
-//            {
-//                if (!IsSessionClosing())
-//                {
-//                    MiniLogger.Log(MiniLogger.LogLevel.Error,
-//                        "While receiving on tcp session error occured;" +e.Message);
-//                    EndSession();
-//                }
-//            }
-//        }
-//#endif
 
         private void BytesRecieved(object sender, SocketAsyncEventArgs e)
         {

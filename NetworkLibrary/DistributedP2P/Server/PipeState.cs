@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NetworkLibrary.DistributedP2P.Server.StateManagement;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -11,7 +12,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         internal List<T> Clients = new List<T>();
         internal PipeToken pipeData;
         private object mtex = new object();
-
+       
         public PipeState(PipeToken pipeData)
         {
             this.pipeData = pipeData;
@@ -28,5 +29,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             lock (mtex)
                 Clients.Add(guid);
         }
+
+      
     }
 }

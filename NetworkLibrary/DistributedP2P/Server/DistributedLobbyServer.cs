@@ -17,6 +17,7 @@ using System.Diagnostics;
 
 using System.Threading.Tasks;
 using NetworkLibrary.DistributedP2P.Server.StateManagement;
+using System.Security.Cryptography;
 
 namespace NetworkLibrary.DistributedP2P.Server
 {
@@ -50,8 +51,10 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         SessionManager<S> sessionManager;
         Components.StateManager stateManager =  new Components.StateManager();
-        PipeAssociator piper;
+        PipeManager piper;
         Stopwatch serverClock = new Stopwatch();
+
+        PipeManager pipeManager;
 
         private byte[] serverKey = new byte[16];
         public DistributedLobbyServerBase(Dependencies dependencies, ServerParameters parameters)
@@ -74,6 +77,11 @@ namespace NetworkLibrary.DistributedP2P.Server
             tcpServer = new AsyncTcpServer(TcpPort);
             udpServer = new AsyncUdpServer(UdpPort);
 
+            var random = RandomNumberGenerator.Create();
+            var key = new byte[32];
+            random.GetNonZeroBytes(key);
+            pipeManager = new PipeManager(tcpServer,udpServer,key);
+
             sslServer.OnClientRequestedConnection += ValidateSslConnection;
             sslServer.OnClientAccepted += SslClientAccepted;
             sslServer.OnClientDisconnected += SslClientDisconnected;
@@ -85,7 +93,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             tcpServer.StartServer();
             sslServer.StartServer();
 
-            sessionManager = new SessionManager<S>(this, tcpServer, udpServer, serverKey);
+            sessionManager = new SessionManager<S>(this);
 
         }
 
@@ -142,11 +150,24 @@ namespace NetworkLibrary.DistributedP2P.Server
             // holepunching
             // ping
 
+            message.From = clientId;
+
+            if (stateManager.HandleMessage(message))
+                return;
+
             if (sessionManager.HandleMessage(clientId, message))
                 return;
 
             switch (message.Header)
             {
+                case InternalConstants.PipeRequest:
+
+                    var pipeState = new ServerPipeState(message.MessageId, this, pipeManager);
+                    stateManager.RegisterState(pipeState);
+                    pipeState.HandleMessage(message);
+
+                break;
+
                 case Constants.TimeSync:
 
                     byte[] time = new byte[8];
@@ -155,7 +176,7 @@ namespace NetworkLibrary.DistributedP2P.Server
                     message.TimeStamp = DateTime.UtcNow;
                     SendAsyncMessage(clientId, message);
 
-                    break;
+                break;
             }
         }
 

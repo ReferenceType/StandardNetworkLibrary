@@ -1,20 +1,130 @@
-﻿using NetworkLibrary.DistributedP2P.Components;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.DistributedP2P.Components;
+using NetworkLibrary.P2P.Components.HolePunch;
+using NetworkLibrary.P2P.Generic;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 {
+    class PipeData
+    {
+        public const int TokenLength = 32 + 24;//32 bytes signature, 24 bytes token
+        public byte[] Token { get; set; }
+        // localhost, localip, publicip
+        public List<EndpointData> PipeEndpoints { get; set; } =  new List<EndpointData>();
+    }
+
     internal class ServerPipeState : ConversationStateBase
     {
-        public ServerPipeState(Guid stateId) : base(stateId)
+        private PipeManager piper;
+        private Guid from, to;
+        private int ackCount = 0;
+        private readonly IDistributedConnection connection;
+
+        public ServerPipeState(Guid stateId, IDistributedConnection connection,  PipeManager piper) : base(stateId)
         {
+            this.connection = connection;
+            this.piper = piper;
         }
+
+        /*
+         * C1 wants pope req with C2
+         * Server finds a suitible Relay to pipe on
+         * Server obtains token from relay
+         * Server sends conn info and token to C1 and C2
+         * 
+         * C2 then needs to verify C1 optionally, with this you know that token came from trusted server and client is who he says he is.
+         * 
+         */
 
         public override void HandleMessage(MessageEnvelope message)
         {
-            throw new NotImplementedException();
+            switch (message.Header) 
+            {
+                case InternalConstants.PipeRequest:
+                    HandlePipeRequest(message);
+                    break;
+
+                case InternalConstants.ConnectionAckGood:
+                    HandleGoodAck(message); 
+                    break;
+
+                case InternalConstants.ConnectionAckBad:
+                    HandleBadAck(message);
+                    break;
+
+            }
         }
+
+        private void HandlePipeRequest(MessageEnvelope message)
+        {
+            this.from = message.From;
+            this.to = message.To;
+            ObtainPipeToken().ContinueWith(HandlePipeToken);
+        }
+
+        private Task<PipeData> ObtainPipeToken()
+        {
+            //do only local for now
+            byte[] token = piper.GetPipeToken(tcp: true);
+            PipeData data = new PipeData();
+            data.Token = token;
+            data.PipeEndpoints = new List<EndpointData>();
+
+            return Task.FromResult(data);
+        }
+
+
+        private void HandlePipeToken(Task<PipeData> task)
+        {
+            var data = task.Result;
+            var msg = CreateEnvelope();
+            msg.Header = InternalConstants.PipeTokenDelivery;
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            stream.Position32 = 0;
+
+            KnownTypeSerializer.SerializePipeData(stream, data);
+            msg.SetPayload(stream.GetBuffer(),0,stream.Position32);
+
+            connection.SendAsyncMessage(from, msg);
+            connection.SendAsyncMessage(to, msg);
+
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+        }
+
+
+        private void HandleBadAck(MessageEnvelope message)
+        {
+            lock (cancellationMutex)
+            {
+                var msg = CreateEnvelope();
+                msg.Header = InternalConstants.ConnectionAckBad;
+                connection.SendAsyncMessage(from, msg);
+                connection.SendAsyncMessage(to, msg);
+                Completed(false);
+            }
+        }
+
+        private void HandleGoodAck(MessageEnvelope message)
+        {
+            if (Interlocked.Increment(ref ackCount) == 2)
+            {
+                lock (cancellationMutex)
+                {
+                    var msg = CreateEnvelope();
+                    msg.Header = InternalConstants.ConnectionAckGood;
+                    connection.SendAsyncMessage(from, msg);
+                    connection.SendAsyncMessage(to, msg);
+                    Completed(true);
+                }
+            }
+        }
+
+
     }
 }

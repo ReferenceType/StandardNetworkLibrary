@@ -18,6 +18,9 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using System.Security.Cryptography;
+using NetworkLibrary.DistributedP2P.SimpleRelay;
+using NetworkLibrary.Utils;
+using NetworkLibrary.P2P.Components.HolePunch;
 
 namespace NetworkLibrary.DistributedP2P.Server
 {
@@ -34,7 +37,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         public int TcpPort;
         public int UdpPort;
     }
-    public class DistributedLobbyServerBase<S> : IDistributedConnection where S : ISerializer, new()
+    public class DistributedLobbyServerBase<S> : IDistributedConnection,IDisposable where S : ISerializer, new()
     {
         public readonly int SSlPort;
         public readonly int TcpPort;
@@ -74,28 +77,25 @@ namespace NetworkLibrary.DistributedP2P.Server
             serverClock.Start();
 
             sslServer = new SecureMessageServer<S>(SSlPort, serverCertificate);
-            tcpServer = new AsyncTcpServer(TcpPort);
-            udpServer = new AsyncUdpServer(UdpPort);
 
             var random = RandomNumberGenerator.Create();
             var key = new byte[32];
             random.GetNonZeroBytes(key);
-            pipeManager = new PipeManager(tcpServer,udpServer,key);
+            pipeManager = new PipeManager(TcpPort, UdpPort, key);
 
             sslServer.OnClientRequestedConnection += ValidateSslConnection;
             sslServer.OnClientAccepted += SslClientAccepted;
             sslServer.OnClientDisconnected += SslClientDisconnected;
 
-            tcpServer.OnClientAccepting += ValidateTcpConnection;
             sslServer.OnMessageReceived += SslMessageReceived;
-
-            udpServer.StartServer();
-            tcpServer.StartServer();
             sslServer.StartServer();
 
             sessionManager = new SessionManager<S>(this);
+            sessionManager.PeerListPublish += PublishPeerList;
 
         }
+
+      
 
         private bool ValidateSslConnection(Socket acceptedSocket)
         {
@@ -103,18 +103,24 @@ namespace NetworkLibrary.DistributedP2P.Server
             return true;
         }
 
-        private bool ValidateTcpConnection(Socket acceptedSocket)
-        {
-            return true;
-        }
 
         private void SslClientAccepted(Guid ephemeralClientId)
         {
-            Guid stateId = Guid.NewGuid();
-            var state = new ServerConnectionState(stateId, ephemeralClientId, this, authenticator, dbConnector);
-            stateManager.RegisterState(state);
+            TimerService.RegisterTimer(ephemeralClientId, 20000, () => 
+            { 
+                if (!sessionManager.IsSessionActive(ephemeralClientId)) 
+                {
+                    sslServer.CloseSession(ephemeralClientId);
+                }
+            });
+        }
 
-            state.Start();
+        private void HandleConnRequest(MessageEnvelope msg)
+        {
+            Guid stateId = msg.MessageId;
+            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector);
+            stateManager.RegisterState(state);
+            state.HandleMessage(msg);
 
             state.OnComplete += ConnectionStateComplete;
         }
@@ -125,8 +131,28 @@ namespace NetworkLibrary.DistributedP2P.Server
             if (state.IsSuccesful)
             {
                 var sessionEp = sslServer.GetSessionEndpoint(state.EphemeralClientId);
-                sessionManager.CreateSession(state.clientDbInfo, state.EphemeralClientId, sessionEp);
+                var statusList = sessionManager.CreateSession(state.clientDbInfo, state.EphemeralClientId, sessionEp);
+                if(statusList!=null)
+                    PublishPeerList(new List<PeerStatusList>() { statusList });
             }
+        }
+
+        private void PublishPeerList(List<PeerStatusList> pubList)
+        {
+            var msg = new MessageEnvelope();
+            msg.Header = InternalConstants.PublishPeerList;
+            msg.IsInternal = true;
+
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            foreach (var pubData in pubList)
+            {
+                stream.Position32 = 0;
+                KnownTypeSerializer.SerializePeerStatusList(stream, pubData);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+
+                sslServer.SendAsyncMessage(pubData.WhoNeedsToKnow, msg);
+            }
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
 
         // so here message can be p2p message, clients business.
@@ -151,16 +177,19 @@ namespace NetworkLibrary.DistributedP2P.Server
             // ping
 
             message.From = clientId;
-
+           
             if (stateManager.HandleMessage(message))
                 return;
 
-            if (sessionManager.HandleMessage(clientId, message))
-                return;
+           
 
             switch (message.Header)
             {
-                case InternalConstants.PipeRequest:
+                case InternalConstants.ConnectionReq:
+                    HandleConnRequest(message);
+                    break;
+
+                case InternalConstants.PipeRequestTcp:
 
                     var pipeState = new ServerPipeState(message.MessageId, this, pipeManager);
                     stateManager.RegisterState(pipeState);
@@ -184,10 +213,18 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
             sslServer.SendAsyncMessage(clientId, message);
         }
-
+        public void SendAsyncMessage(MessageEnvelope message)
+        {
+            sslServer.SendAsyncMessage(message.To, message);
+        }
         public Task<MessageEnvelope> SendMessageAndWaitResponse(Guid destination, MessageEnvelope envelope)
         {
             return sslServer.SendMessageAndWaitResponse(destination, envelope);
+        }
+
+        public Task<MessageEnvelope> SendMessageAndWaitResponse( MessageEnvelope envelope)
+        {
+            return sslServer.SendMessageAndWaitResponse(envelope.To, envelope);
         }
 
         private void SslClientDisconnected(Guid guid)
@@ -207,5 +244,13 @@ namespace NetworkLibrary.DistributedP2P.Server
             // will be distributed time
             return DateTime.UtcNow;
         }
+
+        public void Dispose()
+        {
+            sslServer.ShutdownServer();
+            pipeManager.Dispose();
+        }
+
+       
     }
 }

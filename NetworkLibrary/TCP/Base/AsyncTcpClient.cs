@@ -17,14 +17,16 @@ namespace NetworkLibrary.TCP.Base
 
         public AsyncTpcClient() { }
 
-        protected void SetConnectedSocket(Socket clientSocket, ScatterGatherConfig config)
+        internal protected virtual void SetConnectedSocket(Socket clientSocket, ScatterGatherConfig config)
         {
             this.GatherConfig = config;
             this.clientSocket = clientSocket;
             IsConnected = true;
             var Id = Guid.NewGuid();
 
-            session = CreateSession(clientSocket, Id);
+            var ea = new SocketAsyncEventArgs();
+            ea.AcceptSocket = clientSocket;
+            session = CreateSession(ea, Id);
 
             session.OnBytesRecieved += (sessionId, bytes, offset, count) => HandleBytesRecieved(bytes, offset, count);
             session.OnSessionClosed += (sessionId) => OnDisconnected?.Invoke();
@@ -118,20 +120,20 @@ namespace NetworkLibrary.TCP.Base
                 ses.UseQueue = false;
             return ses;
         }
-        private protected virtual  IAsyncSession CreateSession(Socket e, Guid sessionId)
-        {
-            var ses = new TcpSession(e, sessionId);
-            ses.socketSendBufferSize = SocketSendBufferSize;
-            ses.SocketRecieveBufferSize = SocketRecieveBufferSize;
-            ses.MaxIndexedMemory = MaxIndexedMemory;
-            ses.DropOnCongestion = DropOnCongestion;
+        //private protected virtual  IAsyncSession CreateSession(Socket e, Guid sessionId)
+        //{
+        //    var ses = new TcpSession(e, sessionId);
+        //    ses.socketSendBufferSize = SocketSendBufferSize;
+        //    ses.SocketRecieveBufferSize = SocketRecieveBufferSize;
+        //    ses.MaxIndexedMemory = MaxIndexedMemory;
+        //    ses.DropOnCongestion = DropOnCongestion;
 
-            if (GatherConfig == ScatterGatherConfig.UseQueue)
-                ses.UseQueue = true;
-            else
-                ses.UseQueue = false;
-            return ses;
-        }
+        //    if (GatherConfig == ScatterGatherConfig.UseQueue)
+        //        ses.UseQueue = true;
+        //    else
+        //        ses.UseQueue = false;
+        //    return ses;
+        //}
         #endregion
 
         #region Send & Receive

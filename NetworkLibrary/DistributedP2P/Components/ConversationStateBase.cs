@@ -22,6 +22,7 @@ namespace NetworkLibrary.DistributedP2P.Components
 
         public ConversationStateBase(Guid stateId)
         {
+            this.StateId = stateId;
             Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
@@ -40,7 +41,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             }
 
         }
-        protected MessageEnvelope CreateErrorMsg(string err)
+        protected virtual MessageEnvelope CreateErrorMsg(string err)
         {
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.Error;
@@ -50,7 +51,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             };
             return msg;
         }
-        protected MessageEnvelope CreateEnvelope()
+        protected virtual MessageEnvelope CreateEnvelope()
         {
             MessageEnvelope msg = new MessageEnvelope();
             msg.MessageId = StateId;
@@ -69,7 +70,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             if (Interlocked.CompareExchange(ref isComplete, 1, 0) == 0)
             {
 
-                IsSuccesful = false;
+                IsSuccesful = succes;
                 OnComplete?.Invoke(this);
                 Completion.SetResult(this);
                 OnComplete = null;

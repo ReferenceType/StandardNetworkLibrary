@@ -362,7 +362,7 @@ namespace NetworkLibrary.P2P.Generic
             return new TimeResult();
 
         }
-    public void GetTcpStatistics(out TcpStatistics stats) => tcpMessageClient.GetStatistics(out stats);
+        public void GetTcpStatistics(out TcpStatistics stats) => tcpMessageClient.GetStatistics(out stats);
 
         private bool CertificateValidation(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {

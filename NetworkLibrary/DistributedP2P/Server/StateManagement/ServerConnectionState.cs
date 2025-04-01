@@ -26,12 +26,12 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             this.dbConnector = dbConnector;
         }
 
-        internal void Start()
-        {
-            var msg = CreateEnvelope();
-            msg.Header = InternalConstants.ConnectionStart;
-            connection.SendAsyncMessage(EphemeralClientId, msg);
-        }
+        //internal void Start()
+        //{
+        //    var msg = CreateEnvelope();
+        //    msg.Header = InternalConstants.ConnectionStart;
+        //    connection.SendAsyncMessage(EphemeralClientId, msg);
+        //}
 
         public override void HandleMessage(MessageEnvelope message)
         {
@@ -145,7 +145,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         {
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.ConnectionAckGood;
-
+            msg.To = EphemeralClientId;
             lock (cancellationMutex)
             {
                 if (IsCompleted())
@@ -163,7 +163,6 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             Completed(false);
         }
 
-      
-
+       
     }
 }

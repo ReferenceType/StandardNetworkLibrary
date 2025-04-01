@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.DistributedP2P.Components;
+using NetworkLibrary.DistributedP2P.SimpleRelay;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.P2P.Generic;
 using NetworkLibrary.Utils;
@@ -46,8 +47,11 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         {
             switch (message.Header) 
             {
-                case InternalConstants.PipeRequest:
-                    HandlePipeRequest(message);
+                case InternalConstants.PipeRequestTcp:
+                    HandlePipeRequest(message, true);
+                    break;
+                case InternalConstants.PipeRequestUdp:
+                    HandlePipeRequest(message, false);
                     break;
 
                 case InternalConstants.ConnectionAckGood:
@@ -61,30 +65,31 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
         }
 
-        private void HandlePipeRequest(MessageEnvelope message)
+        private void HandlePipeRequest(MessageEnvelope message, bool tcp)
         {
             this.from = message.From;
             this.to = message.To;
-            ObtainPipeToken().ContinueWith(HandlePipeToken);
+            ObtainPipeToken(tcp).ContinueWith(t=>HandlePipeToken(t,tcp));
         }
 
-        private Task<PipeData> ObtainPipeToken()
+        private Task<PipeData> ObtainPipeToken(bool tcp)
         {
             //do only local for now
-            byte[] token = piper.GetPipeToken(tcp: true);
+            byte[] token = piper.GetPipeToken(tcp);
             PipeData data = new PipeData();
             data.Token = token;
-            data.PipeEndpoints = new List<EndpointData>();
+            data.PipeEndpoints = new List<EndpointData>() { new EndpointData("127.0.0.1", 20011) };
+            
 
             return Task.FromResult(data);
         }
 
 
-        private void HandlePipeToken(Task<PipeData> task)
+        private void HandlePipeToken(Task<PipeData> task, bool tcp)
         {
             var data = task.Result;
             var msg = CreateEnvelope();
-            msg.Header = InternalConstants.PipeTokenDelivery;
+            msg.Header = tcp?InternalConstants.PipeTokenDeliveryTcp:InternalConstants.PipeTokenDeliveryUdp;
             var stream = SharerdMemoryStreamPool.RentStreamStatic();
             stream.Position32 = 0;
 
@@ -124,7 +129,6 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 }
             }
         }
-
 
     }
 }

@@ -69,5 +69,10 @@ namespace NetworkLibrary.DistributedP2P.Client
         {
             Disconnected?.Invoke();
         }
+
+        public void Start()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

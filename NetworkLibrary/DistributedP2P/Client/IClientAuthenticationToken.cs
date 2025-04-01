@@ -1,6 +1,6 @@
 ﻿namespace NetworkLibrary.DistributedP2P.Client
 {
-    internal interface IClientAuthenticationToken
+    public interface IClientAuthenticationToken
     {
         string Token { get; }
         string AuthenticationMethod { get; }

@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.DistributedP2P.Components;
+using NetworkLibrary.DistributedP2P.Server;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -8,14 +9,16 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
     //Signed Challenge Tokens
     internal class ClientConnectionState : ConversationStateBase
     {
-        private readonly IClientConnection connection;
+        private readonly IDistributedConnection connection;
         private readonly IClientDbConnection clientDbConnector;
         private readonly IClientAuthenticationToken authToken;
 
 
         private TaskCompletionSource<IConversationState> Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public ClientConnectionState(Guid stateId, IClientConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken):base(stateId)
+        public Guid SessionId { get; private set; }
+
+        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken):base(stateId)
         {
             this.connection = connection;
             this.clientDbConnector = clientDbConnector;
@@ -26,9 +29,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         {
             switch (message.Header)
             {
-                case InternalConstants.ConnectionStart:
-                    Start();
-                    break;
+             
                 case InternalConstants.ConnectionGetClientPublicData:
                     SendClientPublicData(message);
                     break;
@@ -41,7 +42,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
         }
 
-        private void Start()
+        public void Start()
         {
             MessageEnvelope msg = CreateEnvelope();
             msg.Header = InternalConstants.ConnectionReq;
@@ -51,7 +52,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.KeyValuePairs.Add("AuthMethod", authToken.AuthenticationMethod);
             msg.KeyValuePairs.Add("AdditionalData", authToken.AdditionalData);
 
-            connection.SenAsyncMessage(msg);
+            connection.SendAsyncMessage(msg);
             // now server will authenticate after this
             // may ask additional data to link, if we are first timer
             // then succes or fail
@@ -63,12 +64,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             response.Header = InternalConstants.ConnectionAckClientPublicData;
             response.Payload = clientDbConnector.GetClientPublicData();
 
-            connection.SenAsyncMessage(response);
+            connection.SendAsyncMessage(response);
         }
 
 
         private void HandleConnectionSucces(MessageEnvelope message)
         {
+            SessionId = message.To;
             Completed(succes: true);
         }
 

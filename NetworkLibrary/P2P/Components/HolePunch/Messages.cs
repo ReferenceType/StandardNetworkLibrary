@@ -32,5 +32,12 @@ namespace NetworkLibrary.P2P.Components.HolePunch
             Ip = ep.Address.GetAddressBytes();
             Port = ep.Port;
         }
+
+        public EndpointData(string ip, int port)
+        {
+            IPAddress add = IPAddress.Parse(ip);
+            Ip = add.GetAddressBytes();
+            this.Port = port;
+        }
     }
 }

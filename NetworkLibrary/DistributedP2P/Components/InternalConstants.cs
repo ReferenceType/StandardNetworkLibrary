@@ -13,7 +13,10 @@ namespace NetworkLibrary.DistributedP2P.Components
         public const string Error = "4";
         public const string ConnectionGetClientPublicData = "5";
         public const string ConnectionAckClientPublicData = "6";
-        public const string PipeRequest = "7";
-        public const string PipeTokenDelivery = "7";
+        public const string PipeRequestTcp = "7";
+        public const string PipeRequestUdp = "8";
+        public const string PipeTokenDeliveryTcp = "9";
+        public const string PipeTokenDeliveryUdp = "a";
+        public const string PublishPeerList = "b";
     }
 }

@@ -5,6 +5,7 @@ using NetworkLibrary.P2P.Generic;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 
@@ -13,7 +14,88 @@ namespace NetworkLibrary.P2P.Components.HolePunch
     public class KnownTypeSerializer
     {
 
+        #region AuthenticatedPeerList
+        internal static void SerializePeerStatusList(PooledMemoryStream stream, PeerStatusList statusList)
+        {
+            byte index = 0;
+            // Reserve for index
+            int oldPos = stream.Position32;
+            stream.WriteByte(index);
 
+            if (statusList.NewOnline.Count>0)
+            {
+                PrimitiveEncoder.WriteInt32(stream, statusList.NewOnline.Count);
+                foreach (var item in statusList.NewOnline)
+                {
+                    SerializePeerStatus(stream, item.Value);
+                }
+                index = 1;
+            }
+            if (statusList.WentOffline.Count>0)
+            {
+                PrimitiveEncoder.WriteInt32(stream, statusList.WentOffline.Count);
+                foreach (var item in statusList.WentOffline)
+                {
+                    SerializePeerStatus(stream, item.Value);
+                }
+                index += 2;
+            }
+
+            var buf = stream.GetBuffer();
+            buf[oldPos] = index;
+        }
+
+        internal static PeerStatusList DeserializePeerStatusList(byte[] buffer, ref int offset)
+        {
+            var index = buffer[offset++];
+
+            var data = new PeerStatusList();
+            if ((index & 1) != 0)
+            {
+                int len = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                for (int i = 0; i < len; i++)
+                {
+                    //online
+                    var sts =  DeserializePeerStatus(buffer, ref offset);
+                    data.NewOnline.TryAdd(sts.EphemeralId, sts);
+                }
+               
+            }
+
+
+            if ((index & 1 << 1) != 0)
+            {
+                int len = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                for (int i = 0; i < len; i++)
+                {
+                    //offline
+                    var sts = DeserializePeerStatus(buffer, ref offset);
+                    data.WentOffline.TryAdd(sts.EphemeralId, sts);
+                }
+            }
+
+            return data;
+        }
+
+        internal static void SerializePeerStatus(PooledMemoryStream stream, PeerStatus status) 
+        {
+            PrimitiveEncoder.WriteGuid(stream, status.EphemeralId);
+            PrimitiveEncoder.WriteGuid(stream, status.PeerId);
+            PrimitiveEncoder.WriteDatetime(stream, status.OnlineSince);
+        }
+
+        internal static PeerStatus DeserializePeerStatus(byte[] buffer, ref int offset)
+        {
+            PeerStatus peerStatus = new PeerStatus();
+            peerStatus.EphemeralId = PrimitiveEncoder.ReadGuid(buffer,ref offset);
+            peerStatus.PeerId = PrimitiveEncoder.ReadGuid(buffer, ref offset);
+            peerStatus.OnlineSince = PrimitiveEncoder.ReadDatetime(buffer, ref offset);
+
+            return peerStatus;
+        }
+
+
+        #endregion
         #region PipeData
 
         internal static void SerializePipeData(PooledMemoryStream stream, PipeData pipeData)

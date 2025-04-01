@@ -16,7 +16,9 @@ using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Security.Cryptography;
-namespace NetworkLibrary.DistributedP2P.Server
+using System.Net.Sockets;
+
+namespace NetworkLibrary.DistributedP2P.SimpleRelay
 {
     internal class PipeToken
     {
@@ -56,9 +58,9 @@ namespace NetworkLibrary.DistributedP2P.Server
         }
     }
 
-    internal class PipeManager
+    internal class PipeManager:IDisposable 
     {
-        int tokenLifetimeMs = 20000;
+        int tokenLifetimeMs = 200000;
 
         internal AsyncTcpServer TcpServer;
         internal AsyncUdpServer UdpServer;
@@ -75,12 +77,13 @@ namespace NetworkLibrary.DistributedP2P.Server
         PrivateKeySign signer;
         readonly object tokenMtex = new object();
 
-        public PipeManager(AsyncTcpServer tcpServer, AsyncUdpServer udpServer, byte[] pipeKey)
+        public PipeManager(int TcpPort, int UdpPort, byte[] pipeKey)
         {
-            cryptoKey = pipeKey;
+            TcpServer = new AsyncTcpServer(TcpPort);
+            TcpServer.GatherConfig = ScatterGatherConfig.UseBuffer;
+            UdpServer = new AsyncUdpServer(UdpPort);
 
-            TcpServer = tcpServer;
-            UdpServer = udpServer;
+            cryptoKey = pipeKey;
 
             TcpServer.OnClientAccepted += TcpClientAccepted;
             TcpServer.OnClientDisconnected += HandleTcpPipeDisconnect;
@@ -89,14 +92,18 @@ namespace NetworkLibrary.DistributedP2P.Server
             UdpServer.OnBytesRecieved += HandleUdpBytes;
             signer = new PrivateKeySign(pipeKey);
 
+
+            UdpServer.StartServer();
+            TcpServer.StartServer();
+
         }
 
-     
+
         private void TcpClientAccepted(Guid guid)
         {
             tokenStorage.TryAdd(guid, new TcpTokenStorage());
-            TimerService.RegisterTimer(guid, tokenLifetimeMs, ()=>HandleTcpClientTimeout(guid));
-           
+            TimerService.RegisterTimer(guid, tokenLifetimeMs, () => HandleTcpClientTimeout(guid));
+
         }
 
         private void HandleTcpClientTimeout(Guid guid)
@@ -115,7 +122,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             tokenStorage.TryRemove(guid, out _);
         }
 
-        
+
 
         private void HandleTcpBytes(Guid clientId, byte[] bytes, int offset, int count)
         {
@@ -179,7 +186,7 @@ namespace NetworkLibrary.DistributedP2P.Server
                 {
                     PipeToken token = DeserializePipeToken(storage.Token, 0);
 
-                    if (activeTcpPipeStates.TryGetValue(token.Token, out var pipeState)) 
+                    if (activeTcpPipeStates.TryGetValue(token.Token, out var pipeState))
                     {
                         if (VerifyToken(storage.Token, token.Expiration))
                         {
@@ -217,7 +224,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             {
                 byte[] tokenBytes = ByteCopy.ToArray(bytes, offset, count);
 
-                if(tokenBytes.Length != PipeData.TokenLength)
+                if (tokenBytes.Length != PipeData.TokenLength)
                 {
                     return;
                 }
@@ -250,7 +257,7 @@ namespace NetworkLibrary.DistributedP2P.Server
                     UdpServer.RemoveClient(clientEp);
                 }
             }
-               
+
         }
 
         private bool VerifyToken(byte[] Token, DateTime expiration)
@@ -258,7 +265,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             var calculatedSignature = signer.Sign(Token, 0, 24);
             if (SignatureMatch(calculatedSignature, Token))
             {
-               if (DateTime.UtcNow < expiration)
+                if (DateTime.UtcNow < expiration)
                     return true;
                 return false;
             }
@@ -326,7 +333,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             tokenStorage.TryRemove(from, out _);
         }
 
-        internal byte[] GetPipeToken( bool tcp)
+        internal byte[] GetPipeToken(bool tcp)
         {
             byte[] data = new byte[PipeData.TokenLength];
             int offset = 0;
@@ -335,12 +342,12 @@ namespace NetworkLibrary.DistributedP2P.Server
             pipeData.Token = Guid.NewGuid();
             pipeData.Expiration = DateTime.UtcNow.AddMilliseconds(tokenLifetimeMs);
 
-            PrimitiveEncoder.WriteGuid(data,ref offset, pipeData.Token);//16
+            PrimitiveEncoder.WriteGuid(data, ref offset, pipeData.Token);//16
 
             long Time = pipeData.Expiration.ToBinary();
             PrimitiveEncoder.WriteFixedInt64(data, ref offset, Time); //8
 
-            byte[] signature = signer.Sign(data);
+            byte[] signature = signer.Sign(data, 0, 24);
             Buffer.BlockCopy(signature, 0, data, offset, 32);//32
 
             if (tcp)
@@ -364,7 +371,12 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         }
 
+        public void Dispose()
+        {
+            TcpServer.ShutdownServer();
+            UdpServer.Dispose();
+        }
     }
 
-    
+
 }

@@ -44,17 +44,17 @@ namespace NetworkLibrary.TCP.AES
         //    this.algorithm = algorithm;
         //    sessionInternal.Algorithm = algorithm;
         //}
-        private protected override IAsyncSession CreateSession(Socket socket, Guid sessionId)
-        {
-            var session = new AesTcpSession(socket, sessionId, algorithm);
-            session.socketSendBufferSize = SocketSendBufferSize;
-            session.SocketRecieveBufferSize = SocketRecieveBufferSize;
-            session.MaxIndexedMemory = MaxIndexedMemory;
-            session.DropOnCongestion = DropOnCongestion;
-            session.UseQueue = false;
-            sessionInternal = session;
-            return session;
-        }
+        //private protected override IAsyncSession CreateSession(Socket socket, Guid sessionId)
+        //{
+        //    var session = new AesTcpSession(socket, sessionId, algorithm);
+        //    session.socketSendBufferSize = SocketSendBufferSize;
+        //    session.SocketRecieveBufferSize = SocketRecieveBufferSize;
+        //    session.MaxIndexedMemory = MaxIndexedMemory;
+        //    session.DropOnCongestion = DropOnCongestion;
+        //    session.UseQueue = false;
+        //    sessionInternal = session;
+        //    return session;
+        //}
 
         public void SendAsync(byte[] data1, int offset1, int count1, byte[] data2, int offset2, int count2)
         {

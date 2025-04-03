@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net;
 using System.Text;
 using static System.Collections.Specialized.BitVector32;
 
@@ -31,17 +32,22 @@ namespace NetworkLibrary.DistributedP2P.Server
         public IClientDbInfo ClientInfo { get; }
         public Guid PeerId { get; internal set; }
         public Guid EphemeralId { get; internal set; }
+        public IPEndPoint ClientPublicIp { get; }
+        public List<string> ClientLocalIps { get; }
         public DateTime OnlineSince { get; internal set; }
 
 
         private PeerStatusList statusList = new PeerStatusList();
+        private ConcurrentDictionary<Guid,PeerStatus> onlinePeers = new ConcurrentDictionary<Guid,PeerStatus>();
+        private PeerStatus status =  new PeerStatus();
 
-        ConcurrentDictionary<Guid,PeerStatus> onlinePeers = new ConcurrentDictionary<Guid,PeerStatus>();
-        PeerStatus status =  new PeerStatus();
-        public ServerSession(IClientDbInfo clientInfo,Guid ephemeralId)
+
+        public ServerSession(IClientDbInfo clientInfo,Guid ephemeralId, System.Net.IPEndPoint clientPublicIp, List<string> clientLocalIps)
         {
             ClientInfo = clientInfo;
             EphemeralId = ephemeralId;
+            ClientPublicIp = clientPublicIp;
+            ClientLocalIps = clientLocalIps;
             PeerId = clientInfo.ClientId;
             statusList.WhoNeedsToKnow = EphemeralId;
             OnlineSince = DateTime.UtcNow;

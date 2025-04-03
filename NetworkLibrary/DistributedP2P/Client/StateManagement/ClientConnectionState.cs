@@ -1,5 +1,7 @@
 ﻿using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server;
+using NetworkLibrary.P2P.Components.HolePunch;
+using NetworkLibrary.P2P.Generic;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -18,7 +20,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         public Guid SessionId { get; private set; }
 
-        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken):base(stateId)
+        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken):base(stateId,20000)
         {
             this.connection = connection;
             this.clientDbConnector = clientDbConnector;
@@ -29,7 +31,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         {
             switch (message.Header)
             {
-             
+                case InternalConstants.SyncTime:
+                    SyncTime(message);
+                    break;
                 case InternalConstants.ConnectionGetClientPublicData:
                     SendClientPublicData(message);
                     break;
@@ -39,7 +43,20 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 case InternalConstants.Error:
                     HandleConnectionFail(message);
                     break;
+
+               
             }
+        }
+
+        private void SyncTime(MessageEnvelope message)
+        {
+            var task = connection.SyncTime().ContinueWith(t =>
+            {
+                MessageEnvelope msg = CreateEnvelope();
+                msg.Header = InternalConstants.SyncTime;
+                connection.SendAsyncMessage(msg);
+            });
+
         }
 
         public void Start()
@@ -51,6 +68,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.KeyValuePairs.Add("AuthToken", authToken.Token);
             msg.KeyValuePairs.Add("AuthMethod", authToken.AuthenticationMethod);
             msg.KeyValuePairs.Add("AdditionalData", authToken.AdditionalData);
+
+            List<string> locals = IPHelper.GetLocalIPAddresses4();
+            int i = 0;
+            foreach (var ip in locals)
+            {
+                msg.KeyValuePairs[ip] = null;
+            }
 
             connection.SendAsyncMessage(msg);
             // now server will authenticate after this

@@ -20,10 +20,23 @@ namespace NetworkLibrary.DistributedP2P.Components
         private TaskCompletionSource<IConversationState> Completion;
         private int isComplete = 0;
 
-        public ConversationStateBase(Guid stateId)
+        public ConversationStateBase(Guid stateId, int timeout = -1)
         {
             this.StateId = stateId;
             Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            if (timeout > 0)
+            {
+                TimerService.RegisterTimer(stateId, timeout, OnTimeOut);
+            }
+        }
+
+        private void OnTimeOut()
+        {
+            if (!IsCompleted())
+            {
+                Cancel();
+            }
         }
 
         public abstract void HandleMessage(MessageEnvelope message);

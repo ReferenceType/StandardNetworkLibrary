@@ -22,7 +22,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
    
 
-    internal class SessionManager<S> where S : ISerializer, new()
+    internal class SessionManager
     {
         internal ConcurrentDictionary<Guid, ServerSession> serverSessions = new ConcurrentDictionary<Guid, ServerSession>();
 
@@ -50,9 +50,9 @@ namespace NetworkLibrary.DistributedP2P.Server
             return true;    
         }
       
-        public PeerStatusList CreateSession(IClientDbInfo clientInfo, Guid ephemeralClientId, IPEndPoint sessionEp)
+        public PeerStatusList CreateSession(IClientDbInfo clientInfo, Guid ephemeralClientId, IPEndPoint clientPublicIp, List<string> clientLocalIps)
         {
-            var newSession = new ServerSession(clientInfo, ephemeralClientId);
+            var newSession = new ServerSession(clientInfo, ephemeralClientId, clientPublicIp, clientLocalIps);
             lock (publishMutex)
             {
                 if (!serverSessions.ContainsKey(ephemeralClientId))
@@ -98,6 +98,12 @@ namespace NetworkLibrary.DistributedP2P.Server
             return serverSessions.ContainsKey(ephemeralClientId);
         }
 
+
+        internal bool GetSessionData(Guid guid, out ServerSession sesData)
+        {
+            return serverSessions.TryGetValue(guid, out sesData);
+           
+        }
 
         internal async void PublishRoutine()
         {

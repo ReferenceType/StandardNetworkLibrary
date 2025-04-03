@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.TCP.AES;
 
-namespace NetworkLibrary.DistributedP2P.Client
+namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class SecureTcpChannel : ITcpChannel
+    public class SecureByteMessageChannel : IChannel
     {
         AesTcpClient client;
         AesTcpServer server;
@@ -15,23 +16,23 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public ChannelInfo Info { get; private set; }
 
-        public event Action<byte[],int,int> BytesReceived;  
+        public event Action<byte[], int, int> BytesReceived;
         public event Action Disconnected;
 
-        public SecureTcpChannel(AesTcpClient client, ChannelInfo info)
+        public SecureByteMessageChannel(AesTcpClient client, ChannelInfo info)
         {
             this.client = client;
-            this.Info = info;
+            Info = info;
 
             clientMode = true;
             client.OnBytesReceived += ClientBytesReceived;
             client.OnDisconnected += ClientDisconnected;
         }
 
-        public SecureTcpChannel(AesTcpServer server, ChannelInfo info)
+        public SecureByteMessageChannel(AesTcpServer server, ChannelInfo info)
         {
             this.server = server;
-            this.Info = info;
+            Info = info;
 
             clientId = server.Sessions.First().Key;
             server.OnBytesReceived += ServerBytesReceived;
@@ -72,7 +73,10 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public void Start()
         {
-            throw new NotImplementedException();
+            if (clientMode)
+            {
+                client.Start();
+            }            
         }
     }
 }

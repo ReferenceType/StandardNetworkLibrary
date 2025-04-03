@@ -15,8 +15,17 @@ namespace NetworkLibrary.DistributedP2P.Components
         public const string ConnectionAckClientPublicData = "6";
         public const string PipeRequestTcp = "7";
         public const string PipeRequestUdp = "8";
+        public const string PipeReqAck = "d";
         public const string PipeTokenDeliveryTcp = "9";
         public const string PipeTokenDeliveryUdp = "a";
         public const string PublishPeerList = "b";
+        public const string SyncTime = "c";
+        public const string RequestHolepunchUdp = "d";
+        public const string AckRequestHolepunchUdp = "e";
+        public const string StartHPUdp = "f";
+        public const string PunchSucces = "g";
+        public const string PunchFail = "h";
+        public const string PunchSuccesAck = "i";
+        public const string PunchFailAck = "j";
     }
 }

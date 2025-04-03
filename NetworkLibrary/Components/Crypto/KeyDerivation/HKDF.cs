@@ -8,7 +8,7 @@ namespace NetworkLibrary.Components.Crypto.KeyDerivation
     public class HKDFLite
     {
         // HKDF implementation (RFC 5869)
-        public static byte[] DeriveKey(byte[] ikm, byte[] salt = null, byte[] info = null, int outputLength = 32)
+        public static byte[] DeriveKey(byte[] sharedSecret, byte[] salt = null, byte[] info = null, int outputLength = 32)
         {
             if (salt == null)
             {
@@ -20,7 +20,7 @@ namespace NetworkLibrary.Components.Crypto.KeyDerivation
                 info = Encoding.UTF8.GetBytes("AES-GCM-Info");
             }
 
-            byte[] prk = HkdfExtract(salt, ikm);
+            byte[] prk = HkdfExtract(salt, sharedSecret);
             return HkdfExpand(prk, info, outputLength);
         }
 

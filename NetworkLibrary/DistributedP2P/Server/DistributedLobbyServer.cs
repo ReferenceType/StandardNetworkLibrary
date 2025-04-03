@@ -52,7 +52,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         IAuthenticator authenticator;
         IServerDbConnector dbConnector;
 
-        SessionManager<S> sessionManager;
+        SessionManager sessionManager;
         Components.StateManager stateManager =  new Components.StateManager();
         PipeManager piper;
         Stopwatch serverClock = new Stopwatch();
@@ -90,7 +90,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             sslServer.OnMessageReceived += SslMessageReceived;
             sslServer.StartServer();
 
-            sessionManager = new SessionManager<S>(this);
+            sessionManager = new SessionManager(this);
             sessionManager.PeerListPublish += PublishPeerList;
 
         }
@@ -117,6 +117,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         private void HandleConnRequest(MessageEnvelope msg)
         {
+
             Guid stateId = msg.MessageId;
             var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector);
             stateManager.RegisterState(state);
@@ -131,7 +132,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             if (state.IsSuccesful)
             {
                 var sessionEp = sslServer.GetSessionEndpoint(state.EphemeralClientId);
-                var statusList = sessionManager.CreateSession(state.clientDbInfo, state.EphemeralClientId, sessionEp);
+                var statusList = sessionManager.CreateSession(state.clientDbInfo, state.EphemeralClientId, sessionEp, state.clientLocalIps);
                 if(statusList!=null)
                     PublishPeerList(new List<PeerStatusList>() { statusList });
             }
@@ -197,6 +198,21 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 break;
 
+
+                case InternalConstants.PipeRequestUdp:
+
+                    var pipeState1 = new ServerPipeState(message.MessageId, this, pipeManager);
+                    stateManager.RegisterState(pipeState1);
+                    pipeState1.HandleMessage(message);
+
+                    break;
+
+                case InternalConstants.RequestHolepunchUdp:
+                    var state = new ServerUdpHolepunchState(message.MessageId, this, sessionManager);
+                    stateManager.RegisterState(state);
+                    state.HandleMessage(message);
+                    break;
+
                 case Constants.TimeSync:
 
                     byte[] time = new byte[8];
@@ -239,12 +255,20 @@ namespace NetworkLibrary.DistributedP2P.Server
             udpServer.Dispose();
         }
 
-        public DateTime GetTime()
+        public DateTime GetDateTime()
         {
             // will be distributed time
             return DateTime.UtcNow;
         }
 
+        public double GetTime() 
+        {
+            return 0;
+        }
+        public Task<bool> SyncTime()
+        {
+            throw new NotImplementedException();
+        }
         public void Dispose()
         {
             sslServer.ShutdownServer();

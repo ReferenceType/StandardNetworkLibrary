@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.Components.Crypto.DiffieHellman;
+﻿using NetworkLibrary.Components.Crypto;
+using NetworkLibrary.Components.Crypto.DiffieHellman;
 using NetworkLibrary.Components.Crypto.KeyDerivation;
 using NetworkLibrary.DistributedP2P.Channels;
 using NetworkLibrary.DistributedP2P.Client.StateManagement;
@@ -6,6 +7,7 @@ using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.P2P.Components.HolePunch;
+using NetworkLibrary.TCP.AES;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -26,7 +28,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private ConcurrentDictionary<Guid, PeerStatus> onlinePeers = new ConcurrentDictionary<Guid, PeerStatus>();
 
-        public event Action<ITcpChannel> PeerConnected;
+        public event Action<IChannel> PeerConnected;
         public event Action<PeerStatus> PeerOnline;
         public event Action<PeerStatus> PeerOffline;
 
@@ -51,6 +53,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             sslClient = new SecureMessageClient<S>(certificate);
             sslClient.OnMessageReceived += HandleServerMsg;
             sslClient.OnDisconnected += HandleDisconnected;
+            timeSync = new TimeSync(this);
         }
 
 
@@ -76,8 +79,6 @@ namespace NetworkLibrary.DistributedP2P.Client
                 {
                     SessionId = conState.SessionId;
                     IsConnected = true;
-                    timeSync = new TimeSync(this);
-                    await timeSync.SyncTime();
                     timeSync.StartAutoTimeSync(5000);
                     return true;
                 }
@@ -88,6 +89,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             else return false;
         }
 
+        #region Send
         public void SendAsyncMessage(MessageEnvelope message)
         {
             sslClient.SendAsyncMessage(message);
@@ -108,11 +110,38 @@ namespace NetworkLibrary.DistributedP2P.Client
             msg.To = a;
             return sslClient.SendMessageAndWaitResponse(msg);
         }
-        public async Task<Socket> OpenTcpSocket(Guid destinationPeer, ChannelInfo Info)
+        #endregion
+
+        // we dont need this socket methods afeterall
+        public async Task<Socket> OpenTcpSocket(Guid destinationPeer,string socketName)
         {
-            var pipeState = new ClientPipeState(Guid.NewGuid(), this);
+            var Info = new ChannelInfo();
+            Info.ChannelName = socketName;
+            Info.ChannelType = ChannelType.RawTcp;
+
+            var pipeState = new ClientPipeState(Guid.NewGuid(), this, Info);
             stateManager.RegisterState(pipeState);
-            pipeState.Start(destinationPeer);
+            pipeState.Start(destinationPeer, tcp: true);
+
+            await pipeState.WaitCompletion();
+
+            if (pipeState.IsSuccesful)
+            {
+                Console.WriteLine("PipeSuccesfull");
+                return pipeState.ConnectedSocket;
+            }
+            return null;
+        }
+
+        public async Task<Socket> OpenUdpSocket(Guid destinationPeer, string socketName)
+        {
+            var Info = new ChannelInfo();
+            Info.ChannelName = socketName;
+            Info.ChannelType = ChannelType.RawUdp;
+
+            var pipeState = new ClientPipeState(Guid.NewGuid(), this,Info);
+            stateManager.RegisterState(pipeState);
+            pipeState.Start(destinationPeer, tcp:false);
 
             await pipeState.WaitCompletion();
 
@@ -125,29 +154,18 @@ namespace NetworkLibrary.DistributedP2P.Client
         }
 
 
-        public async Task<ITcpChannel> OpenTcpChannel(Guid destinationPeer, ChannelInfo Info)
+        public async Task<IChannel> OpenTcpChannel(Guid destinationPeer, ChannelInfo Info)
         {
-            var pipeState = new ClientPipeState(Guid.NewGuid(), this);
+            var pipeState = new ClientPipeState(Guid.NewGuid(), this, Info);
             stateManager.RegisterState(pipeState);
-            pipeState.Start(destinationPeer);
+            pipeState.Start(destinationPeer,tcp: true);
 
             await pipeState.WaitCompletion();
 
             if (pipeState.IsSuccesful)
             {
-                var info = new ChannelInfo();
-                var channel = new ByteMessageChannel(info, pipeState.ConnectedSocket);
+                IChannel channel = CreateChannel(pipeState);
                 return channel;
-
-
-                Console.WriteLine("PipeSuccesfull");
-                return null;
-                var symetricKey = await PerformDHWithPeer(destinationPeer);
-                if (symetricKey != null)
-                {
-                    //var channel = new SecureTcpChannel(Info, pipeState.ConnectedSocket, symetricKey);
-                    return null;
-                }
             }
             return null;
         }
@@ -157,14 +175,39 @@ namespace NetworkLibrary.DistributedP2P.Client
             if (state.IsSuccesful)
             {
                 var pipeState = (ClientPipeState)state;
+                IChannel channel = CreateChannel(pipeState);
 
-                var info = new ChannelInfo();
-                var channel = new ByteMessageChannel(info, pipeState.ConnectedSocket);
-                PeerConnected?.Invoke(channel);
+                if (channel != null)
+                    PeerConnected?.Invoke(channel);
 
                 Console.WriteLine("DestPeer Conn Succesfull");
                 // notify that a connection is opened, like socket accept
             }
+        }
+
+        private static IChannel CreateChannel(ClientPipeState pipeState)
+        {
+            IChannel channel = null;
+            switch (pipeState.ChannelInfo.ChannelType)
+            {
+                case ChannelType.RawTcp:
+                    channel = new RawTcpSocket(pipeState.ChannelInfo, pipeState.ConnectedSocket);
+                    break;
+                case ChannelType.RawUdp:
+                    channel = new RawUdpSocket(pipeState.ChannelInfo, pipeState.ConnectedSocket);
+                    break;
+                case ChannelType.ByteMessage:
+                    channel = new ByteMessageChannel(pipeState.ChannelInfo, pipeState.ConnectedSocket);
+                    break;
+                case ChannelType.SecureByteMessage:
+                    var symetricKey = HKDFLite.DeriveKey(pipeState.sharedSecret,outputLength:16);
+                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey,AesMode.GCM);
+                    AesTcpClient client = new AesTcpClient(algo,pipeState.ConnectedSocket);
+                    channel = new SecureByteMessageChannel(client, pipeState.ChannelInfo);
+                    break;
+            }
+
+            return channel;
         }
 
         private async Task<byte[]> PerformDHWithPeer(Guid destinationPeer)
@@ -201,13 +244,15 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                 switch (envelope.Header)
                 {
-                    case InternalConstants.PipeTokenDeliveryTcp:
+                    case InternalConstants.PipeRequestTcp:
+                    case InternalConstants.PipeRequestUdp:
 
-                        var pipeState = new ClientPipeState(envelope.MessageId, this);
+                        var pipeState = new ClientPipeState(envelope, this);
                         pipeState.OnComplete += HandlePipeCreated;
                         stateManager.RegisterState(pipeState);
                         pipeState.HandleMessage(envelope);
                         break;
+
 
                     case InternalConstants.PublishPeerList:
 
@@ -217,6 +262,10 @@ namespace NetworkLibrary.DistributedP2P.Client
                         PeerStatusList statusList = KnownTypeSerializer.DeserializePeerStatusList(buffer, ref offset);
                         PublishPeerStatusEvents(statusList);
 
+                        break;
+
+                    case InternalConstants.RequestHolepunchUdp:
+                        ManageUdpHolepunchRequest(envelope);
                         break;
 
                 }
@@ -229,6 +278,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         }
 
+        
         private void PublishPeerStatusEvents(PeerStatusList statusList)
         {
             foreach (var offlineKV in statusList.WentOffline)
@@ -259,8 +309,41 @@ namespace NetworkLibrary.DistributedP2P.Client
             return copy;
         }
 
-        private int disposed = 0;
+        public async Task<bool> TryUdpHolePunch(Guid destination) 
+        {
+            var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this);
+            stateManager.RegisterState(state);
+            state.Start();
 
+            await state.WaitCompletion();
+
+            //if (state.IsSuccesful)
+            //{
+            //    state.Socket.SendTo( new byte[689], state.SuccesfulEndpoint);
+            //}
+            return state.IsSuccesful;
+        }
+
+        private void ManageUdpHolepunchRequest(MessageEnvelope envelope)
+        {
+            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this);
+            stateManager.RegisterState(state);
+            state.OnComplete += State_OnComplete;
+            state.HandleMessage(envelope);
+
+            void State_OnComplete(IConversationState obj)
+            {
+                if (state.IsSuccesful)
+                {
+                    //byte[] buff =  new byte[1024];
+                    //int rec = state.Socket.Receive(buff);
+                    //Console.WriteLine("YIPPIE");
+                }
+            }
+
+        }
+
+         
 
         public double GetTime()
         {
@@ -270,6 +353,10 @@ namespace NetworkLibrary.DistributedP2P.Client
         public DateTime GetDateTime()
         {
             return timeSync.GetDateTime();
+        }
+        public Task<bool> SyncTime()
+        {
+           return timeSync.SyncTime();
         }
 
         public void Disconnect()
@@ -285,9 +372,6 @@ namespace NetworkLibrary.DistributedP2P.Client
             Disconnected?.Invoke();
         }
 
-        DateTime ITimeProvider.GetTime()
-        {
-           return timeSync.GetDateTime();
-        }
+
     }
 }

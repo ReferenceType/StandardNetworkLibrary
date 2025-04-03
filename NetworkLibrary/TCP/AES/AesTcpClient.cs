@@ -14,7 +14,7 @@ namespace NetworkLibrary.TCP.AES
     {
         private AesTcpSession sessionInternal;
         private ConcurrentAesAlgorithm algorithm;
-
+        private Socket connectedSocket;
         public AesTcpClient(ConcurrentAesAlgorithm algorithm)
         { 
             this.algorithm = algorithm;
@@ -22,9 +22,19 @@ namespace NetworkLibrary.TCP.AES
 
         public AesTcpClient(Socket clientSocket, ConcurrentAesAlgorithm algorithm) 
         {
-    
             this.algorithm = algorithm;
             SetConnectedSocket(clientSocket,ScatterGatherConfig.UseBuffer);
+        }
+
+        internal AesTcpClient(ConcurrentAesAlgorithm algorithm,Socket clientSocket)
+        {
+            this.connectedSocket = clientSocket;
+            this.algorithm = algorithm;
+        }
+
+        internal void Start()
+        {
+            SetConnectedSocket(connectedSocket, ScatterGatherConfig.UseBuffer);
         }
 
         private protected override IAsyncSession CreateSession(SocketAsyncEventArgs e, Guid sessionId)

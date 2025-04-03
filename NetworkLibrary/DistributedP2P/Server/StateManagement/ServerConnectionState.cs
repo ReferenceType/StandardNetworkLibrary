@@ -1,6 +1,7 @@
 ﻿using NetworkLibrary.DistributedP2P.Components;
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +19,9 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private readonly IServerDbConnector dbConnector;
         private IAuthenticationResult tokenResult;
 
-        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector):base(stateId)
+        public List<string> clientLocalIps;
+
+        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector):base(stateId,20000)
         {
             this.EphemeralClientId = clientId;
             this.connection = connection;
@@ -26,13 +29,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             this.dbConnector = dbConnector;
         }
 
-        //internal void Start()
-        //{
-        //    var msg = CreateEnvelope();
-        //    msg.Header = InternalConstants.ConnectionStart;
-        //    connection.SendAsyncMessage(EphemeralClientId, msg);
-        //}
-
+        
         public override void HandleMessage(MessageEnvelope message)
         {
             if (IsCompleted())
@@ -43,13 +40,20 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                     HandleInitialConnectionRequest(message);
                     break;
 
+                case InternalConstants.SyncTime:
+                    HandleTimeSyncComplete(message);
+                    break;
+
                 case InternalConstants.ConnectionAckClientPublicData:
                     HandleClientPublicData(message);
                     break;
             }
         }
 
-
+        private void HandleTimeSyncComplete(MessageEnvelope message)
+        {
+            SendGood();
+        }
 
         private void HandleInitialConnectionRequest(MessageEnvelope message)
         {
@@ -67,6 +71,17 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             {
                 ReplyError("No authentication method provided");
                 return;
+            }
+            message.KeyValuePairs.Remove("AuthToken");
+            message.KeyValuePairs.Remove("AuthMethod");
+            if(message.KeyValuePairs.ContainsKey("AdditionalData"))
+                message.KeyValuePairs.Remove("AdditionalData");
+
+            clientLocalIps = new List<string>();
+
+            foreach (var kv in message.KeyValuePairs)
+            {
+                clientLocalIps.Add(kv.Key);
             }
 
             authenticator.Authenticate(token, method, additionalData).ContinueWith(HandleAuthentication);
@@ -102,7 +117,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (dbResult.IsValid)
             {
                 clientDbInfo = dbResult;
-                ReplyGood();
+                SyncTime();
             }
             else
             {
@@ -133,7 +148,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (dbResult.IsValid)
             {
                 clientDbInfo = dbResult;
-                ReplyGood();
+                SyncTime();
             }
             else
             {
@@ -141,7 +156,19 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
         }
 
-        private void ReplyGood()
+        private void SyncTime()
+        {
+            var msg = CreateEnvelope();
+            msg.Header = InternalConstants.SyncTime;
+            msg.To = EphemeralClientId;
+
+            if (IsCompleted())
+                    return;
+
+            connection.SendAsyncMessage(EphemeralClientId, msg);
+        }
+
+        private void SendGood()
         {
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.ConnectionAckGood;
@@ -154,7 +181,6 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 connection.SendAsyncMessage(EphemeralClientId, msg);
                 Completed(true);
             }
-
         }
 
         private void ReplyError(string err)

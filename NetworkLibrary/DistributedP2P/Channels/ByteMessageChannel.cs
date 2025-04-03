@@ -7,7 +7,7 @@ using System.Text;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class ByteMessageChannel : ITcpChannel
+    public class ByteMessageChannel : IChannel
     {
         public ChannelInfo Info { get; private set; }
 

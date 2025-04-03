@@ -29,5 +29,9 @@ namespace NetworkLibrary.DistributedP2P.Components
 
         }
 
+        internal static void RegisterTimer(Guid stateId, object onTimeOut)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

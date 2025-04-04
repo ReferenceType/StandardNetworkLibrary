@@ -20,6 +20,16 @@ namespace NetworkLibrary.UDP.Reliable.Components
             receiver.OnMessageReceived += OutputMessageReceived;
         }
 
+        public ReliableModule(IPEndPoint adress,SenderModule sender)
+        {
+            this.sender = sender;
+            Endpoint = adress;
+            sender.SendRequested += OutputDataBytesToSend;
+
+            receiver.SendFeedback += OutputFeedbacks;
+            receiver.OnMessageReceived += OutputMessageReceived;
+        }
+
         private void OutputMessageReceived(byte[] buffer, int offset, int count)
         {
             OnReceived?.Invoke(this, buffer, offset, count);

@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.DistributedP2P.Components;
+﻿using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
@@ -16,7 +17,10 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         Guid From;
         Guid To;
         int fromPort;
+        string fromPublicKey;
         int toPort;
+        string toPublicKey;
+        ChannelInfo info;
         private int succesCount;
 
         public ServerUdpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
@@ -47,16 +51,23 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         // obtain port from destination endpoint
         private void HandleHolepunchRequest(MessageEnvelope message)
         {
+            info =  new ChannelInfo();
+            info.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
+            info.ChannelName = message.KeyValuePairs["Name"];
+
             From = message.From;
             To = message.To;
-            fromPort = int.Parse(message.KeyValuePairs.First().Key);
-
+            fromPort = int.Parse(message.KeyValuePairs["Port"]);
+            if(info.RequiresKeyExchange())
+                fromPublicKey = message.KeyValuePairs["DH"];
             connection.SendAsyncMessage(message);
         }
 
         private void HandleHolepunchRequestAck(MessageEnvelope message)
         {
-            toPort = int.Parse(message.KeyValuePairs.First().Key);
+            toPort = int.Parse(message.KeyValuePairs["Port"]);
+            if (info.RequiresKeyExchange())
+                toPublicKey = message.KeyValuePairs["DH"];
 
             //signal
             double startTime = connection.GetTime();
@@ -81,6 +92,8 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 KnownTypeSerializer.SerializeEndpointTransferMessage(stream, FromNeedsToKnow);
                 msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 msg.To = From;
+                if (info.RequiresKeyExchange())
+                    msg.KeyValuePairs["DH"] = toPublicKey;
                 connection.SendAsyncMessage(msg);
 
                 stream.Position32 = 0;
@@ -88,6 +101,8 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 KnownTypeSerializer.SerializeEndpointTransferMessage(stream, ToNeedsToKnow);
                 msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 msg.To = To;
+                if (info.RequiresKeyExchange())
+                    msg.KeyValuePairs["DH"] = fromPublicKey;
                 connection.SendAsyncMessage(msg);
             }
             else
@@ -158,17 +173,24 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             msg.Header = InternalConstants.PunchFailAck;
             connection.SendAsyncMessage(From, msg);
             connection.SendAsyncMessage(To, msg);
+            Completed(false);
 
         }
 
         private void HandleSucces(MessageEnvelope message)
         {
+
+            var msg = CreateEnvelope();
+            msg.Header = InternalConstants.PunchSuccesAck;
+
+            if(message.From == From)
+                connection.SendAsyncMessage(To, msg);
+            else if(message.From == To)
+                connection.SendAsyncMessage(From, msg);
+
             if (Interlocked.Increment(ref succesCount) == 2)
             {
-                var msg = CreateEnvelope();
-                msg.Header = InternalConstants.PunchSuccesAck;
-                connection.SendAsyncMessage(From, msg);
-                connection.SendAsyncMessage(To, msg);
+                Completed(true);
             }
         }
 

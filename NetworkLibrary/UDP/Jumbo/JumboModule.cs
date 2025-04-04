@@ -10,10 +10,11 @@ namespace NetworkLibrary.UDP.Jumbo
         Sender sender;
         public Action<byte[], int, int> SendToSocket;
         public Action<byte[], int, int> MessageReceived;
-        public JumboModule()
+        public JumboModule(int reserveforPrefix = 38)
         {
             this.receiver = new Receiver();
             this.sender = new Sender();
+            sender.ReserveForPrefix = reserveforPrefix;
             sender.OnSend = SendBytesToSocket;
             receiver.OnMessageExtracted = HandleExtractedMessage;
         }

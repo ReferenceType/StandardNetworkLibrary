@@ -11,6 +11,8 @@ namespace NetworkLibrary.DistributedP2P.Components
        static Stopwatch sw = Stopwatch.StartNew();
         public static void Wait(double miliseconds)
         {
+            if (miliseconds <= 0)
+                return;
             double time = sw.Elapsed.TotalMilliseconds;
             double until = time+miliseconds;
 

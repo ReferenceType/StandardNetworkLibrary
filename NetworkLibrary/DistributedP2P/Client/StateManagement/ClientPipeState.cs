@@ -256,6 +256,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             var pipeData = KnownTypeSerializer.DeserializePipeData(message.Payload, ref off);
 
             var connected = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            connected.SendBufferSize = 12800000;
+            connected.ReceiveBufferSize = 12800000;
 
             foreach (EndpointData endpoint in pipeData.PipeEndpoints)
             {

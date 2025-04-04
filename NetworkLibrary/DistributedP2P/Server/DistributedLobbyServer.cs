@@ -263,7 +263,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         public double GetTime() 
         {
-            return 0;
+            return serverClock.Elapsed.TotalMilliseconds;
         }
         public Task<bool> SyncTime()
         {

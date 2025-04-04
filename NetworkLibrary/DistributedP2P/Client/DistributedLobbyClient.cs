@@ -15,6 +15,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkLibrary.Components;
 
 namespace NetworkLibrary.DistributedP2P.Client
 {
@@ -200,11 +201,12 @@ namespace NetworkLibrary.DistributedP2P.Client
                     channel = new ByteMessageChannel(pipeState.ChannelInfo, pipeState.ConnectedSocket);
                     break;
                 case ChannelType.SecureByteMessage:
-                    var symetricKey = HKDFLite.DeriveKey(pipeState.sharedSecret,outputLength:16);
-                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey,AesMode.GCM);
-                    AesTcpClient client = new AesTcpClient(algo,pipeState.ConnectedSocket);
+                    var symetricKey = HKDFLite.DeriveKey(pipeState.sharedSecret, outputLength: 16);
+                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey, AesMode.GCM);
+                    AesTcpClient client = new AesTcpClient(algo, pipeState.ConnectedSocket);
                     channel = new SecureByteMessageChannel(client, pipeState.ChannelInfo);
                     break;
+          
             }
 
             return channel;
@@ -309,24 +311,36 @@ namespace NetworkLibrary.DistributedP2P.Client
             return copy;
         }
 
-        public async Task<bool> TryUdpHolePunch(Guid destination) 
+        public async Task<IChannel> TryUdpHolePunch(Guid destination, ChannelInfo info) 
         {
-            var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this);
+            var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this,info);
             stateManager.RegisterState(state);
             state.Start();
 
             await state.WaitCompletion();
 
-            //if (state.IsSuccesful)
-            //{
-            //    state.Socket.SendTo( new byte[689], state.SuccesfulEndpoint);
-            //}
-            return state.IsSuccesful;
+            if (state.IsSuccesful)
+            {
+                if(info.ChannelType == ChannelType.SecureUdpMessage)
+                {
+                    var key = HKDFLite.DeriveKey(state.SharedSecret, outputLength: 16);
+                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(key, AesMode.GCM);
+                    IChannel ch = new SecureUdpMessageChannel(state.Socket, state.SuccesfulEndpoint, algo, info);
+                    return ch;
+                }
+                else
+                {
+                    IChannel ch = new UdpMessageChannel(state.Socket, state.SuccesfulEndpoint, info);
+                    return ch;
+                }
+               
+            }
+            return null;
         }
 
         private void ManageUdpHolepunchRequest(MessageEnvelope envelope)
         {
-            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this);
+            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,null);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);
@@ -335,9 +349,19 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (state.IsSuccesful)
                 {
-                    //byte[] buff =  new byte[1024];
-                    //int rec = state.Socket.Receive(buff);
-                    //Console.WriteLine("YIPPIE");
+                    if(state.info.ChannelType == ChannelType.SecureUdpMessage)
+                    {
+                        var key = HKDFLite.DeriveKey(state.SharedSecret, outputLength: 16);
+                        var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(key, AesMode.GCM);
+                        IChannel ch = new SecureUdpMessageChannel(state.Socket, state.SuccesfulEndpoint, algo, state.info);
+                        PeerConnected?.Invoke(ch);
+                    }
+                    else
+                    {
+                        IChannel ch = new UdpMessageChannel(state.Socket, state.SuccesfulEndpoint, state.info);
+                        PeerConnected?.Invoke(ch);
+                    }
+                
                 }
             }
 

@@ -14,6 +14,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
     internal class ClientPipeState : ConversationStateBase
     {
         private readonly IDistributedConnection connection;
+        private readonly EndpointData serverEndpoint;
         private Guid destinationPeer;
 
         public Socket ConnectedSocket { get; private set; }
@@ -22,20 +23,22 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         public ChannelInfo ChannelInfo;
         private DiffieHellman df;
-        public ClientPipeState(Guid stateId, IDistributedConnection connection,ChannelInfo info) : base(stateId, 20000)
+        public ClientPipeState(Guid stateId, IDistributedConnection connection,EndpointData serverEndpoint,ChannelInfo info) : base(stateId, 20000)
         {
             this.connection = connection;
+            this.serverEndpoint = serverEndpoint;
             this.ChannelInfo = info;
         }
 
-        public ClientPipeState(MessageEnvelope message,IDistributedConnection connection) : base(message.MessageId)
+        public ClientPipeState(MessageEnvelope message,IDistributedConnection connection, EndpointData serverEndpoint) : base(message.MessageId)
         {
             this.connection = connection;
           
         }
 
-        public void Start(Guid destinationPeer, bool tcp)
+        public void Start(Guid destinationPeer)
         {
+            bool tcp = ChannelInfo.ChannelType == ChannelType.Tcp || ChannelInfo.ChannelType == ChannelType.SecureTcp;
             this.destinationPeer = destinationPeer;
 
             var msg = CreateEnvelope();
@@ -118,6 +121,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 foreach (EndpointData endpoint in pipeData.PipeEndpoints)
                 {
+                    if (IPHelper.IsZero(endpoint.Ip))
+                        endpoint.Ip = serverEndpoint.Ip;
+
                     Socket connected = await TryConnectWithTimeout(endpoint);
                     if (connected != null)
                     {
@@ -261,7 +267,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             foreach (EndpointData endpoint in pipeData.PipeEndpoints)
             {
-                
+                if (IPHelper.IsZero(endpoint.Ip))
+                    endpoint.Ip = serverEndpoint.Ip;
+
                 bool success = await UdpTokenExchange(connected, pipeData.Token, endpoint.ToIpEndpoint());
                 if (success)
                 {

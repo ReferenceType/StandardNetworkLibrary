@@ -7,7 +7,7 @@ using System.Text;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class ByteMessageChannel : IChannel
+    public class TcpChannel2 : IChannel
     {
         public ChannelInfo Info { get; private set; }
 
@@ -17,7 +17,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         private ByteMessageTcpClient client;
         private readonly Socket connectedSocket;
 
-        public ByteMessageChannel(ChannelInfo info, Socket connectedSocket)
+        public TcpChannel2(ChannelInfo info, Socket connectedSocket)
         {
             Info = info;
             this.connectedSocket = connectedSocket;

@@ -22,10 +22,12 @@ namespace NetworkLibrary.DistributedP2P.Components
         public const string SyncTime = "c";
         public const string RequestHolepunchUdp = "d";
         public const string AckRequestHolepunchUdp = "e";
-        public const string StartHPUdp = "f";
+        public const string StartHP = "f";
         public const string PunchSucces = "g";
         public const string PunchFail = "h";
         public const string PunchSuccesAck = "i";
         public const string PunchFailAck = "j";
+        public const string RequestHolepunchTcp = "k";
+        public const string AckRequestHolepunchTcp = "l";
     }
 }

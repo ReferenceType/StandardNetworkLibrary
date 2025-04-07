@@ -18,7 +18,10 @@ namespace NetworkLibrary.DistributedP2P.Components
 
             while (until > sw.Elapsed.TotalMilliseconds)
             {
-                Thread.SpinWait(10);
+                if((until - sw.Elapsed.TotalMilliseconds)>32)
+                    Thread.Sleep(10);//~16 ms
+                else
+                    Thread.SpinWait(20);
             }
 
         }

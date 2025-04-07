@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 {
-    internal class ServerUdpHolepunchState : ConversationStateBase
+    internal class ServerTcpHolepunchState : ConversationStateBase
     {
         private readonly IDistributedConnection connection;
         private readonly SessionManager sessionManager;
@@ -23,7 +23,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         ChannelInfo info;
         private int succesCount;
 
-        public ServerUdpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
+        public ServerTcpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
         {
             this.connection = connection;
             this.sessionManager = sessionManager;
@@ -33,10 +33,10 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         {
             switch (message.Header)
             {
-                case InternalConstants.RequestHolepunchUdp:
+                case InternalConstants.RequestHolepunchTcp:
                     HandleHolepunchRequest(message);
                     break;
-                case InternalConstants.AckRequestHolepunchUdp:
+                case InternalConstants.AckRequestHolepunchTcp:
                     HandleHolepunchRequestAck(message);
                     break;
                 case InternalConstants.PunchSucces:
@@ -51,14 +51,14 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         // obtain port from destination endpoint
         private void HandleHolepunchRequest(MessageEnvelope message)
         {
-            info =  new ChannelInfo();
+            info = new ChannelInfo();
             info.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
             info.ChannelName = message.KeyValuePairs["Name"];
 
             From = message.From;
             To = message.To;
             fromPort = int.Parse(message.KeyValuePairs["Port"]);
-            if(info.RequiresKeyExchange())
+            if (info.RequiresKeyExchange())
                 fromPublicKey = message.KeyValuePairs["DH"];
             connection.SendAsyncMessage(message);
         }
@@ -84,7 +84,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
             if (sesFrom != null && sesTo != null)
             {
-                IPHelper.ObtainIpEndpoints(fromPort, toPort, sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
+                IPHelper.ObtainIpEndpoints(fromPort,toPort,sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
                 stream.Position32 = 0;
@@ -113,6 +113,8 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         }
 
 
+       
+
         private void HandleFailure(MessageEnvelope message)
         {
             var msg = CreateEnvelope();
@@ -122,22 +124,63 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             Completed(false);
 
         }
-
+        int succCounter = 0;
         private void HandleSucces(MessageEnvelope message)
         {
-
-            var msg = CreateEnvelope();
-            msg.Header = InternalConstants.PunchSuccesAck;
-            msg.SetPayload(message.Payload, message.PayloadOffset, message.PayloadCount);
-            if (message.From == From)
-                connection.SendAsyncMessage(To, msg);
-            else if(message.From == To)
-                connection.SendAsyncMessage(From, msg);
-
-            if (Interlocked.Increment(ref succesCount) == 2)
+            if(Interlocked.Increment(ref succCounter) == 1)
             {
+                var sts = message.KeyValuePairs["Status"];
+
+                var msg = CreateEnvelope();
+                msg.Header = InternalConstants.PunchSuccesAck;
+                msg.KeyValuePairs = new Dictionary<string, string>();
+                msg.SetPayload(message.Payload, message.PayloadOffset, message.PayloadCount);
+              
+                if (sts == "Accepted")
+                {
+                   
+                    if (message.From == From)
+                    {
+                        msg.KeyValuePairs["Use"] = "Connected";
+                        connection.SendAsyncMessage(To, msg);
+
+                        msg.KeyValuePairs["Use"] = "Accepted";
+                        connection.SendAsyncMessage(From, msg);
+                    }
+                    else if (message.From == To)
+                    {
+                        msg.KeyValuePairs["Use"] = "Connected";
+                        connection.SendAsyncMessage(From, msg);
+
+                        msg.KeyValuePairs["Use"] = "Accepted";
+                        connection.SendAsyncMessage(To, msg);
+                    }
+                       
+                }
+                else // connected
+                {
+                   
+                    if (message.From == From)
+                    {
+                        msg.KeyValuePairs["Use"] = "Accepted";
+                        connection.SendAsyncMessage(To, msg);
+
+                        msg.KeyValuePairs["Use"] = "Connected";
+                        connection.SendAsyncMessage(From, msg);
+                    }
+                    else if (message.From == To)
+                    {
+                        msg.KeyValuePairs["Use"] = "Accepted";
+                        connection.SendAsyncMessage(From, msg);
+
+                        msg.KeyValuePairs["Use"] = "Connected";
+                        connection.SendAsyncMessage(To, msg);
+                    }
+                }
                 Completed(true);
+                
             }
+          
         }
 
     }

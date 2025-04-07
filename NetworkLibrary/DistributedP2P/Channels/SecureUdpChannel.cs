@@ -12,11 +12,11 @@ using NetworkLibrary.Components;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class SecureUdpMessageChannel:UdpMessageChannel
+    public class SecureUdpChannel:UdpChannel
     {
         private readonly ConcurrentAesAlgorithm algo;
         byte[] decryptBuff = new byte[65555];
-        public SecureUdpMessageChannel(Socket udpSocket, IPEndPoint receiveEp, ConcurrentAesAlgorithm algo, ChannelInfo info) : base(udpSocket, receiveEp, info)
+        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, ConcurrentAesAlgorithm algo, ChannelInfo info) : base(udpSocket, receiveEp, info)
         {
             this.algo = algo;
         }

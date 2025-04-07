@@ -16,6 +16,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using NetworkLibrary.Components;
+using System.Net;
 
 namespace NetworkLibrary.DistributedP2P.Client
 {
@@ -115,129 +116,6 @@ namespace NetworkLibrary.DistributedP2P.Client
         }
         #endregion
 
-        // we dont need this socket methods afeterall
-        public async Task<Socket> OpenTcpSocket(Guid destinationPeer,string socketName)
-        {
-            var Info = new ChannelInfo();
-            Info.ChannelName = socketName;
-            Info.ChannelType = ChannelType.RawTcp;
-
-            var pipeState = new ClientPipeState(Guid.NewGuid(), this, Info);
-            stateManager.RegisterState(pipeState);
-            pipeState.Start(destinationPeer, tcp: true);
-
-            await pipeState.WaitCompletion();
-
-            if (pipeState.IsSuccesful)
-            {
-                Console.WriteLine("PipeSuccesfull");
-                return pipeState.ConnectedSocket;
-            }
-            return null;
-        }
-
-        public async Task<Socket> OpenUdpSocket(Guid destinationPeer, string socketName)
-        {
-            var Info = new ChannelInfo();
-            Info.ChannelName = socketName;
-            Info.ChannelType = ChannelType.RawUdp;
-
-            var pipeState = new ClientPipeState(Guid.NewGuid(), this,Info);
-            stateManager.RegisterState(pipeState);
-            pipeState.Start(destinationPeer, tcp:false);
-
-            await pipeState.WaitCompletion();
-
-            if (pipeState.IsSuccesful)
-            {
-                Console.WriteLine("PipeSuccesfull");
-                return pipeState.ConnectedSocket;
-            }
-            return null;
-        }
-
-
-        public async Task<IChannel> OpenTcpChannel(Guid destinationPeer, ChannelInfo Info)
-        {
-            var pipeState = new ClientPipeState(Guid.NewGuid(), this, Info);
-            stateManager.RegisterState(pipeState);
-            pipeState.Start(destinationPeer,tcp: true);
-
-            await pipeState.WaitCompletion();
-
-            if (pipeState.IsSuccesful)
-            {
-                IChannel channel = CreateChannel(pipeState);
-                return channel;
-            }
-            return null;
-        }
-
-        private void HandlePipeCreated(IConversationState state)
-        {
-            if (state.IsSuccesful)
-            {
-                var pipeState = (ClientPipeState)state;
-                IChannel channel = CreateChannel(pipeState);
-
-                if (channel != null)
-                    PeerConnected?.Invoke(channel);
-
-                Console.WriteLine("DestPeer Conn Succesfull");
-                // notify that a connection is opened, like socket accept
-            }
-        }
-
-        private static IChannel CreateChannel(ClientPipeState pipeState)
-        {
-            IChannel channel = null;
-            switch (pipeState.ChannelInfo.ChannelType)
-            {
-                case ChannelType.RawTcp:
-                    channel = new RawTcpSocket(pipeState.ChannelInfo, pipeState.ConnectedSocket);
-                    break;
-                case ChannelType.RawUdp:
-                    channel = new RawUdpSocket(pipeState.ChannelInfo, pipeState.ConnectedSocket);
-                    break;
-                case ChannelType.ByteMessage:
-                    channel = new ByteMessageChannel(pipeState.ChannelInfo, pipeState.ConnectedSocket);
-                    break;
-                case ChannelType.SecureByteMessage:
-                    var symetricKey = HKDFLite.DeriveKey(pipeState.sharedSecret, outputLength: 16);
-                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey, AesMode.GCM);
-                    AesTcpClient client = new AesTcpClient(algo, pipeState.ConnectedSocket);
-                    channel = new SecureByteMessageChannel(client, pipeState.ChannelInfo);
-                    break;
-          
-            }
-
-            return channel;
-        }
-
-        private async Task<byte[]> PerformDHWithPeer(Guid destinationPeer)
-        {
-
-            DiffieHellman df = new DiffieHellman();
-            byte[] publicKey = df.GetPublicKey();
-
-            MessageEnvelope envelope = new MessageEnvelope();
-            envelope.Header = "DH";
-            envelope.To = destinationPeer;
-            envelope.Payload = publicKey;
-
-            var response = await SendMessageAndWaitResponse(envelope);
-            if (response.Header != MessageEnvelope.RequestTimeout)
-            {
-                response.LockBytes();
-                byte[] dstPublic = response.Payload;
-
-                var secret = df.CalculateSharedSecret(dstPublic);
-                var symetricKey = HKDFLite.DeriveKey(secret, outputLength: 16);
-                return symetricKey;
-            }
-            return null;
-        }
-
         private void HandleServerMsg(MessageEnvelope envelope)
         {
 
@@ -251,7 +129,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                     case InternalConstants.PipeRequestTcp:
                     case InternalConstants.PipeRequestUdp:
 
-                        var pipeState = new ClientPipeState(envelope, this);
+                        var pipeState = new ClientPipeState(envelope, this, serverEndpoint);
                         pipeState.OnComplete += HandlePipeCreated;
                         stateManager.RegisterState(pipeState);
                         pipeState.HandleMessage(envelope);
@@ -272,6 +150,10 @@ namespace NetworkLibrary.DistributedP2P.Client
                         ManageUdpHolepunchRequest(envelope);
                         break;
 
+                    case InternalConstants.RequestHolepunchTcp:
+                        ManageTcpHolepunchRequest(envelope);
+                        break;
+
                 }
             }
             else
@@ -282,7 +164,8 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         }
 
-        
+       
+
         private void PublishPeerStatusEvents(PeerStatusList statusList)
         {
             foreach (var offlineKV in statusList.WentOffline)
@@ -313,31 +196,114 @@ namespace NetworkLibrary.DistributedP2P.Client
             return copy;
         }
 
-        public async Task<IChannel> TryUdpHolePunch(Guid destination, ChannelInfo info) 
+    
+
+
+        public async Task<IChannel> OpenRelayChannel(Guid destinationPeer, ChannelInfo Info)
         {
-            var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this,serverEndpoint,info);
-            stateManager.RegisterState(state);
-            state.Start();
+            var pipeState = new ClientPipeState(Guid.NewGuid(), this, serverEndpoint, Info);
+            stateManager.RegisterState(pipeState);
+            pipeState.Start(destinationPeer);
 
-            await state.WaitCompletion();
+            await pipeState.WaitCompletion();
 
-            if (state.IsSuccesful)
+            if (pipeState.IsSuccesful)
             {
-                if(info.ChannelType == ChannelType.SecureUdpMessage)
-                {
-                    var key = HKDFLite.DeriveKey(state.SharedSecret, outputLength: 16);
-                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(key, AesMode.GCM);
-                    IChannel ch = new SecureUdpMessageChannel(state.Socket, state.SuccesfulEndpoint, algo, info);
-                    return ch;
-                }
-                else
-                {
-                    IChannel ch = new UdpMessageChannel(state.Socket, state.SuccesfulEndpoint,info);
-                    return ch;
-                }
-               
+                IChannel channel = CreateChannel(pipeState);
+                return channel;
             }
             return null;
+        }
+
+        private void HandlePipeCreated(IConversationState state)
+        {
+            if (state.IsSuccesful)
+            {
+                var pipeState = (ClientPipeState)state;
+                IChannel channel = CreateChannel(pipeState);
+
+                if (channel != null)
+                    PeerConnected?.Invoke(channel);
+
+                Console.WriteLine("DestPeer Conn Succesfull");
+                // notify that a connection is opened, like socket accept
+            }
+        }
+
+        private static IChannel CreateChannel(ClientPipeState pipeState)
+        {
+            ChannelInfo info = pipeState.ChannelInfo;
+            Socket connectedSocket = pipeState.ConnectedSocket;
+            byte[] sharedSecret = pipeState.sharedSecret;
+            IPEndPoint endpoint = pipeState.SuccesfullEndpoint.ToIpEndpoint();
+            ChannelType channelType = pipeState.ChannelInfo.ChannelType;
+
+            return CreateChannel(info, connectedSocket, sharedSecret, endpoint, channelType);
+        }
+
+        private static IChannel CreateChannel(ChannelInfo info, Socket connectedSocket, byte[] sharedSecret, IPEndPoint endpoint, ChannelType channelType)
+        {
+            IChannel channel = null;
+
+            switch (channelType)
+            {
+
+                case ChannelType.Tcp:
+                    channel = new TcpChannel(info, connectedSocket);
+                    break;
+                case ChannelType.SecureTcp:
+                    var symetricKey = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
+                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey, AesMode.GCM);
+                    AesTcpClient client = new AesTcpClient(algo, connectedSocket);
+                    channel = new SecureTcpChannel(client, info);
+                    break;
+                case ChannelType.Udp:
+                    channel = new UdpChannel(connectedSocket, endpoint, info);
+
+                    break;
+                case ChannelType.SecureUdp:
+                    var symetricKey2 = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
+                    var algo2 = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey2, AesMode.GCM);
+                    channel = new SecureUdpChannel(connectedSocket, endpoint, algo2, info);
+
+                    break;
+            }
+
+            return channel;
+        }
+
+        public async Task<IChannel> TryHolePunch(Guid destination, ChannelInfo info) 
+        {
+            
+            if(info.ChannelType == ChannelType.Udp || info.ChannelType == ChannelType.SecureUdp)
+            {
+                var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, info);
+                stateManager.RegisterState(state);
+                state.Start();
+
+                await state.WaitCompletion();
+
+                if (state.IsSuccesful)
+                {
+                    return CreateChannel(state);
+                }
+                return null;
+            }
+            else
+            {
+                var state = new ClientTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, info);
+                stateManager.RegisterState(state);
+                state.Start();
+
+                await state.WaitCompletion();
+
+                if (state.IsSuccesful)
+                {
+                    return CreateChannel(state);
+                }
+                return null;
+            }
+         
         }
 
         private void ManageUdpHolepunchRequest(MessageEnvelope envelope)
@@ -349,27 +315,47 @@ namespace NetworkLibrary.DistributedP2P.Client
 
             void State_OnComplete(IConversationState obj)
             {
-                if (state.IsSuccesful)
-                {
-                    if(state.info.ChannelType == ChannelType.SecureUdpMessage)
-                    {
-                        var key = HKDFLite.DeriveKey(state.SharedSecret, outputLength: 16);
-                        var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(key, AesMode.GCM);
-                        IChannel ch = new SecureUdpMessageChannel(state.Socket, state.SuccesfulEndpoint, algo, state.info);
-                        PeerConnected?.Invoke(ch);
-                    }
-                    else
-                    {
-                        IChannel ch = new UdpMessageChannel(state.Socket, state.SuccesfulEndpoint, state.info);
-                        PeerConnected?.Invoke(ch);
-                    }
-                
-                }
+                var ch = CreateChannel(state);
+                PeerConnected?.Invoke(ch); 
             }
 
         }
 
-         
+        private static IChannel CreateChannel(ClientUdpHolepunchState udpHpstate)
+        {
+            ChannelInfo info = udpHpstate.ChannelInfo;
+            Socket connectedSocket = udpHpstate.Socket;
+            byte[] sharedSecret = udpHpstate.SharedSecret;
+            IPEndPoint endpoint = udpHpstate.SuccesfulEndpoint;
+            ChannelType channelType = udpHpstate.ChannelInfo.ChannelType;
+
+            return CreateChannel(info, connectedSocket, sharedSecret, endpoint, channelType);
+        }
+
+        private void ManageTcpHolepunchRequest(MessageEnvelope envelope)
+        {
+            var state = new ClientTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, null);
+            stateManager.RegisterState(state);
+            state.OnComplete += State_OnComplete;
+            state.HandleMessage(envelope);
+
+            void State_OnComplete(IConversationState obj)
+            {
+                var ch = CreateChannel(state);
+                PeerConnected?.Invoke(ch);
+            }
+        }
+
+        private static IChannel CreateChannel(ClientTcpHolepunchState TcpHpstate)
+        {
+            ChannelInfo info = TcpHpstate.ChannelInfo;
+            Socket connectedSocket = TcpHpstate.Socket;
+            byte[] sharedSecret = TcpHpstate.SharedSecret;
+            IPEndPoint endpoint = TcpHpstate.SuccesfulEndpoint;
+            ChannelType channelType = TcpHpstate.ChannelInfo.ChannelType;
+
+            return CreateChannel(info, connectedSocket, sharedSecret, endpoint, channelType);
+        }
 
         public double GetTime()
         {

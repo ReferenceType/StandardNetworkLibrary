@@ -7,7 +7,7 @@ using NetworkLibrary.TCP.AES;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class SecureByteMessageChannel : IChannel
+    public class SecureTcpChannel : IChannel
     {
         AesTcpClient client;
         AesTcpServer server;
@@ -19,7 +19,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         public event Action<byte[], int, int> BytesReceived;
         public event Action Disconnected;
 
-        public SecureByteMessageChannel(AesTcpClient client, ChannelInfo info)
+        public SecureTcpChannel(AesTcpClient client, ChannelInfo info)
         {
             this.client = client;
             Info = info;
@@ -28,17 +28,6 @@ namespace NetworkLibrary.DistributedP2P.Channels
             client.OnBytesReceived += ClientBytesReceived;
             client.OnDisconnected += ClientDisconnected;
         }
-
-        public SecureByteMessageChannel(AesTcpServer server, ChannelInfo info)
-        {
-            this.server = server;
-            Info = info;
-
-            clientId = server.Sessions.First().Key;
-            server.OnBytesReceived += ServerBytesReceived;
-            server.OnClientDisconnected += ServerClientDisconnected;
-        }
-
 
         private void ServerBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {

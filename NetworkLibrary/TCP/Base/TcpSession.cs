@@ -355,10 +355,7 @@ namespace NetworkLibrary.TCP.Base
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected void FlushSendBuffer(int offset, int count)
         {
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-            //ThreadPool.UnsafeQueueUserWorkItem((e) => SendModern(offset,count),null);
-            //return;
-//#endif
+
             try
             {
                 totalBytesSend += count;
@@ -371,70 +368,6 @@ namespace NetworkLibrary.TCP.Base
             }
             catch { EndSession(); ReleaseSendResourcesIdempotent(); }
         }
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-//        private async void SendModern(int offset, int count)
-//        {
-//            try
-//            {
-
-
-//            Top:
-//                await sessionSocket.SendAsync(new ReadOnlyMemory<byte>(sendBuffer, offset, count),
-//                    SocketFlags.None).ConfigureAwait(false);
-
-//                if (IsSessionClosing())
-//                {
-//                    SendSemaphore.Release();
-//                    ReleaseSendResourcesIdempotent();
-//                    return;
-//                }
-
-//                if (messageBuffer.TryFlushQueue(ref sendBuffer, 0, out int amountWritten))
-//                {
-//                    //FlushSendBuffer(0, amountWritten);
-//                    offset = 0;
-//                    count = amountWritten;
-//                    goto Top;
-//                }
-//                else
-//                {
-//                    bool flushAgain = false;
-//                    // here it means queue was empty and there was nothing to flush.
-//                    // but this check is clearly not atomic, if during the couple cycles in between something is enqueued, 
-//                    // i have to flush that part ,or it will stuck at queue since consumer is exiting.
-
-//                    enqueueLock.Take();
-//                    if (!messageBuffer.IsEmpty())
-//                    {
-//                        flushAgain = true;
-//                        enqueueLock.Release();
-//                    }
-//                    else
-//                    {
-//                        messageBuffer.Flush();
-
-//                        SendSemaphore.Release();
-//                        enqueueLock.Release();
-//                        if (IsSessionClosing())
-//                        {
-//                            ReleaseSendResourcesIdempotent();
-//                        }
-//                        return;
-//                    }
-
-//                    if (flushAgain && messageBuffer.TryFlushQueue(ref sendBuffer, 0, out amountWritten))
-//                    {
-//                        // FlushSendBuffer(0, amountWritten);
-//                        offset = 0;
-//                        count = amountWritten;
-//                        goto Top;
-//                    }
-//                }
-//            }
-//                        catch { EndSession(); ReleaseSendResourcesIdempotent(); }
-
-//        }
-//#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SendComplete(object ignored, SocketAsyncEventArgs e)

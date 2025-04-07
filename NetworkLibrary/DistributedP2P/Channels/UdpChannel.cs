@@ -1,125 +1,150 @@
-﻿using NetworkLibrary.DistributedP2P.Client;
+﻿using NetworkLibrary.Components.Crypto.Algorithms;
+using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
+using NetworkLibrary.UDP.Jumbo;
+using NetworkLibrary.UDP.Reliable.Components;
+using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class UdpChannel:IChannel,IDisposable
+    public class UdpChannel : IChannel
     {
-        private Socket udpSocket;
-        private SocketAsyncEventArgs receiveArgs;
-        private readonly IPEndPoint associatedEndpoint;
-
         public ChannelInfo Info { get; private set; }
 
-        public event Action<byte[], int ,int> OnMessageReceived;
+        private UdpChannelBase innerchannel;
+
+        public event Action<byte[], int, int> OnMessageReceived;
+
+        protected JumboModule JumboUdp = new JumboModule(0);
+        internal ReliableModule ReliableUdp;
 
         public UdpChannel(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
-            this.udpSocket = udpSocket;
-            this.associatedEndpoint = receiveEp;
+           
             Info = info;
+            innerchannel = new UdpChannelBase(udpSocket, receiveEp, info);
+            JumboUdp.SendToSocket = SendJumboSegment;
+            JumboUdp.MessageReceived = HandleMessage;
+
+            SenderModule sender = new SenderModule();
+           
+            sender.MaxSegmentSize = 1280;
+            sender.MinWindowSize = 1280*2;
+
+            ReliableUdp = new ReliableModule(receiveEp,sender);
+
+            ReliableUdp.OnReceived += (e, b, o, c) => HandleMessage(b, o, c);
+            ReliableUdp.OnSend += SendRudpSegment;
+
         }
 
         public void Start()
         {
-            StartReceiver();
+            innerchannel.OnMessageReceived += BytesReceived;
+            innerchannel.Start();
         }
 
-        public void Send(byte[] data, int offset, int count) 
+        protected virtual void BytesReceived(byte[] buffer, int offset, int count)
         {
-            udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
+            // filter flags
+            var flag = (UdpFlags)buffer[offset++];
+            count--;
+
+            switch (flag)
+            {
+                case UdpFlags.StandardMessage:
+                    HandleMessage(buffer, offset, count);
+                    break;
+                case UdpFlags.JumboMessage:
+                    HandleJumboSegment(buffer, offset, count);
+                    break;
+                case UdpFlags.ReliableMessage:
+                    HandleRudpSegment(buffer, offset, count);
+                    break;
+                case UdpFlags.KeepAliveMessage:
+                    break;
+
+                case UdpFlags.HP:
+                case UdpFlags.HPAck:
+                    break;
+            }
         }
 
-        private void StartReceiver()
-        {
-            var buff = BufferPool.RentBuffer(65536);
 
-            receiveArgs = new SocketAsyncEventArgs();
-            receiveArgs.SetBuffer(buff,0,buff.Length);
-            receiveArgs.Completed += OnReceiveCompleted;
-            receiveArgs.RemoteEndPoint = associatedEndpoint;
-            Receive();
+
+        protected void HandleMessage(byte[] buffer, int offset, int count)
+        {
+            OnMessageReceived?.Invoke(buffer, offset, count);
+        }
+
+        protected void HandleJumboSegment(byte[] buffer, int offset, int count)
+        {
+            JumboUdp.HandleReceivedSegment(buffer, offset, count);
+        }
+
+        protected virtual void SendJumboSegment(byte[] arg1, int arg2, int arg3)
+        {
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            stream.WriteByte((byte)UdpFlags.JumboMessage);
+            stream.Write(arg1, arg2, arg3);
+            SendInternal(stream.GetBuffer(), 0, stream.Position32);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+        }
+
+        protected void HandleRudpSegment(byte[] buffer, int offset, int count)
+        {
+            ReliableUdp.HandleBytes(buffer, offset, count);
+        }
+        internal virtual void SendRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
+        {
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            stream.WriteByte((byte)UdpFlags.ReliableMessage);
+            stream.Write(buffer, offset, count);
+            SendInternal(stream.GetBuffer(), 0, stream.Position32);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+        }
+
+
+        public virtual void Send(byte[] buffer, int offset, int count)
+        {
+
+            if (count > 64000)
+            {
+                JumboUdp.Send(buffer, offset, count);
+            }
+            else
+            {
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                stream.WriteByte((byte)UdpFlags.StandardMessage);
+                stream.Write(buffer, offset, count);
+                SendInternal(stream.GetBuffer(), 0, stream.Position32);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+            }
+
+        }
+
+        public void SendReliable(byte[] buffer, int offset, int count)
+        {
+            ReliableUdp.Send(buffer, offset, count);
+        }
+
+
+        protected void SendInternal(byte[] bytes, int offset, int count)
+        {
+            try
+            {
+                innerchannel.Send(bytes, offset, count);
+            }
+            catch (Exception e)
+            {
+            }
            
         }
-
-        private void Receive()
-        {
-            if (!udpSocket.ReceiveFromAsync(receiveArgs))
-            {
-               ThreadPool.UnsafeQueueUserWorkItem((s)=> OnReceiveCompleted(null, receiveArgs),null);
-            }
-        }
-
-        private void OnReceiveCompleted(object sender, SocketAsyncEventArgs e)
-        {
-            try
-            {
-                if (e.SocketError != SocketError.Success)
-                {
-                    HandleSocketError(e.SocketError);
-                    return;
-                }
-
-                if (e.BytesTransferred > 0)
-                {
-                   
-                    try
-                    {
-                        ProcessReceivedData(e.Buffer, e.Offset, e.BytesTransferred, e.RemoteEndPoint);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error processing received data: {ex}");
-                    }
-                }
-
-                Receive();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in receive completion: {ex}");
-            }
-        }
-
-        private void ProcessReceivedData(byte[] buffer, int offset, int bytesTransferred, EndPoint remoteEndPoint)
-        {
-            OnMessageReceived?.Invoke(buffer, offset, bytesTransferred);
-        }
-
-        private void HandleSocketError(SocketError error)
-        {
-            Console.WriteLine($"Socket error occurred: {error}");
-        }
-
-
-
         public void Dispose()
         {
-            try
-            {
-                if (receiveArgs != null)
-                {
-
-                    BufferPool.ReturnBuffer(receiveArgs.Buffer);
-                    receiveArgs.Dispose();
-                    receiveArgs = null;
-                }
-
-                if (udpSocket != null)
-                {
-                    udpSocket.Close();
-                    udpSocket.Dispose();
-                    udpSocket = null;
-                }
-            }
-            catch { }
-          
-        }   
-       
+        }
     }
 }

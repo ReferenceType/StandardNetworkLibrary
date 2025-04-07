@@ -8,7 +8,7 @@ namespace NetworkLibrary.Components.Crypto.DiffieHellman
 {
     public class DiffieHellman
     {
-        // Well-known prime for DH(the well-known 2048-bit MODP group from RFC 3526)
+        // 2048-bit MODP group from RFC 3526
         private const string PrimeHex = "0FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BB" +
             "EA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E" +
             "9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361" +
@@ -18,7 +18,7 @@ namespace NetworkLibrary.Components.Crypto.DiffieHellman
 
         private static readonly BigInteger _prime = BigInteger.Parse(PrimeHex, System.Globalization.NumberStyles.HexNumber);
 
-        private static readonly BigInteger Generator = new BigInteger(2);
+        private static readonly BigInteger Generator = new BigInteger(2); // 2 is also from RFC 3526
 
         private readonly BigInteger _privateKey;
         private readonly BigInteger _publicKey;

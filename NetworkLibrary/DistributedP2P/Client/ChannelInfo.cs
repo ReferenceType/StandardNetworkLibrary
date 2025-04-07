@@ -7,7 +7,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 {
     public enum ChannelType
     {
-        RawTcp,RawUdp,ByteMessage,SecureByteMessage,UdpMessage,SecureUdpMessage
+        Tcp,SecureTcp,Udp,SecureUdp
     }
     public class ChannelInfo
     {
@@ -27,8 +27,8 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         internal bool RequiresKeyExchange()
         {
-            if(ChannelType == ChannelType.SecureByteMessage ||
-                ChannelType == ChannelType.SecureUdpMessage)
+            if(ChannelType == ChannelType.SecureTcp ||
+                ChannelType == ChannelType.SecureUdp)
                 return true;    
             return false;
         }

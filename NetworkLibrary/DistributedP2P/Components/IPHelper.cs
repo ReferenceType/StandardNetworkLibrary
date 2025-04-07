@@ -1,9 +1,11 @@
-﻿using System;
+﻿using NetworkLibrary.DistributedP2P.Server;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using NetworkLibrary.P2P.Components.HolePunch;
 
 namespace NetworkLibrary.DistributedP2P.Components
 {
@@ -39,7 +41,7 @@ namespace NetworkLibrary.DistributedP2P.Components
         public static bool IsPrivateIPAddress(IPEndPoint endpont)
         {
             IPAddress address = endpont.Address;
-            byte[] bytes = address.MapToIPv4().GetAddressBytes();
+            byte[] bytes = address.GetAddressBytes();
 
 
             // 10.0.0.0 - 10.255.255.255 (10/8 prefix)
@@ -74,7 +76,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
                 return false;
 
-            byte[] bytes = address.MapToIPv4().GetAddressBytes();
+            byte[] bytes = address.GetAddressBytes();
 
 
             // 10.0.0.0 - 10.255.255.255 (10/8 prefix)
@@ -164,7 +166,81 @@ namespace NetworkLibrary.DistributedP2P.Components
             return ip; // fallback for invalid IPs (though shouldn't happen with valid IPs)
         }
 
+        public static bool IsZero(byte[] ipRemote)
+        {
+            if (ipRemote.Length != 4)
+                throw new InvalidOperationException("Ip must be 4 bytes");
+
+            unsafe
+            {
+                fixed (byte* ptr = ipRemote)
+                {
+                    return *((int*)ptr) == 0;
+                }
+            }
+        }
+
+        public static  void ObtainIpEndpoints(int fromPort, int toPort, ServerSession sesFrom, ServerSession sesTo, out EndpointTransferMessage FromNeedsToKnow, out EndpointTransferMessage ToNeedsToKnow)
+        {
+            FromNeedsToKnow = new EndpointTransferMessage();
+            ToNeedsToKnow = new EndpointTransferMessage();
+
+            IPHelper.ExtractLocalIpsWithMatchingSubnet(sesFrom.ClientLocalIps,
+                                                       sesTo.ClientLocalIps,
+                                                       out List<string> Locals_From_NeedsToKnow,
+                                                       out List<string> Locals_To_NeedsToKnow);
 
 
+            //They need to know locals when both peers have public IPs same(coming from same NAT)
+            // or peers and server inside LAN, means both peers have private IPs on public ip.
+
+            if ((sesFrom.ClientPublicIp.Address.Equals(sesTo.ClientPublicIp.Address)) ||
+                (IPHelper.IsPrivateIPAddress(sesFrom.ClientPublicIp) && IPHelper.IsPrivateIPAddress(sesTo.ClientPublicIp)))
+            {
+                foreach (var local in Locals_From_NeedsToKnow)
+                {
+                    EndpointData data = new EndpointData(local, toPort);
+                    FromNeedsToKnow.LocalEndpoints.Add(data);
+                }
+
+                foreach (var local in Locals_To_NeedsToKnow)
+                {
+                    EndpointData data = new EndpointData(local, fromPort);
+                    ToNeedsToKnow.LocalEndpoints.Add(data);
+                }
+            }
+
+
+            // "From" is same network as the server.
+            if (IPHelper.IsPrivateIPAddress(sesFrom.ClientPublicIp))
+            {
+                // "To" needs to get server adress to connect 
+                // 0.0.0.0:0 means serverIp 
+                ToNeedsToKnow.IpRemote = new byte[4];
+                ToNeedsToKnow.PortRemote = fromPort;
+
+            }
+            else
+            {
+                // send just the publicIp of "From" to "To"
+                ToNeedsToKnow.IpRemote = sesFrom.ClientPublicIp.Address.MapToIPv4().GetAddressBytes();
+                ToNeedsToKnow.PortRemote = fromPort;
+            }
+
+            // "To" is same network as the server.
+            if (IPHelper.IsPrivateIPAddress(sesTo.ClientPublicIp))
+            {
+                //"From" needs to get Server adress
+                FromNeedsToKnow.IpRemote = new byte[4];
+                FromNeedsToKnow.PortRemote = toPort;
+            }
+            else
+            {
+                // send just the public to "From"
+                FromNeedsToKnow.IpRemote = sesTo.ClientPublicIp.Address.MapToIPv4().GetAddressBytes();
+                FromNeedsToKnow.PortRemote = toPort;
+            }
+
+        }
     }
 }

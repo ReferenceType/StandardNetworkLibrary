@@ -29,13 +29,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private DiffieHellman df = new DiffieHellman();
         private byte[] otherPublicKey;
         public byte[] SharedSecret;
-        public ChannelInfo info;
+        public ChannelInfo ChannelInfo;
         public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info) : base(stateId, 20000)
         {
             this.destId = destId;
             this.connection = connection;
             this.serverEndpoint = serverEndpoint;
-            this.info = info;
+            this.ChannelInfo = info;
         }
 
         //the initiator
@@ -50,10 +50,10 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.Header = InternalConstants.RequestHolepunchUdp;
             msg.KeyValuePairs = new Dictionary<string, string>();
             msg.KeyValuePairs["Port"] = port.ToString();
-            msg.KeyValuePairs["Type"] = ((int)info.ChannelType).ToString();
-            msg.KeyValuePairs["Name"] = info.ChannelName;
+            msg.KeyValuePairs["Type"] = ((int)ChannelInfo.ChannelType).ToString();
+            msg.KeyValuePairs["Name"] = ChannelInfo.ChannelName;
 
-            if (info.RequiresKeyExchange())
+            if (ChannelInfo.RequiresKeyExchange())
                 msg.KeyValuePairs["DH"] = Convert.ToBase64String(df.GetPublicKey());
 
             msg.To = destId;
@@ -71,7 +71,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     HandleRemoteHpRequest(message);
                     break;
 
-                case InternalConstants.StartHPUdp:
+                case InternalConstants.StartHP:
                     message.LockBytes();
                     ThreadPool.UnsafeQueueUserWorkItem((s) => StartHolepunchRoutine(message), null);
                     break;
@@ -90,9 +90,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         {
             Log(StateId.ToString());
 
-            info = new ChannelInfo();
-            info.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
-            info.ChannelName = message.KeyValuePairs["Name"];
+            ChannelInfo = new ChannelInfo();
+            ChannelInfo.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
+            ChannelInfo.ChannelName = message.KeyValuePairs["Name"];
 
             int port = StartUdpSocket();
             var msg = CreateEnvelope();
@@ -100,7 +100,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.KeyValuePairs = new Dictionary<string, string>();
             msg.KeyValuePairs["Port"] = port.ToString();
 
-            if (info.RequiresKeyExchange())
+            if (ChannelInfo.RequiresKeyExchange())
                 msg.KeyValuePairs["DH"] = Convert.ToBase64String(df.GetPublicKey());
 
             msg.To = destId;
@@ -108,13 +108,12 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             connection.SendAsyncMessage(msg);
         }
 
-        byte[] zeros = new byte[4];
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
             var epMsg = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
             var time = double.Parse(message.KeyValuePairs["Time"]);
 
-            if (info.RequiresKeyExchange())
+            if (ChannelInfo.RequiresKeyExchange())
                 otherPublicKey = Convert.FromBase64String(message.KeyValuePairs["DH"]);
 
             // if there are local endpoints to test
@@ -138,9 +137,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             if (IsCompleted()) return;
 
-
             // use server ip, peer is on same network as server
-            bool useServerIp = epMsg.IpRemote.SequenceEqual(zeros);
+            bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
             EndpointData publicEp = new EndpointData() { Ip = useServerIp?serverEndpoint.Ip: epMsg.IpRemote, Port = epMsg.PortRemote };
             
 
@@ -148,6 +146,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             var delay = time - now;
             if (delay > 500)
                 delay = 0;
+
             Log("Delay: " + delay.ToString() + "ms");
             PreciseTimeAwaiter.Wait(delay);
             if (IsCompleted()) return;
@@ -298,7 +297,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private void HandleRemoteSucces(MessageEnvelope message)
         {
            
-            if (info.RequiresKeyExchange())
+            if (ChannelInfo.RequiresKeyExchange())
                 SharedSecret = df.CalculateSharedSecret(otherPublicKey);
 
             Log("Punched");

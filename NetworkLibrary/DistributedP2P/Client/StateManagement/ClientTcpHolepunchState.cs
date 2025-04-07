@@ -31,6 +31,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private Socket acceptedSocket;
         private Socket connectedSocket;
         private int established = 0;
+        private int connected = 0;
+        private int accepted = 0;
         private bool IsEstablished => Interlocked.CompareExchange(ref established, 0, 0) == 1;
         public ClientTcpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info) : base(stateId, 5000)
         {
@@ -123,7 +125,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             {
                 foreach (EndpointData localEp in epMsg.LocalEndpoints)
                 {
-                    TryConnect(localEp, 1000);
+                    if (TryConnect(localEp, 500))
+                        return;
                     if (IsEstablished) return;
                 }
             }
@@ -142,46 +145,53 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             PreciseTimeAwaiter.Wait(delay);
             if (IsEstablished) return;
 
-            var nextTryTime = connection.GetTime()+1000;
+            var nextTryTime = connection.GetTime()+1500;
 
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 4; i++)
             {
-                TryConnect(publicEp, (2000));
-                PreciseTimeAwaiter.Wait(nextTryTime - connection.GetTime());
+                if (TryConnect(publicEp, (1000)))
+                    return;
+                //PreciseTimeAwaiter.Wait(nextTryTime - connection.GetTime());
                 if (IsEstablished) return;
             }
 
         }
 
 
-        private async void TryConnect(EndpointData endpoint, int timeoutMs = 600)
+        private bool TryConnect(EndpointData endpoint, int timeoutMs = 600)
         {
             Socket connectSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             try
             {
+                Log("Connecting to " + endpoint.ToIpEndpoint().ToString());
                 connectSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 connectSocket.Bind(new IPEndPoint(IPAddress.Any, localPort));
 
                 var connectTask = connectSocket.ConnectAsync(endpoint.ToIpEndpoint());
                 var timeoutTask = Task.Delay(timeoutMs);
 
-                if (await Task.WhenAny(connectTask, timeoutTask) == connectTask)
+                if (Task.WhenAny(connectTask, timeoutTask).GetAwaiter().GetResult() == connectTask)
                 {
+
                     connectSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, false);
                     HandleConnectedSocket(connectSocket);
-                   
+                    Log($"Successfully connected to {endpoint.ToIpEndpoint()}");
+                    return true;
+
                 }
                 else
                 {
                     Log($"Connection to {endpoint.ToIpEndpoint()} timed out after {timeoutMs}ms");
                     connectSocket.Close();
+                    return false;
                 }
             }
             catch (Exception ex)
             {
                 Log($"Connect attempt to {endpoint.ToIpEndpoint()} failed: {ex.Message}");
                 connectSocket.Close();
+                return false;
             }
         }
 
@@ -217,7 +227,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
             catch (Exception e)
             {
-                Log("Failed Accept" + e.Message);
+                Log("Failed Accept: " + e.Message);
             }
          
         }
@@ -225,8 +235,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private void HandleConnectedSocket(Socket socket)
         {
             Interlocked.Exchange(ref established, 1);
+            if (Interlocked.Exchange(ref connected, 1) == 1)
+                return;
 
-            Log($"Successfully connected to {(IPEndPoint)socket.RemoteEndPoint}");
             connectedSocket = socket;
 
             var msg = CreateEnvelope();
@@ -239,6 +250,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private void HandleAcceptedSocket(Socket socket)
         {
             Interlocked.Exchange(ref established, 1);
+            if (Interlocked.Exchange(ref accepted, 1) == 1)
+                return;
 
             Log($"Successfully accepted {(IPEndPoint)socket.RemoteEndPoint}");
             acceptedSocket = socket;

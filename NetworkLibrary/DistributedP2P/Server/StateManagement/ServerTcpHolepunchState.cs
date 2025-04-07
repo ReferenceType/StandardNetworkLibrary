@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Server.StateManagement
@@ -69,15 +70,12 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (info.RequiresKeyExchange())
                 toPublicKey = message.KeyValuePairs["DH"];
 
-            //signal
-            double startTime = connection.GetTime();
-            startTime += 500;
+           
 
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.StartHP;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Time"] = startTime.ToString(CultureInfo.InvariantCulture);
 
             sessionManager.GetSessionData(From, out ServerSession sesFrom);
             sessionManager.GetSessionData(To, out ServerSession sesTo);
@@ -85,6 +83,11 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (sesFrom != null && sesTo != null)
             {
                 IPHelper.ObtainIpEndpoints(fromPort,toPort,sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
+
+                // coordination signal
+                double startTime = connection.GetTime();
+                startTime += 1000*(1+Math.Max(FromNeedsToKnow.LocalEndpoints.Count,ToNeedsToKnow.LocalEndpoints.Count));
+                msg.KeyValuePairs["Time"] = startTime.ToString(CultureInfo.InvariantCulture);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
                 stream.Position32 = 0;

@@ -315,8 +315,12 @@ namespace NetworkLibrary.DistributedP2P.Client
 
             void State_OnComplete(IConversationState obj)
             {
-                var ch = CreateChannel(state);
-                PeerConnected?.Invoke(ch); 
+                if (obj.IsSuccesful)
+                {
+                    var ch = CreateChannel(state);
+                    PeerConnected?.Invoke(ch);
+                }
+              
             }
 
         }
@@ -341,8 +345,11 @@ namespace NetworkLibrary.DistributedP2P.Client
 
             void State_OnComplete(IConversationState obj)
             {
-                var ch = CreateChannel(state);
-                PeerConnected?.Invoke(ch);
+                if (obj.IsSuccesful)
+                {
+                    var ch = CreateChannel(state);
+                    PeerConnected?.Invoke(ch);
+                }   
             }
         }
 

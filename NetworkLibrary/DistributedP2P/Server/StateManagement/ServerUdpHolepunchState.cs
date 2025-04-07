@@ -123,17 +123,26 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                                                        out List<string> Locals_From_NeedsToKnow,
                                                        out List<string> Locals_To_NeedsToKnow);
 
-            foreach (var local in Locals_From_NeedsToKnow)
-            {
-                EndpointData data = new EndpointData(local, toPort);
-                FromNeedsToKnow.LocalEndpoints.Add(data);
-            }
+          
+            //They need to know locals when both peers have public IPs same(coming from same NAT)
+            // or peers and server inside LAN, means both peers have private IPs on public ip.
 
-            foreach (var local in Locals_To_NeedsToKnow)
+            if ((sesFrom.ClientPublicIp.Address.Equals( sesTo.ClientPublicIp.Address)) ||
+                (IPHelper.IsPrivateIPAddress(sesFrom.ClientPublicIp) &&  IPHelper.IsPrivateIPAddress(sesTo.ClientPublicIp)))
             {
-                EndpointData data = new EndpointData(local, fromPort);
-                ToNeedsToKnow.LocalEndpoints.Add(data);
+                foreach (var local in Locals_From_NeedsToKnow)
+                {
+                    EndpointData data = new EndpointData(local, toPort);
+                    FromNeedsToKnow.LocalEndpoints.Add(data);
+                }
+
+                foreach (var local in Locals_To_NeedsToKnow)
+                {
+                    EndpointData data = new EndpointData(local, fromPort);
+                    ToNeedsToKnow.LocalEndpoints.Add(data);
+                }
             }
+           
 
             // "From" is same network as the server.
             if (IPHelper.IsPrivateIPAddress(sesFrom.ClientPublicIp))
@@ -182,8 +191,8 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchSuccesAck;
-
-            if(message.From == From)
+            msg.SetPayload(message.Payload, message.PayloadOffset, message.PayloadCount);
+            if (message.From == From)
                 connection.SendAsyncMessage(To, msg);
             else if(message.From == To)
                 connection.SendAsyncMessage(From, msg);

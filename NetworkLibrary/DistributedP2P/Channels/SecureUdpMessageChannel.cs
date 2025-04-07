@@ -12,11 +12,11 @@ using NetworkLibrary.Components;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    internal class SecureUdpMessageChannel:UdpMessageChannel
+    public class SecureUdpMessageChannel:UdpMessageChannel
     {
         private readonly ConcurrentAesAlgorithm algo;
         byte[] decryptBuff = new byte[65555];
-        public SecureUdpMessageChannel(Socket udpSocket, IPEndPoint associatedEndpoint,ConcurrentAesAlgorithm algo, ChannelInfo info) : base(udpSocket, associatedEndpoint, info)
+        public SecureUdpMessageChannel(Socket udpSocket, IPEndPoint receiveEp, ConcurrentAesAlgorithm algo, ChannelInfo info) : base(udpSocket, receiveEp, info)
         {
             this.algo = algo;
         }
@@ -25,6 +25,10 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             var flag = (UdpFlags)buffer[offset++];
             count--;
+
+            if (flag == UdpFlags.HP || flag == UdpFlags.HPAck)
+                return;
+
             count = algo.DecryptInto(buffer, offset, count, decryptBuff, 0);
             buffer = decryptBuff;
             offset = 0;
@@ -81,7 +85,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
 
-        protected override void SendRudpSegment(ReliableModule module,byte[] buffer, int offset, int count)
+        internal override void SendRudpSegment(ReliableModule module,byte[] buffer, int offset, int count)
         {
             var stream = SharerdMemoryStreamPool.RentStreamStatic();
             stream.WriteByte((byte)UdpFlags.ReliableMessage);

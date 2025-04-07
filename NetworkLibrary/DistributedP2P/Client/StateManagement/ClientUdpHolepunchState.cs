@@ -1,24 +1,27 @@
-﻿using NetworkLibrary.Components.Crypto.DiffieHellman;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Crypto.DiffieHellman;
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
-using NetworkLibrary.UDP;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 {
+    //Todo 0.0.0.0 means server ip!
     internal class ClientUdpHolepunchState : ConversationStateBase
     {
         private readonly Guid destId;
         private readonly IDistributedConnection connection;
+        private readonly EndpointData serverEndpoint;
         public Socket Socket;
-        private bool remoteSucces;
         private bool isInitiator;
 
         public IPEndPoint SuccesfulEndpoint;
@@ -27,10 +30,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private byte[] otherPublicKey;
         public byte[] SharedSecret;
         public ChannelInfo info;
-        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, ChannelInfo info) : base(stateId, 20000)
+        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info) : base(stateId, 20000)
         {
             this.destId = destId;
             this.connection = connection;
+            this.serverEndpoint = serverEndpoint;
             this.info = info;
         }
 
@@ -38,6 +42,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         public void Start()
         {
             isInitiator = true;
+            Log(StateId.ToString());
+
             int port = StartUdpSocket();
 
             var msg = CreateEnvelope();
@@ -47,9 +53,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.KeyValuePairs["Type"] = ((int)info.ChannelType).ToString();
             msg.KeyValuePairs["Name"] = info.ChannelName;
 
-            if(info.RequiresKeyExchange())
+            if (info.RequiresKeyExchange())
                 msg.KeyValuePairs["DH"] = Convert.ToBase64String(df.GetPublicKey());
-          
+
             msg.To = destId;
 
             connection.SendAsyncMessage(msg);
@@ -71,7 +77,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     break;
 
                 case InternalConstants.PunchSuccesAck:
-                    HandleRemoteSucces();
+                    HandleRemoteSucces(message);
                     break;
                 case InternalConstants.PunchFailAck:
                     HandleFailure();
@@ -82,6 +88,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         // the destination peer of hp
         private void HandleRemoteHpRequest(MessageEnvelope message)
         {
+            Log(StateId.ToString());
+
             info = new ChannelInfo();
             info.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
             info.ChannelName = message.KeyValuePairs["Name"];
@@ -100,54 +108,81 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             connection.SendAsyncMessage(msg);
         }
 
-
+        byte[] zeros = new byte[4];
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
             var epMsg = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
             var time = double.Parse(message.KeyValuePairs["Time"]);
-            if(info.RequiresKeyExchange())
+
+            if (info.RequiresKeyExchange())
                 otherPublicKey = Convert.FromBase64String(message.KeyValuePairs["DH"]);
 
-           
-            foreach (EndpointData localEp in epMsg.LocalEndpoints)
+            // if there are local endpoints to test
+            if (epMsg.LocalEndpoints.Count > 0)
             {
-                for (int i = 0; i < 2; i++)
+                var now0 = connection.GetTime();
+                var delay0 = (time - now0) / 4;
+                PreciseTimeAwaiter.Wait(delay0);
+
+                foreach (EndpointData localEp in epMsg.LocalEndpoints)
                 {
-                    TryPunch(localEp, UdpFlags.HP);
-                    PreciseTimeAwaiter.Wait(20);
-                    if (IsCompleted()) return;
+                    for (int i = 0; i < 2; i++)
+                    {
+                        TryPunch(localEp, UdpFlags.HP);
+                        PreciseTimeAwaiter.Wait(20);
+                        if (IsCompleted()) return;
+                    }
                 }
             }
+           
 
             if (IsCompleted()) return;
-            EndpointData publicEp = new EndpointData() { Ip = epMsg.IpRemote, Port = epMsg.PortRemote };
+
+
+            // use server ip, peer is on same network as server
+            bool useServerIp = epMsg.IpRemote.SequenceEqual(zeros);
+            EndpointData publicEp = new EndpointData() { Ip = useServerIp?serverEndpoint.Ip: epMsg.IpRemote, Port = epMsg.PortRemote };
+            
 
             var now = connection.GetTime();
-            var delay = now - time;
-            if(delay>500)
+            var delay = time - now;
+            if (delay > 500)
                 delay = 0;
+            Log("Delay: " + delay.ToString() + "ms");
             PreciseTimeAwaiter.Wait(delay);
             if (IsCompleted()) return;
 
             for (int i = 0; i < 5; i++)
             {
-                TryPunch(publicEp,UdpFlags.HP);
-                PreciseTimeAwaiter.Wait(20 * i*i);
+                TryPunch(publicEp, UdpFlags.HP);
+                PreciseTimeAwaiter.Wait(20 * i * i);
                 if (IsCompleted()) return;
             }
 
         }
 
-        private void TryPunch(EndpointData ep, UdpFlags flag )
+        private void TryPunch(EndpointData ep, UdpFlags flag)
         {
             var ipep = ep.ToIpEndpoint();
             TryPunch(ipep, flag);
         }
-
+        private object m = new object();
+        PooledMemoryStream stream = new PooledMemoryStream();
         private void TryPunch(IPEndPoint ep, UdpFlags flag)
         {
-            Log("SendingTo " + ep.ToString());
-            Socket.SendTo(new byte[1] { (byte)flag }, SocketFlags.None, ep);
+            lock (m)
+            {
+
+                Log($"Sending {flag.ToString() }To " + ep.ToString());
+                
+                stream.Position = 0;
+                stream.WriteByte((byte)flag);
+                var epd = new EndpointData(ep);
+                KnownTypeSerializer.SerializeEndpointData(stream, epd);
+
+                Socket.SendTo(stream.GetBuffer(),stream.Position32, SocketFlags.None, ep);
+            }
+
         }
 
         private int StartUdpSocket()
@@ -163,11 +198,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             return ((IPEndPoint)Socket.LocalEndPoint).Port;
         }
-
         private async void Receive()
         {
             var buffer = BufferPool.RentBuffer(64000);
             int receivedOnce = 0;
+            int receivedAck = 0;
             while (true)
             {
                 try
@@ -179,45 +214,54 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     if (completedTask == receiveTask)
                     {
                         SocketReceiveFromResult received = receiveTask.Result;
-                        if (received.ReceivedBytes != 1)
-                        {
-                            Cancel();
-                            return;
-                        }
-
+                        
                         if (buffer[0] == (byte)UdpFlags.HP)
                         {
                             // this must be only once
-                            if (Interlocked.CompareExchange(ref receivedOnce, 1,0) ==0)
-                                TryPunch((IPEndPoint)received.RemoteEndPoint, UdpFlags.HPAck);
+                            if (Interlocked.CompareExchange(ref receivedOnce, 1, 0) == 0)
+                            {
+                                var ipep = (IPEndPoint)received.RemoteEndPoint;
+                                Log("[-]Received 0xFF from " + ipep.ToString());
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, UdpFlags.HPAck);                               
+                            }
 
-                            Log("[-]Received 0xFF from " + ((IPEndPoint)received.RemoteEndPoint).ToString());
                         }
                         else if (buffer[0] == (byte)UdpFlags.HPAck)
                         {
-                            ReceivedBidirectional(received.RemoteEndPoint);
+                            Log("[+]Received 0x0F From " + ((IPEndPoint)received.RemoteEndPoint).ToString());
+
+                            if (Interlocked.CompareExchange(ref receivedAck, 1, 0) == 0)
+                            {
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, UdpFlags.HPAck);
+                                ReceivedBidirectional(received.RemoteEndPoint);
+                            }
                             return;
                         }
                         else
                         {
+                            Log("Cancel1");
                             Cancel();
+                            return;
                         }
                     }
                     else
                     {
                         TimedOut();
+                        return;
                     }
                 }
-                catch
+                catch(Exception e)
                 {
+                    Log("ERROR" + e.Message);
                     Cancel();
+                    return;
                 }
                 finally
                 {
                     BufferPool.ReturnBuffer(buffer);
                 }
             }
-         
+
         }
 
         private void ReceivedBidirectional(EndPoint remoteEndPoint)
@@ -230,8 +274,6 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             if (Interlocked.CompareExchange(ref SuccesfulEndpoint, ipep, null) != null)
                 return;
 
-            Log("Received From " + SuccesfulEndpoint.ToString());
-
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchSucces;
             connection.SendAsyncMessage(msg);
@@ -239,6 +281,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void TimedOut()
         {
+            Log("Timed out");
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchFail;
             connection.SendAsyncMessage(msg);
@@ -247,36 +290,44 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleFailure()
         {
+            Log("Failed Punch");
+
             Completed(false);
         }
 
-        private void HandleRemoteSucces()
+        private void HandleRemoteSucces(MessageEnvelope message)
         {
-            // Completed(true);
+           
+            if (info.RequiresKeyExchange())
+                SharedSecret = df.CalculateSharedSecret(otherPublicKey);
 
-            remoteSucces = true;
-            CheckSucces();
+            Log("Punched");
+            Completed(true);
         }
 
-        private void CheckSucces() 
+        protected override void Completed(bool succes)
         {
-            if (SuccesfulEndpoint != null && remoteSucces)
+            base.Completed(succes);
+            if (!IsSuccesful)
             {
-                if (info.RequiresKeyExchange())
-                    SharedSecret = df.CalculateSharedSecret(otherPublicKey);
-
-                Completed(true);
+                try
+                {
+                    Socket?.Close();
+                    Socket?.Dispose();
+                }
+                catch { }
             }
         }
-      
+
         private void Log(string log)
         {
+            return;
             string prefix = isInitiator ? "A: " : "B: ";
-            Console.WriteLine(prefix+log);
+            Console.WriteLine(prefix + log);
         }
 
 
     }
 
-      
+
 }

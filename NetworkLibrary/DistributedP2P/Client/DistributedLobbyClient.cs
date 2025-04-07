@@ -45,6 +45,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             private set => Interlocked.Exchange(ref connected, value ? 1 : 0); 
         }
 
+        private EndpointData serverEndpoint= new EndpointData();
         public DistributedLobbyClient(IClientDbConnection clientDbConnector,
                                       IClientAuthenticationProvider clientAuthProvider,
                                       X509Certificate2 certificate = null)
@@ -78,6 +79,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                 if (conState.IsSuccesful)
                 {
+                    serverEndpoint = new EndpointData(ip, port);
                     SessionId = conState.SessionId;
                     IsConnected = true;
                     timeSync.StartAutoTimeSync(5000);
@@ -313,7 +315,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public async Task<IChannel> TryUdpHolePunch(Guid destination, ChannelInfo info) 
         {
-            var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this,info);
+            var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this,serverEndpoint,info);
             stateManager.RegisterState(state);
             state.Start();
 
@@ -330,7 +332,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                 }
                 else
                 {
-                    IChannel ch = new UdpMessageChannel(state.Socket, state.SuccesfulEndpoint, info);
+                    IChannel ch = new UdpMessageChannel(state.Socket, state.SuccesfulEndpoint,info);
                     return ch;
                 }
                
@@ -340,7 +342,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void ManageUdpHolepunchRequest(MessageEnvelope envelope)
         {
-            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,null);
+            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,serverEndpoint, null);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);

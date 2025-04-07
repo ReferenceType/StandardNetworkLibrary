@@ -78,7 +78,7 @@ namespace NetworkLibrary.DistributedP2P.Components
         }
 
 
-        protected void Completed(bool succes)
+        protected virtual void Completed(bool succes)
         {
             if (Interlocked.CompareExchange(ref isComplete, 1, 0) == 0)
             {

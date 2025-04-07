@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
@@ -17,10 +18,10 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         public event Action<byte[], int ,int> OnMessageReceived;
 
-        public UdpChannel(Socket udpSocket, IPEndPoint associatedEndpoint, ChannelInfo info)
+        public UdpChannel(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
             this.udpSocket = udpSocket;
-            this.associatedEndpoint = associatedEndpoint;
+            this.associatedEndpoint = receiveEp;
             Info = info;
         }
 
@@ -50,7 +51,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             if (!udpSocket.ReceiveFromAsync(receiveArgs))
             {
-                OnReceiveCompleted(null, receiveArgs);
+               ThreadPool.UnsafeQueueUserWorkItem((s)=> OnReceiveCompleted(null, receiveArgs),null);
             }
         }
 

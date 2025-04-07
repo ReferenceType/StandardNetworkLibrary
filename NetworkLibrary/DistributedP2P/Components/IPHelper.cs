@@ -39,7 +39,7 @@ namespace NetworkLibrary.DistributedP2P.Components
         public static bool IsPrivateIPAddress(IPEndPoint endpont)
         {
             IPAddress address = endpont.Address;
-            byte[] bytes = address.GetAddressBytes();
+            byte[] bytes = address.MapToIPv4().GetAddressBytes();
 
 
             // 10.0.0.0 - 10.255.255.255 (10/8 prefix)
@@ -74,7 +74,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
                 return false;
 
-            byte[] bytes = address.GetAddressBytes();
+            byte[] bytes = address.MapToIPv4().GetAddressBytes();
 
 
             // 10.0.0.0 - 10.255.255.255 (10/8 prefix)

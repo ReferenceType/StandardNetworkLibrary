@@ -10,7 +10,7 @@ using System.Net.Sockets;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    internal class UdpMessageChannel : IChannel
+    public class UdpMessageChannel : IChannel
     {
         public ChannelInfo Info { get; private set; }
 
@@ -19,13 +19,13 @@ namespace NetworkLibrary.DistributedP2P.Channels
         public event Action<byte[], int, int> OnMessageReceived;
 
         protected JumboModule JumboUdp = new JumboModule(0);
-        protected ReliableModule ReliableUdp;
+        internal ReliableModule ReliableUdp;
 
-        public UdpMessageChannel(Socket udpSocket, IPEndPoint associatedEndpoint, ChannelInfo info)
+        public UdpMessageChannel(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
            
             Info = info;
-            innerchannel = new UdpChannel(udpSocket, associatedEndpoint, info);
+            innerchannel = new UdpChannel(udpSocket, receiveEp, info);
             JumboUdp.SendToSocket = SendJumboSegment;
             JumboUdp.MessageReceived = HandleMessage;
 
@@ -34,7 +34,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             sender.MaxSegmentSize = 1280;
             sender.MinWindowSize = 1280*2;
 
-            ReliableUdp = new ReliableModule(associatedEndpoint,sender);
+            ReliableUdp = new ReliableModule(receiveEp,sender);
 
             ReliableUdp.OnReceived += (e, b, o, c) => HandleMessage(b, o, c);
             ReliableUdp.OnSend += SendRudpSegment;
@@ -98,7 +98,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             ReliableUdp.HandleBytes(buffer, offset, count);
         }
-        protected virtual void SendRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
+        internal virtual void SendRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
         {
             var stream = SharerdMemoryStreamPool.RentStreamStatic();
             stream.WriteByte((byte)UdpFlags.ReliableMessage);

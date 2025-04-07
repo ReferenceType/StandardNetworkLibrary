@@ -11,6 +11,15 @@ namespace NetworkLibrary.DistributedP2P.Client
     }
     public class ChannelInfo
     {
+        public ChannelInfo()
+        {
+        }
+
+        public ChannelInfo(ChannelType channelType, string channelName)
+        {
+            ChannelType = channelType;
+            ChannelName = channelName;
+        }
 
         public ChannelType ChannelType { get; internal set; }
 

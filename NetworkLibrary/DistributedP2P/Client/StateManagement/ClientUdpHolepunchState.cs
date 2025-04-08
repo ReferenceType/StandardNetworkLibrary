@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Crypto.DiffieHellman;
+using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
@@ -127,7 +128,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 {
                     for (int i = 0; i < 2; i++)
                     {
-                        TryPunch(localEp, UdpFlags.HP);
+                        TryPunch(localEp, MessageFlags.HP);
                         PreciseTimeAwaiter.Wait(20);
                         if (IsCompleted()) return;
                     }
@@ -153,21 +154,21 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             for (int i = 0; i < 5; i++)
             {
-                TryPunch(publicEp, UdpFlags.HP);
+                TryPunch(publicEp, MessageFlags.HP);
                 PreciseTimeAwaiter.Wait(20 * i * i);
                 if (IsCompleted()) return;
             }
 
         }
 
-        private void TryPunch(EndpointData ep, UdpFlags flag)
+        private void TryPunch(EndpointData ep, MessageFlags flag)
         {
             var ipep = ep.ToIpEndpoint();
             TryPunch(ipep, flag);
         }
         private object m = new object();
         PooledMemoryStream stream = new PooledMemoryStream();
-        private void TryPunch(IPEndPoint ep, UdpFlags flag)
+        private void TryPunch(IPEndPoint ep, MessageFlags flag)
         {
             lock (m)
             {
@@ -214,24 +215,24 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     {
                         SocketReceiveFromResult received = receiveTask.Result;
                         
-                        if (buffer[0] == (byte)UdpFlags.HP)
+                        if (buffer[0] == (byte)MessageFlags.HP)
                         {
                             // this must be only once
                             if (Interlocked.CompareExchange(ref receivedOnce, 1, 0) == 0)
                             {
                                 var ipep = (IPEndPoint)received.RemoteEndPoint;
                                 Log("[-]Received 0xFF from " + ipep.ToString());
-                                TryPunch((IPEndPoint)received.RemoteEndPoint, UdpFlags.HPAck);                               
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);                               
                             }
 
                         }
-                        else if (buffer[0] == (byte)UdpFlags.HPAck)
+                        else if (buffer[0] == (byte)MessageFlags.HPAck)
                         {
                             Log("[+]Received 0x0F From " + ((IPEndPoint)received.RemoteEndPoint).ToString());
 
                             if (Interlocked.CompareExchange(ref receivedAck, 1, 0) == 0)
                             {
-                                TryPunch((IPEndPoint)received.RemoteEndPoint, UdpFlags.HPAck);
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
                                 ReceivedBidirectional(received.RemoteEndPoint);
                             }
                             return;

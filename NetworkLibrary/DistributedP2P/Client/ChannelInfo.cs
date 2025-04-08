@@ -9,6 +9,11 @@ namespace NetworkLibrary.DistributedP2P.Client
     {
         Tcp,SecureTcp,Udp,SecureUdp
     }
+
+    public enum TcpHolePunchStrategy
+    {
+       Sequential, Simultaneous
+    }
     public class ChannelInfo
     {
         public ChannelInfo()

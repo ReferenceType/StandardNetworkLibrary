@@ -46,7 +46,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             return Completion.Task;
         }
 
-        public void Cancel()
+        public virtual void Cancel()
         {
             lock (cancellationMutex)
             {

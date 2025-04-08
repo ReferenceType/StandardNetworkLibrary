@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.TCP.AES;
 

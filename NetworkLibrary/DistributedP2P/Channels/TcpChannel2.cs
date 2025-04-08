@@ -7,9 +7,17 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using NetworkLibrary.Components.MessageBuffer;
+using System.IO;
+using NetworkLibrary.DistributedP2P.Channels.Components;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
+    /*
+     * Features:
+            Keep ALive
+            Key Exchange
+        
+     */
     public class TcpChannel:IChannel
     {
         public ChannelInfo Info { get; private set; }
@@ -45,7 +53,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             reader.OnMessageReady += (b, o, c) => BytesReceived?.Invoke(b,o,c);
         }
 
-     
+
         public void SendAsync(byte[] buffer, int offset, int count)
         {
             if (IsSessionClosing())
@@ -53,13 +61,27 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
             lock (bufferMutex)
             {
-                sendStream.WriteInt(count);// also write flag
-                sendStream.Write(buffer, offset, count);
+                int lenghtPos = sendStream.Position32;
+                sendStream.Position32 += 4;
+
+                int amountWritten = WriteData(buffer, offset, count);
+                int lastPos = sendStream.Position32;
+
+                sendStream.Position32 = lenghtPos;
+                sendStream.WriteInt(amountWritten);
+                sendStream.Position32 = lastPos;
+
             }
 
             SignalSend();
         }
 
+        protected virtual int WriteData(byte[] buffer, int offset, int count)
+        {
+            // Write Flag here
+            sendStream.Write(buffer, offset, count);
+            return count;
+        }
         private void SignalSend()
         {
             lock (sendMtex)
@@ -71,8 +93,11 @@ namespace NetworkLibrary.DistributedP2P.Channels
                         var temp = sendStream;
                         sendStream = flushStream;
                         flushStream = temp;
+
+                        sendStream.Position32 = 0;
                     }
                     sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
+
                     if (!connectedSocket.SendAsync(sendArgs))
                     {
                        ThreadPool.UnsafeQueueUserWorkItem(_=> Sent(null, sendArgs),null);
@@ -86,50 +111,59 @@ namespace NetworkLibrary.DistributedP2P.Channels
         }
         private void Sent(object sender, SocketAsyncEventArgs e)
         {
-            if (IsSessionClosing())
-                return;
+            try
+            {
+                if (IsSessionClosing())
+                    return;
 
-            if (e.SocketError != SocketError.Success)
-            {
-                HandleError(e, "while recieving from ");
-                CloseChannel();
-                return;
-            }
-
-            else if (e.BytesTransferred == 0)
-            {
-                CloseChannel();
-                return;
-            }
-            bool send = false;
-            lock (sendMtex)
-            {
-                if(Interlocked.CompareExchange(ref msgAvailable, 0, 1) == 1)
+                if (e.SocketError != SocketError.Success)
                 {
-                    lock (bufferMutex)
+                    HandleError(e, "while recieving from ");
+                    CloseChannel();
+                    return;
+                }
+
+                else if (e.BytesTransferred == 0)
+                {
+                    CloseChannel();
+                    return;
+                }
+                bool send = false;
+                lock (sendMtex)
+                {
+                    if (Interlocked.CompareExchange(ref msgAvailable, 0, 1) == 1)
                     {
-                        var temp = sendStream;
-                        sendStream = flushStream;
-                        flushStream = temp;
+                        lock (bufferMutex)
+                        {
+                            var temp = sendStream;
+                            sendStream = flushStream;
+                            flushStream = temp;
+
+                            sendStream.Position32 = 0;
+                        }
+                        send = true;
                     }
-                    send = true;
+                    else
+                    {
+                        Interlocked.Exchange(ref sendActive, 0);
+                    }
                 }
-                else
+
+                if (send)
                 {
-                    Interlocked.Exchange(ref sendActive, 0);    
+                    sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
+
+                    if (!connectedSocket.SendAsync(sendArgs))
+                    {
+                        Sent(null, sendArgs);
+                    }
                 }
             }
-
-            if (send)
+            catch(Exception ex)
             {
-                sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
-                flushStream.Position32 = 0;
-
-                if (!connectedSocket.SendAsync(sendArgs))
-                {
-                    Sent(null, sendArgs);
-                }
+                CloseChannel();
             }
+           
 
         }
 

@@ -1,6 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NetworkLibrary;
 using NetworkLibrary.DistributedP2P.Channels;
+using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.DistributedP2P.Server;
 using Protobuff.Components.Serialiser;
@@ -276,6 +277,7 @@ namespace UnitTests.DistributedP2P
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
 
             int received = 0;
+            int cnt = 0;
 
             using var server = ArrangeServer();
             var cl1 = GetClient();
@@ -293,7 +295,11 @@ namespace UnitTests.DistributedP2P
             Assert.IsNotNull(channel1);
             channel1.Start();
 
+            Thread.Sleep(5000);
+
             byte[] data = new byte[12800000];
+            channel1.SendReliable(data, 0, data.Length);
+            Thread.Sleep(5000);
             channel1.SendReliable(data, 0, data.Length);
             Thread.Sleep(100);
 
@@ -302,7 +308,9 @@ namespace UnitTests.DistributedP2P
                 var udpChannel = (SecureUdpChannel)obj;
                 udpChannel.OnMessageReceived += (b, o, c) =>
                 {
-                    received = c; tcs.SetResult(true);
+                    received = c; 
+                    if(++cnt == 2)
+                        tcs.SetResult(true);
                 };
                 udpChannel.Start();
             }
@@ -608,7 +616,7 @@ namespace UnitTests.DistributedP2P
             var info = new ChannelInfo();
             info.ChannelType = ChannelType.Tcp;
             info.ChannelName = "Test";
-            var channel1 = (TcpChannel)cl1.TryHolePunch(cl2.SessionId, info).Result;
+            var channel1 = (TcpChannel)cl1.TryHolePunch(cl2.SessionId, info, TcpHolePunchStrategy.Sequential).Result;
             Assert.IsNotNull(channel1);
             channel1.Start();
 
@@ -683,6 +691,132 @@ namespace UnitTests.DistributedP2P
             Assert.AreEqual(data.Length, received);
 
 
+
+        }
+
+        [TestMethod]
+        public void TestTcpChannelParallelSend()
+        {
+
+            TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
+            ManualResetEvent mre = new ManualResetEvent(false);
+            int numReceived = 0;
+
+            var cl1 = GetClient();
+            var cl2 = GetClient();
+            using var server = ArrangeServer();
+
+            var res1 = cl1.ConnectAsync("127.0.0.1", 20010).Result;
+            var res2 = cl2.ConnectAsync("127.0.0.1", 20010).Result;
+
+            var data = new byte[12800000];
+            data[0] = 1;
+            int iter = 100;
+
+
+            cl2.PeerConnected += Cl2_PeerConnected;
+
+            var info = new ChannelInfo();
+            info.ChannelType = ChannelType.Tcp;
+            info.ChannelName = "Test";
+            var channel1 = (TcpChannel)cl1.TryHolePunch(cl2.SessionId, info, TcpHolePunchStrategy.Sequential).Result;
+            Assert.IsNotNull(channel1);
+            channel1.Start();
+
+           
+            Parallel.For(0, iter, (i) =>
+            {
+                channel1.SendAsync(data, 0, data.Length);
+            });
+            Thread.Sleep(100);
+
+            void Cl2_PeerConnected(IChannel obj)
+            {
+                var ch = (TcpChannel)obj;
+                ch.BytesReceived += Ch_OnMessageReceived;
+                ch.Start();
+            }
+
+            void Ch_OnMessageReceived(byte[] arg1, int arg2, int arg3)
+            {
+                if (arg3 != data.Length)
+                    throw new Exception();
+
+                if(Interlocked.Increment(ref numReceived) == 100)
+                    tcs.TrySetResult(true);
+            }
+
+            var ss = tcs.Task.Result;
+            Assert.AreEqual(iter, numReceived);
+
+
+
+        }
+
+        [TestMethod]
+        public void TestTcpChannelOrder()
+        {
+
+            TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
+            ManualResetEvent mre = new ManualResetEvent(false);
+            int numReceived = 0;
+
+            var cl1 = GetClient();
+            var cl2 = GetClient();
+            using var server = ArrangeServer();
+
+            var res1 = cl1.ConnectAsync("127.0.0.1", 20010).Result;
+            var res2 = cl2.ConnectAsync("127.0.0.1", 20010).Result;
+
+            var data = new byte[1280];
+            data[0] = 1;
+            int iter = 100;
+            List<int> values = new List<int>();
+
+
+            cl2.PeerConnected += Cl2_PeerConnected;
+
+            var info = new ChannelInfo();
+            info.ChannelType = ChannelType.Tcp;
+            info.ChannelName = "Test";
+            var channel1 = (TcpChannel)cl1.TryHolePunch(cl2.SessionId, info, TcpHolePunchStrategy.Sequential).Result;
+            Assert.IsNotNull(channel1);
+            channel1.Start();
+
+
+            for (int i = 0; i < iter; i++)
+            {
+                data[0] = (byte)i;
+                channel1.SendAsync(data, 0, data.Length);
+                if(i%10 == 0)
+                    Thread.Sleep(1);
+            };
+            Thread.Sleep(100);
+
+            void Cl2_PeerConnected(IChannel obj)
+            {
+                var ch = (TcpChannel)obj;
+                ch.BytesReceived += Ch_OnMessageReceived;
+                ch.Start();
+            }
+            void Ch_OnMessageReceived(byte[] arg1, int arg2, int arg3)
+            {
+                if (arg3 != data.Length)
+                    throw new Exception();
+
+                values.Add(arg1[arg2]);
+
+                if (Interlocked.Increment(ref numReceived) == 100)
+                    tcs.TrySetResult(true);
+            }
+
+            var ss = tcs.Task.Result;
+            Assert.AreEqual(iter, numReceived);
+
+            for (int i = 1; i < values.Count; i++)
+            {
+                Assert.IsTrue(values[i - 1] + 1 == values[i]);
+            }
 
         }
 

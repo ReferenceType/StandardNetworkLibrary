@@ -27,7 +27,10 @@ namespace NetworkLibrary.DistributedP2P.Components
         public const string PunchFail = "h";
         public const string PunchSuccesAck = "i";
         public const string PunchFailAck = "j";
-        public const string RequestHolepunchTcp = "k";
+        public const string RequestSequentialHolepunchTcp = "k";
         public const string AckRequestHolepunchTcp = "l";
+        public const string PunchSwap = "m";
+        public const string RequestSimultaneousHolepunchTcp = "n";
+
     }
 }

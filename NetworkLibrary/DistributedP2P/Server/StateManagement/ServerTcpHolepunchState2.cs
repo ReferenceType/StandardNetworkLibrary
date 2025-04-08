@@ -5,13 +5,11 @@ using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 {
-    internal class ServerTcpHolepunchState : ConversationStateBase
+    internal class ServerTcpHolepunchState2 : ConversationStateBase
     {
         private readonly IDistributedConnection connection;
         private readonly SessionManager sessionManager;
@@ -24,7 +22,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         ChannelInfo info;
         private int succesCount;
 
-        public ServerTcpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
+        public ServerTcpHolepunchState2(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
         {
             this.connection = connection;
             this.sessionManager = sessionManager;
@@ -34,7 +32,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         {
             switch (message.Header)
             {
-                case InternalConstants.RequestSequentialHolepunchTcp:
+                case InternalConstants.RequestSimultaneousHolepunchTcp:
                     HandleHolepunchRequest(message);
                     break;
                 case InternalConstants.AckRequestHolepunchTcp:
@@ -43,9 +41,25 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 case InternalConstants.PunchSucces:
                     HandleSucces(message);
                     break;
+
+                case InternalConstants.PunchSwap:
+                    RelaySwapMsg(message);
+                    break;
                 case InternalConstants.PunchFail:
                     HandleFailure(message);
                     break;
+            }
+        }
+
+        private void RelaySwapMsg(MessageEnvelope message)
+        {
+            if (message.From == From)
+            {
+                connection.SendAsyncMessage(To, message);
+            }
+            else
+            {
+                connection.SendAsyncMessage(From, message);
             }
         }
 
@@ -70,7 +84,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (info.RequiresKeyExchange())
                 toPublicKey = message.KeyValuePairs["DH"];
 
-           
+
 
 
             var msg = CreateEnvelope();
@@ -82,11 +96,11 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
             if (sesFrom != null && sesTo != null)
             {
-                IPHelper.ObtainIpEndpoints(fromPort,toPort,sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
+                IPHelper.ObtainIpEndpoints(fromPort, toPort, sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
 
                 // coordination signal
                 double startTime = connection.GetTime();
-                startTime += 1000*(1+Math.Max(FromNeedsToKnow.LocalEndpoints.Count,ToNeedsToKnow.LocalEndpoints.Count));
+                startTime += 1000 * (1 + Math.Max(FromNeedsToKnow.LocalEndpoints.Count, ToNeedsToKnow.LocalEndpoints.Count));
                 msg.KeyValuePairs["Time"] = startTime.ToString(CultureInfo.InvariantCulture);
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
@@ -115,8 +129,12 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
         }
 
+        protected override void Completed(bool succes)
+        {
+            Console.WriteLine("Server Finalized");
+            base.Completed(succes);
+        }
 
-       
 
         private void HandleFailure(MessageEnvelope message)
         {
@@ -130,7 +148,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         int succCounter = 0;
         private void HandleSucces(MessageEnvelope message)
         {
-            if(Interlocked.Increment(ref succCounter) == 1)
+            if (Interlocked.Increment(ref succCounter) == 1)
             {
                 var sts = message.KeyValuePairs["Status"];
 
@@ -138,10 +156,10 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 msg.Header = InternalConstants.PunchSuccesAck;
                 msg.KeyValuePairs = new Dictionary<string, string>();
                 msg.SetPayload(message.Payload, message.PayloadOffset, message.PayloadCount);
-              
+
                 if (sts == "Accepted")
                 {
-                   
+
                     if (message.From == From)
                     {
                         msg.KeyValuePairs["Use"] = "Connected";
@@ -158,11 +176,11 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                         msg.KeyValuePairs["Use"] = "Accepted";
                         connection.SendAsyncMessage(To, msg);
                     }
-                       
+
                 }
                 else // connected
                 {
-                   
+
                     if (message.From == From)
                     {
                         msg.KeyValuePairs["Use"] = "Accepted";
@@ -181,9 +199,9 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                     }
                 }
                 Completed(true);
-                
+
             }
-          
+
         }
 
     }

@@ -213,10 +213,16 @@ namespace NetworkLibrary.DistributedP2P.Server
                     state.HandleMessage(message);
                     break;
 
-                case InternalConstants.RequestHolepunchTcp:
+                case InternalConstants.RequestSequentialHolepunchTcp:
                     var state2 = new ServerTcpHolepunchState(message.MessageId, this, sessionManager);
                     stateManager.RegisterState(state2);
                     state2.HandleMessage(message);
+                    break;
+
+                case InternalConstants.RequestSimultaneousHolepunchTcp:
+                    var state3 = new ServerTcpHolepunchState2(message.MessageId, this, sessionManager);
+                    stateManager.RegisterState(state3);
+                    state3.HandleMessage(message);
                     break;
 
                 case Constants.TimeSync:

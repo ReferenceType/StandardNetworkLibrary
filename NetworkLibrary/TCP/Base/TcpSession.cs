@@ -84,9 +84,7 @@ namespace NetworkLibrary.TCP.Base
         protected virtual void ConfigureBuffers()
         {
             recieveBuffer = BufferPool.RentBuffer(socketSendBufferSize);
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-//            receiveMemory= new Memory<byte>(recieveBuffer);
-//#endif
+
             if (UseQueue) sendBuffer = BufferPool.RentBuffer(SocketRecieveBufferSize);
 
         }

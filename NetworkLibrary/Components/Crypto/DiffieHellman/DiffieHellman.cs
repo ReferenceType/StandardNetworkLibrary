@@ -40,6 +40,8 @@ namespace NetworkLibrary.Components.Crypto.DiffieHellman
             return sharedSecret.ToByteArray();
         }
 
+       
+
         private BigInteger GenerateRandomPrivateKey()
         {
             // Recommended key size for security (at least 256 bits)

@@ -1,4 +1,5 @@
-﻿using NetworkLibrary.DistributedP2P.Client;
+﻿using NetworkLibrary.DistributedP2P.Channels.Components;
+using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.TCP.ByteMessage;
 using System;
 using System.Collections.Generic;

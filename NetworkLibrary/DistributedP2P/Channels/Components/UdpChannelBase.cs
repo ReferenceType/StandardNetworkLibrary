@@ -6,9 +6,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
-namespace NetworkLibrary.DistributedP2P.Channels
+namespace NetworkLibrary.DistributedP2P.Channels.Components
 {
-    internal class UdpChannelBase:IChannel,IDisposable
+    internal class UdpChannelBase : IChannel, IDisposable
     {
         private Socket udpSocket;
         private SocketAsyncEventArgs receiveArgs;
@@ -16,12 +16,12 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         public ChannelInfo Info { get; private set; }
 
-        public event Action<byte[], int ,int> OnMessageReceived;
+        public event Action<byte[], int, int> OnMessageReceived;
 
         public UdpChannelBase(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
             this.udpSocket = udpSocket;
-            this.associatedEndpoint = receiveEp;
+            associatedEndpoint = receiveEp;
             Info = info;
         }
 
@@ -30,7 +30,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             StartReceiver();
         }
 
-        public void Send(byte[] data, int offset, int count) 
+        public void Send(byte[] data, int offset, int count)
         {
             udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
         }
@@ -40,18 +40,18 @@ namespace NetworkLibrary.DistributedP2P.Channels
             var buff = BufferPool.RentBuffer(65536);
 
             receiveArgs = new SocketAsyncEventArgs();
-            receiveArgs.SetBuffer(buff,0,buff.Length);
+            receiveArgs.SetBuffer(buff, 0, buff.Length);
             receiveArgs.Completed += OnReceiveCompleted;
             receiveArgs.RemoteEndPoint = associatedEndpoint;
             Receive();
-           
+
         }
 
         private void Receive()
         {
             if (!udpSocket.ReceiveFromAsync(receiveArgs))
             {
-               ThreadPool.UnsafeQueueUserWorkItem((s)=> OnReceiveCompleted(null, receiveArgs),null);
+                ThreadPool.UnsafeQueueUserWorkItem((s) => OnReceiveCompleted(null, receiveArgs), null);
             }
         }
 
@@ -67,7 +67,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
                 if (e.BytesTransferred > 0)
                 {
-                   
+
                     try
                     {
                         ProcessReceivedData(e.Buffer, e.Offset, e.BytesTransferred, e.RemoteEndPoint);
@@ -118,8 +118,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 }
             }
             catch { }
-          
-        }   
-       
+
+        }
+
     }
 }

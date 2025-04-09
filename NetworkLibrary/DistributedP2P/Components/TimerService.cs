@@ -12,7 +12,12 @@ namespace NetworkLibrary.DistributedP2P.Components
         {
             var timer = new Timer(s =>
             {
-                OnTime?.Invoke();
+                try
+                {
+                    OnTime?.Invoke();
+                }
+                catch { }
+              
                 CancelTimeout(timerId);
 
             }, null, delay, Timeout.Infinite);

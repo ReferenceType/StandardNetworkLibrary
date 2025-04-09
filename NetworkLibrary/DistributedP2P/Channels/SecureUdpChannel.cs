@@ -1,35 +1,40 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Text;
+﻿using NetworkLibrary.Components;
+using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
-using NetworkLibrary.UDP.Jumbo;
 using NetworkLibrary.UDP.Reliable.Components;
 using NetworkLibrary.Utils;
 using System.Net;
-using NetworkLibrary.Components;
-using NetworkLibrary.DistributedP2P.Channels.Components;
-using System.Drawing;
-using System.Reflection;
+using System.Net.Sockets;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
-    public class SecureUdpChannel:UdpChannel
+    public class SecureUdpChannel : UdpChannel
     {
-        EphemeralKeyManager keyStore;
+        EphemeralKeyManager keyManager;
         byte[] decryptBuff = new byte[65555];
-        private int keyRotateTimeMs = 60000;//every minute
+        private readonly bool isInitiator;
 
-        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, ConcurrentAesAlgorithm algo, ChannelInfo info,bool isInitiator) : base(udpSocket, receiveEp, info)
+        public int KeyRotationPeriodMs { get; private set; } = 1000;//every minute
+
+        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, ConcurrentAesAlgorithm algo, ChannelInfo info, bool isInitiator) : base(udpSocket, receiveEp, info)
         {
-            keyStore = new EphemeralKeyManager(algo, isInitiator? keyRotateTimeMs : -1);
-            keyStore.SendData += SendKeyMsg;
+            keyManager = new EphemeralKeyManager(algo, isInitiator ? KeyRotationPeriodMs : -1);
+            keyManager.SendData += SendKeyMsg;
 
 
             SenderModule sender = new SenderModule();
             sender.MaxSegmentSize = 1280;
             sender.MinWindowSize = 1280 * 2;
-            
+            this.isInitiator = isInitiator;
+        }
+
+        public void SetKeyRotationPeriod(int timeMs)
+        {
+            if (isInitiator)
+            {
+                KeyRotationPeriodMs = timeMs;
+                keyManager.SetKeyRotationTime(timeMs);
+            }
         }
 
         private void SendKeyMsg(MessageFlags flag, byte[] buffer, int offset, int count)
@@ -40,83 +45,55 @@ namespace NetworkLibrary.DistributedP2P.Channels
         protected override void BytesReceived(byte[] buffer, int offset, int count)
         {
             var flag = (MessageFlags)buffer[offset++];
-            count--;
 
             if (flag == MessageFlags.HP || flag == MessageFlags.HPAck)
                 return;
 
             var keyNo = buffer[offset++];
-            count--;
-            
-            keyStore.GetAlgorithm(keyNo, out var algo);
+            count -= 2;
+
+            keyManager.GetAlgorithm(keyNo, out var algo);
 
             count = algo.DecryptInto(buffer, offset, count, decryptBuff, 0);
             buffer = decryptBuff;
             offset = 0;
 
-            switch (flag)
-            {
-                case MessageFlags.StandardMessage:
-                    HandleMessage(buffer, offset, count);
-                    break;
-
-                case MessageFlags.JumboMessage:
-                    HandleJumboSegment(buffer, offset, count);
-                    break;
-
-                case MessageFlags.ReliableMessage:
-                    HandleRudpSegment(buffer, offset, count);
-                    break;
-
-                case MessageFlags.InternalReliableMessage:
-                    HandleIncomingInternalRudpSegment(buffer, offset, count);
-                    break;
-
-                case MessageFlags.KeepAliveMessage:
-                    break;
-
-                case MessageFlags.HP:
-                case MessageFlags.HPAck:
-                    break;
-                case MessageFlags.Ping:
-                    break;
-
-                case MessageFlags.KeyExchange:
-                case MessageFlags.KeyExchangeAck:
-                case MessageFlags.KeyExchangeFin:
-                    keyStore.HandleMessage(flag, buffer, offset, count);
-                    break;
-            }
+            HandleReivedMessage(buffer, offset, count, flag);
         }
 
-        protected override void HandleInternalReliableMessage(byte[] buffer, int offset, int count)
+        protected override void HandleReivedMessage(byte[] buffer, int offset, int count, MessageFlags flag)
         {
-            var flag = (MessageFlags)buffer[offset++];
-            count--;
-
             switch (flag)
             {
                 case MessageFlags.KeyExchange:
                 case MessageFlags.KeyExchangeAck:
                 case MessageFlags.KeyExchangeFin:
-                    keyStore.HandleMessage(flag, buffer, offset, count);
+                    keyManager.HandleMessage(flag, buffer, offset, count);
                     break;
             }
+
+            base.HandleReivedMessage(buffer, offset, count, flag);
         }
 
-       
-        protected override void SendWithFlag (MessageFlags flag, byte[] buffer, int offset, int count)
+
+        protected override void SendWithFlag(MessageFlags flag, byte[] buffer, int offset, int count)
         {
             var stream = SharerdMemoryStreamPool.RentStreamStatic();
             stream.WriteByte((byte)flag);
-            stream.WriteByte(keyStore.CurrKeyNumber);
+            stream.WriteByte(keyManager.CurrKeyNumber);
 
             stream.Reserve(count + 128);
-            keyStore.GetAlgorithm(keyStore.CurrKeyNumber, out var algo);
+            keyManager.GetAlgorithm(keyManager.CurrKeyNumber, out var algo);
             stream.Position32 += algo.EncryptInto(buffer, offset, count, stream.GetBuffer(), 2);
 
             SendInternal(stream.GetBuffer(), 0, stream.Position32);
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+        }
+
+        protected override void ReleseResources()
+        {
+            base.ReleseResources();
+            keyManager.Close();
         }
 
     }

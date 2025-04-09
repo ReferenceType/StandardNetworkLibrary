@@ -22,6 +22,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private readonly Guid destId;
         private readonly IDistributedConnection connection;
         private readonly EndpointData serverEndpoint;
+        private readonly EndpointData discoveryServerendPoint;
         public Socket Socket;
         private bool isInitiator;
 
@@ -31,26 +32,28 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private byte[] otherPublicKey;
         public byte[] SharedSecret;
         public ChannelInfo ChannelInfo;
-        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info) : base(stateId, 20000)
+        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerendPoint, ChannelInfo info) : base(stateId, 20000)
         {
             this.destId = destId;
             this.connection = connection;
             this.serverEndpoint = serverEndpoint;
+            this.discoveryServerendPoint = discoveryServerendPoint;
             this.ChannelInfo = info;
         }
 
         //the initiator
-        public void Start()
+        public async void Start()
         {
             isInitiator = true;
             Log(StateId.ToString());
 
-            int port = StartUdpSocket();
+            EndpointData data = await StartUdpSocket();
+            if (data == null) return;
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.RequestHolepunchUdp;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Port"] = port.ToString();
+            msg.KeyValuePairs["Port"] = data.Port.ToString();
             msg.KeyValuePairs["Type"] = ((int)ChannelInfo.ChannelType).ToString();
             msg.KeyValuePairs["Name"] = ChannelInfo.ChannelName;
 
@@ -66,28 +69,36 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         public override void HandleMessage(MessageEnvelope message)
         {
-            switch (message.Header)
+            try
             {
-                case InternalConstants.RequestHolepunchUdp:
-                    HandleRemoteHpRequest(message);
-                    break;
+                switch (message.Header)
+                {
+                    case InternalConstants.RequestHolepunchUdp:
+                        HandleRemoteHpRequest(message);
+                        break;
 
-                case InternalConstants.StartHP:
-                    message.LockBytes();
-                    ThreadPool.UnsafeQueueUserWorkItem((s) => StartHolepunchRoutine(message), null);
-                    break;
+                    case InternalConstants.StartHP:
+                        message.LockBytes();
+                        ThreadPool.UnsafeQueueUserWorkItem((s) => StartHolepunchRoutine(message), null);
+                        break;
 
-                case InternalConstants.PunchSuccesAck:
-                    HandleRemoteSucces(message);
-                    break;
-                case InternalConstants.PunchFailAck:
-                    HandleFailure();
-                    break;
+                    case InternalConstants.PunchSuccesAck:
+                        HandleRemoteSucces(message);
+                        break;
+                    case InternalConstants.PunchFailAck:
+                        HandleFailure();
+                        break;
+                }
             }
+            catch(Exception ex)
+            {
+                OnError(ex.StackTrace);
+            }
+            
         }
 
         // the destination peer of hp
-        private void HandleRemoteHpRequest(MessageEnvelope message)
+        private async void HandleRemoteHpRequest(MessageEnvelope message)
         {
             Log(StateId.ToString());
 
@@ -95,11 +106,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             ChannelInfo.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
             ChannelInfo.ChannelName = message.KeyValuePairs["Name"];
 
-            int port = StartUdpSocket();
+            EndpointData data = await StartUdpSocket();
+            if(data == null) return;
+
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.AckRequestHolepunchUdp;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Port"] = port.ToString();
+            msg.KeyValuePairs["Port"] = data.Port.ToString();
 
             if (ChannelInfo.RequiresKeyExchange())
                 msg.KeyValuePairs["DH"] = Convert.ToBase64String(df.GetPublicKey());
@@ -185,8 +198,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         }
 
-        private int StartUdpSocket()
+        private async Task<EndpointData> StartUdpSocket()
         {
+          
             Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             Socket.SendBufferSize = 12800000;
             Socket.ReceiveBufferSize = 12800000;
@@ -194,9 +208,15 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             Socket.Bind(new IPEndPoint(IPAddress.Any, 0));
 
+            EndpointData data = await EndpointDiscoveryClient.GetUdpPublicEndpoint(Socket, discoveryServerendPoint.ToIpEndpoint(),5000);
+            if(data == null)
+            {
+                OnError("Failed to retrieve public endpoint");
+                return null;
+            }
             Receive();
 
-            return ((IPEndPoint)Socket.LocalEndPoint).Port;
+            return data;
         }
         private async void Receive()
         {
@@ -287,6 +307,16 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             connection.SendAsyncMessage(msg);
             Cancel();
         }
+
+        private void OnError(string error)
+        {
+            Log("Exception :" + error);
+            var msg = CreateEnvelope();
+            msg.Header = InternalConstants.PunchFail;
+            connection.SendAsyncMessage(msg);
+            Cancel();
+        }
+
 
         private void HandleFailure()
         {

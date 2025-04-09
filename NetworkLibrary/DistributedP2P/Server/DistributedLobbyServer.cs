@@ -36,18 +36,19 @@ namespace NetworkLibrary.DistributedP2P.Server
         public int SSlPort;
         public int TcpPort;
         public int UdpPort;
+        public int DiscoveryServerPort;
     }
     public class DistributedLobbyServerBase<S> : IDistributedConnection,IDisposable where S : ISerializer, new()
     {
         public readonly int SSlPort;
         public readonly int TcpPort;
         public readonly int UdpPort;
+        public readonly int DiscoveryServerPort;
 
         private X509Certificate2 serverCertificate;
 
         SecureMessageServer<S> sslServer;
-        AsyncTcpServer tcpServer;
-        AsyncUdpServer udpServer;
+
 
         IAuthenticator authenticator;
         IServerDbConnector dbConnector;
@@ -60,6 +61,8 @@ namespace NetworkLibrary.DistributedP2P.Server
         PipeManager pipeManager;
 
         private byte[] serverKey = new byte[16];
+
+        EndpointDiscoveryServer discoveryServer;
         public DistributedLobbyServerBase(Dependencies dependencies, ServerParameters parameters)
         {
             authenticator = dependencies.Authenticator;
@@ -67,6 +70,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             SSlPort = parameters.SSlPort;
             TcpPort = parameters.TcpPort;
             UdpPort = parameters.UdpPort;
+            DiscoveryServerPort = parameters.DiscoveryServerPort;
 
             serverCertificate = parameters.certificate ?? CertificateGenerator.GenerateSelfSignedCertificate();
         }
@@ -93,6 +97,8 @@ namespace NetworkLibrary.DistributedP2P.Server
             sessionManager = new SessionManager(this);
             sessionManager.PeerListPublish += PublishPeerList;
 
+            discoveryServer = new EndpointDiscoveryServer(DiscoveryServerPort);
+            discoveryServer.Start();
         }
 
       
@@ -119,7 +125,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
 
             Guid stateId = msg.MessageId;
-            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector);
+            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector,DiscoveryServerPort);
             stateManager.RegisterState(state);
             state.HandleMessage(msg);
 
@@ -263,8 +269,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         public void ShutDownServer()
         {
             sslServer.ShutdownServer();
-            tcpServer.ShutdownServer();
-            udpServer.Dispose();
+
         }
 
         public DateTime GetDateTime()
@@ -285,6 +290,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
             sslServer.ShutdownServer();
             pipeManager.Dispose();
+            discoveryServer.Dispose();
         }
 
        

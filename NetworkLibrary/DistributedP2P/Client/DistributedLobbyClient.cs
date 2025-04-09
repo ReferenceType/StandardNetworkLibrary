@@ -39,6 +39,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public Guid SessionId { get; private set; }
 
+        private EndpointData DiscoveryServerEndpoint;
         private int connected = 0;
         public bool IsConnected 
         {
@@ -80,6 +81,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                 {
                     serverEndpoint = new EndpointData(ip, port);
                     SessionId = conState.SessionId;
+                    DiscoveryServerEndpoint = new EndpointData(ip, conState.EDSPort);
                     IsConnected = true;
                     timeSync.StartAutoTimeSync(5000);
                     return true;
@@ -237,7 +239,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             
             if(info.ChannelType == ChannelType.Udp || info.ChannelType == ChannelType.SecureUdp)
             {
-                var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, info);
+                var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
                 stateManager.RegisterState(state);
                 state.Start();
 
@@ -286,7 +288,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void ManageUdpHolepunchRequest(MessageEnvelope envelope)
         {
-            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,serverEndpoint, null);
+            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,serverEndpoint,DiscoveryServerEndpoint, null);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);

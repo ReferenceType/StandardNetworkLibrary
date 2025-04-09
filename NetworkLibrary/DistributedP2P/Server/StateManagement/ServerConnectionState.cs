@@ -17,16 +17,18 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private readonly IDistributedConnection connection;
         private readonly IAuthenticator authenticator;
         private readonly IServerDbConnector dbConnector;
+        private readonly int eDSPort;
         private IAuthenticationResult tokenResult;
 
         public List<string> clientLocalIps;
 
-        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector):base(stateId,20000)
+        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector,int EDSPort):base(stateId,20000)
         {
             this.EphemeralClientId = clientId;
             this.connection = connection;
             this.authenticator = authenticator;
             this.dbConnector = dbConnector;
+            eDSPort = EDSPort;
         }
 
         
@@ -173,6 +175,8 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.ConnectionAckGood;
             msg.To = EphemeralClientId;
+            msg.KeyValuePairs = new Dictionary<string, string>();
+            msg.KeyValuePairs["EDSPort"] = eDSPort.ToString();
             lock (cancellationMutex)
             {
                 if (IsCompleted())

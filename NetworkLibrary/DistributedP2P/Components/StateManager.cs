@@ -36,7 +36,15 @@ namespace NetworkLibrary.DistributedP2P.Components
 
             if (states.TryGetValue(stateId, out var state))
             {
-                state.HandleMessage(message);
+                try
+                {
+                    state.HandleMessage(message);
+                }
+                catch 
+                {
+                    state.Cancel();
+                    UnregisterState(stateId);
+                }
                 return true;
             }
 

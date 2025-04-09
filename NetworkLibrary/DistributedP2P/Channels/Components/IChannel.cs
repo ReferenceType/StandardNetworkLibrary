@@ -10,5 +10,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         void Start();
 
+        void CloseChannel();
+
     }
 }

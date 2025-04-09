@@ -1,5 +1,4 @@
-﻿using NetworkLibrary.Components.Crypto.Algorithms;
-using NetworkLibrary.DistributedP2P.Channels.Components;
+﻿using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.UDP.Jumbo;
 using NetworkLibrary.UDP.Reliable.Components;
@@ -7,6 +6,8 @@ using NetworkLibrary.Utils;
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
@@ -17,26 +18,32 @@ namespace NetworkLibrary.DistributedP2P.Channels
         private UdpChannelBase innerchannel;
 
         public event Action<byte[], int, int> OnMessageReceived;
+        public event Action Disconnected;
 
         protected JumboModule JumboUdp = new JumboModule(0);
         internal ReliableModule ReliableUdp;
-        ReliableModule internalReliableModule;
+        private ReliableModule internalReliableModule;
+        protected KeepAlive keepAlive;
+        protected Pinger pinger;
+
+        private int isClosed = 0;
+        private int isDisposed = 0;
 
 
         public UdpChannel(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
-           
+
             Info = info;
             innerchannel = new UdpChannelBase(udpSocket, receiveEp, info);
             JumboUdp.SendToSocket = SendJumboSegment;
             JumboUdp.MessageReceived = HandleMessage;
 
             SenderModule sender = new SenderModule();
-           
-            sender.MaxSegmentSize = 1280;
-            sender.MinWindowSize = 1280*2;
 
-            ReliableUdp = new ReliableModule(receiveEp,sender);
+            sender.MaxSegmentSize = 1280;
+            sender.MinWindowSize = 1280 * 2;
+
+            ReliableUdp = new ReliableModule(receiveEp, sender);
 
             ReliableUdp.OnReceived += (e, b, o, c) => HandleMessage(b, o, c);
             ReliableUdp.OnSend += SendRudpSegment;
@@ -49,7 +56,17 @@ namespace NetworkLibrary.DistributedP2P.Channels
             internalReliableModule.OnReceived += (e, b, o, c) => HandleInternalReliableMessage(b, o, c);
             internalReliableModule.OnSend += SendInternalRudpSegment;
 
+            keepAlive = new KeepAlive();
+            keepAlive.SendData += SendInternalReliable;
+            keepAlive.NotAlive += HandleDisconnect;
+
+            pinger = new Pinger();
+            pinger.SendData += SendInternalReliable;
+
+
         }
+
+
 
         public void Start()
         {
@@ -62,37 +79,54 @@ namespace NetworkLibrary.DistributedP2P.Channels
             // filter flags
             var flag = (MessageFlags)buffer[offset++];
             count--;
+            HandleReivedMessage(buffer, offset, count, flag);
+        }
 
+        protected virtual void HandleReivedMessage(byte[] buffer, int offset, int count, MessageFlags flag)
+        {
             switch (flag)
             {
                 case MessageFlags.StandardMessage:
                     HandleMessage(buffer, offset, count);
                     break;
+
                 case MessageFlags.JumboMessage:
                     HandleJumboSegment(buffer, offset, count);
                     break;
+
                 case MessageFlags.ReliableMessage:
                     HandleRudpSegment(buffer, offset, count);
                     break;
+
                 case MessageFlags.KeepAliveMessage:
+                    keepAlive.HandleMessage(flag, buffer, offset, count);
                     break;
 
-                case MessageFlags.HP:
-                case MessageFlags.HPAck:
+                case MessageFlags.Kill:
+                    HandleDisconnect();
                     break;
+
                 case MessageFlags.InternalReliableMessage:
                     HandleIncomingInternalRudpSegment(buffer, offset, count);
                     break;
+
                 case MessageFlags.Ping:
+                case MessageFlags.Pong:
+                    pinger.HandleMessage(flag, buffer, offset, count);
                     break;
 
             }
+
+
         }
 
 
         protected virtual void HandleInternalReliableMessage(byte[] buffer, int offset, int count)
         {
-           
+            var flag = (MessageFlags)buffer[offset++];
+            count--;
+
+            HandleReivedMessage(buffer, offset, count, flag);
         }
 
         protected virtual void HandleMessage(byte[] buffer, int offset, int count)
@@ -121,12 +155,17 @@ namespace NetworkLibrary.DistributedP2P.Channels
         }
         internal virtual void SendRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
         {
-           SendWithFlag(MessageFlags.ReliableMessage, buffer, offset, count);
+            SendWithFlag(MessageFlags.ReliableMessage, buffer, offset, count);
         }
 
         internal virtual void SendInternalRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
         {
             SendWithFlag(MessageFlags.InternalReliableMessage, buffer, offset, count);
+        }
+
+        public Task<double> Ping()
+        {
+            return pinger.Ping();
         }
 
         public virtual void Send(byte[] buffer, int offset, int count)
@@ -138,7 +177,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             else
             {
-               SendWithFlag(MessageFlags.StandardMessage, buffer, offset, count);
+                SendWithFlag(MessageFlags.StandardMessage, buffer, offset, count);
             }
 
         }
@@ -177,10 +216,53 @@ namespace NetworkLibrary.DistributedP2P.Channels
             catch (Exception e)
             {
             }
-           
+
         }
+
+
+        public void CloseChannel()
+        {
+            try
+            {
+                SendWithFlag(MessageFlags.Kill, new byte[1], 0, 1);
+            }
+            catch { }
+
+            HandleDisconnect();
+
+        }
+
+        protected void HandleDisconnect()
+        {
+            if (Interlocked.CompareExchange(ref isClosed, 1, 0) == 0)
+            {
+                Disconnected?.Invoke();
+                Dispose();
+            }
+
+        }
+
         public void Dispose()
         {
+            if (Interlocked.CompareExchange(ref isDisposed, 1, 0) == 0)
+                ReleseResources();
         }
+
+        protected virtual void ReleseResources()
+        {
+            ReliableUdp.Close();
+            internalReliableModule.Close();
+            keepAlive.Close();
+            JumboUdp.Release();
+
+            innerchannel.CloseChannel();
+
+            Disconnected = null;
+            OnMessageReceived = null;
+
+
+        }
+
+
     }
 }

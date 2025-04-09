@@ -17,7 +17,6 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         public ChannelInfo Info { get; private set; }
 
         public event Action<byte[], int, int> OnMessageReceived;
-
         public UdpChannelBase(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
             this.udpSocket = udpSocket;
@@ -97,8 +96,11 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         }
 
 
-
-        public void Dispose()
+        public virtual void CloseChannel()
+        {
+            Dispose();
+        }
+        public virtual void Dispose()
         {
             try
             {

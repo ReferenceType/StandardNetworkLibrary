@@ -14,10 +14,11 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         HP,
         HPAck,
         Ping,
+        Pong,
         KeyExchange,
         KeyExchangeAck,
         KeyExchangeFin,
-        
+        Kill,
     }
 
     

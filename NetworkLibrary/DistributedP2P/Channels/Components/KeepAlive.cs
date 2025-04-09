@@ -1,27 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.Channels.Components
 {
-/*
- * Send keep alive every 5 seconds
- * 
- * if reply is not received within 1 sec resend up to 5 times
- * 
- * otherwise keep alive again 5 seconds later
- * 
- * 
- */
-    internal class KeepAlive
+
+    public class KeepAlive
     {
         public Action<MessageFlags, byte[], int, int> SendData;
+        public Action NotAlive;
 
-        DateTime lastReceived = DateTime.Now;
-        bool stop = false;
-        int maxRetry = 10;
-        byte[] innerBuff = new byte[1];
+        private DateTime lastReceived = DateTime.Now;
+        private bool stop = false;
+        private byte[] innerBuff = new byte[32];
         public KeepAlive()
         {
             StartSendRoutine();
@@ -31,49 +22,45 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         {
             while (!stop)
             {
-                await Task.Delay(5000);
+                await Task.Delay(4000);
                 SendKeepAlive();
-                
-                await Task.Delay(1000);
-                int retires = 0;
-                while((DateTime.Now - lastReceived).TotalMilliseconds > 1000)
+
+                if ((DateTime.Now - lastReceived).TotalMilliseconds > 10000)
                 {
-                    if(retires > maxRetry)
-                    {
-                        DisconnectDetected();
-                        return;
-                    }
-                        
-                    SendKeepAlive();
-                    await Task.Delay(1000);
+                    DisconnectDetected();
                 }
             }
         }
 
         private void DisconnectDetected()
         {
-           // event of DC
+            NotAlive?.Invoke();
         }
 
         public void HandleMessage(MessageFlags flag, byte[] buffer, int offset, int count)
         {
-
-            switch (flag)
-            {
-                case MessageFlags.KeepAliveMessage:
-                    HandleKeepAlive(buffer, offset, count);
-                    break;
-            }
+            HandleKeepAlive(buffer, offset, count);            
         }
 
+        RandomNumberGenerator r = RandomNumberGenerator.Create();
         private void SendKeepAlive()
         {
-            SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 1);
+            r.GetBytes(innerBuff, 0, 16);
+            SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 16);
+            Console.WriteLine("Keep alive sent");
         }
 
         private void HandleKeepAlive(byte[] buffer, int offset, int count)
         {
             lastReceived = DateTime.Now;
+            Console.WriteLine("Keep alive received");
+        }
+
+        internal void Close()
+        {
+            stop = true;
+            NotAlive = null;
+            SendData = null;
         }
     }
 }

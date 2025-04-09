@@ -19,7 +19,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private TaskCompletionSource<IConversationState> Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Guid SessionId { get; private set; }
-
+        public int EDSPort { get; private set; }
         public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken):base(stateId,20000)
         {
             this.connection = connection;
@@ -95,6 +95,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private void HandleConnectionSucces(MessageEnvelope message)
         {
             SessionId = message.To;
+            EDSPort = int.Parse(message.KeyValuePairs["EDSPort"]);
             Completed(succes: true);
         }
 

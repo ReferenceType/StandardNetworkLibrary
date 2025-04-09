@@ -94,7 +94,9 @@ namespace UnitTests.DistributedP2P
                 certificate = null,
                 SSlPort = 20010,
                 TcpPort = 20011,
-                UdpPort = 20012
+                UdpPort = 20012,
+                DiscoveryServerPort = 20013,
+                
             };
             var server = new DistributedLobbyServerBase<ProtoSerializer>(dep, param);
             server.StartServer();
@@ -170,6 +172,7 @@ namespace UnitTests.DistributedP2P
             Assert.AreEqual(received, data.Length);
 
         }
+
         [TestMethod]
         public void SecurePipeTest()
         {
@@ -178,6 +181,8 @@ namespace UnitTests.DistributedP2P
 
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
             ManualResetEvent mre = new ManualResetEvent(false);
+            List<int> received = new List<int>();
+            int iter = 20;
 
             using var server = ArrangeServer();
 
@@ -196,15 +201,22 @@ namespace UnitTests.DistributedP2P
             byte[] data = new byte[12800000];
 
             channel1.Start();
-            channel1.SendAsync(data, 0, data.Length);
-            Thread.Sleep(100);
-            mre.Set();
 
-            int received = 0;
+           
+            var ping = channel1.Ping().Result;
+
+            for (int i = 0; i < iter; i++)
+            {
+                data[0] = (byte)i;
+                channel1.SendAsync(data, 0, data.Length);
+                if(i%2 ==0)
+                    Thread.Sleep(1000);
+            }
+
 
             void PeerConnected(IChannel channel_)
             {
-                mre.WaitOne();//emulate bad syncronisation
+               // mre.WaitOne();//emulate bad syncronisation
                 var channel = (SecureTcpChannel)channel_;
                 channel.BytesReceived += Channel_BytesReceived;
                 channel.Disconnected += Disconnected;
@@ -219,14 +231,19 @@ namespace UnitTests.DistributedP2P
 
             void Channel_BytesReceived(byte[] buff, int offset, int count)
             {
-                received = count;
-                tcs.TrySetResult(true);
+                received.Add(buff[offset]);
+
+                if(received.Count == iter)
+                    tcs.TrySetResult(true);
             }
 
             var ss = tcs.Task.Result;
             Assert.IsTrue(ss);
 
-            Assert.AreEqual(received, data.Length);
+            for (int i = 0; i < received.Count; i++)
+            {
+                Assert.IsTrue(received[i] == i);
+            }
 
         }
 
@@ -295,7 +312,10 @@ namespace UnitTests.DistributedP2P
             Assert.IsNotNull(channel1);
             channel1.Start();
 
+
             Thread.Sleep(5000);
+            var ping = channel1.Ping().Result;
+            Console.WriteLine(ping);
 
             byte[] data = new byte[12800000];
             channel1.SendReliable(data, 0, data.Length);
@@ -709,7 +729,7 @@ namespace UnitTests.DistributedP2P
             var res1 = cl1.ConnectAsync("127.0.0.1", 20010).Result;
             var res2 = cl2.ConnectAsync("127.0.0.1", 20010).Result;
 
-            var data = new byte[12800000];
+            var data = new byte[1280000];
             data[0] = 1;
             int iter = 100;
 

@@ -70,8 +70,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                 case ChannelType.SecureTcp:
                     var symetricKey = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
                     var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey, AesMode.GCM);
-                    AesTcpClient client = new AesTcpClient(algo, connectedSocket);
-                    channel = new SecureTcpChannel(client, info);
+                    channel = new SecureTcpChannel(algo, info, connectedSocket, isInitiator);
                     break;
                 case ChannelType.Udp:
                     channel = new UdpChannel(connectedSocket, endpoint, info);

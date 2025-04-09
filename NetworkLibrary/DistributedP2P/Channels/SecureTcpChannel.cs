@@ -114,5 +114,11 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
         }
 
+        protected override void ReleaseResources()
+        {
+            keyManager.Close();
+            base.ReleaseResources();
+        }
+
     }
 }

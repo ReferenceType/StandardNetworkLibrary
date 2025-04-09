@@ -2,7 +2,6 @@
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using System;
-using System.Drawing;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,7 +48,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
             keepAlive = new KeepAlive();
             keepAlive.SendData += FlagAndSend;
-            keepAlive.NotAlive += ()=>ErrorAndEnd("Kepp Alive Timed Out");
+            keepAlive.NotAlive += () => ErrorAndEnd("Kepp Alive Timed Out");
 
             pinger = new Pinger();
             pinger.SendData += FlagAndSend;
@@ -68,6 +67,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         protected void FlagAndSend(MessageFlags flag, byte[] buffer, int offset, int count)
         {
+
             if (IsSessionClosing())
                 return;
 
@@ -87,16 +87,20 @@ namespace NetworkLibrary.DistributedP2P.Channels
                     sendStream.Position32 = lenghtPos;
                     sendStream.WriteInt(amountWritten + prefixLen + 1);
                     sendStream.Position32 = lastPos;
+
+
                 }
                 catch (Exception ex)
                 {
                     ErrorAndEnd(ex.Message + "\n" + ex.StackTrace);
                     return;
                 }
-               
-            }
 
+
+            }
             SignalSend();
+
+
         }
 
         protected virtual int WritePrefix(PooledMemoryStream sendStream)
@@ -118,15 +122,12 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 {
                     lock (bufferMutex)
                     {
-                        var temp = sendStream;
-                        sendStream = flushStream;
-                        flushStream = temp;
-
+                        var flush = Interlocked.Exchange(ref sendStream, flushStream);
+                        Interlocked.Exchange(ref flushStream, flush);
                         sendStream.Position32 = 0;
                     }
-                    
-                    sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
 
+                    sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
                     if (!connectedSocket.SendAsync(sendArgs))
                     {
                         ThreadPool.UnsafeQueueUserWorkItem(_ => Sent(null, sendArgs), null);
@@ -134,7 +135,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 }
                 else
                 {
-                    Interlocked.Exchange(ref msgAvailable, 1);
+                    if (sendStream.Position32 != 0)
+                        Interlocked.Exchange(ref msgAvailable, 1);
                 }
             }
         }
@@ -165,9 +167,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
                     {
                         lock (bufferMutex)
                         {
-                            var temp = sendStream;
-                            sendStream = flushStream;
-                            flushStream = temp;
+                            var flush = Interlocked.Exchange(ref sendStream, flushStream);
+                            Interlocked.Exchange(ref flushStream, flush);
 
                             sendStream.Position32 = 0;
                         }
@@ -181,12 +182,12 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
                 if (send)
                 {
-                   
+
                     sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
 
                     if (!connectedSocket.SendAsync(sendArgs))
                     {
-                        Sent(null, sendArgs);
+                        ThreadPool.UnsafeQueueUserWorkItem(_ => Sent(null, sendArgs), null);
                     }
                 }
             }
@@ -285,17 +286,21 @@ namespace NetworkLibrary.DistributedP2P.Channels
             Console.WriteLine("Closing channel");
             if (Interlocked.CompareExchange(ref Closing, 1, 0) == 0)
             {
-                try
-                {
-                    connectedSocket.Shutdown(SocketShutdown.Both);
-                }
-                catch { }
-
-                Disconnected?.Invoke();
+                ReleaseResources();
             }
         }
 
-       
+        protected virtual void ReleaseResources()
+        {
+            try
+            {
+                connectedSocket.Shutdown(SocketShutdown.Both);
+            }
+            catch { }
+            keepAlive.Close();
+            Disconnected?.Invoke();
+        }
+
 
         private void HandleReceived(byte[] buffer, int offset, int bytesTransferred)
         {
@@ -304,7 +309,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
 
 
-        protected void ErrorAndEnd( string errMsg)
+        protected void ErrorAndEnd(string errMsg)
         {
             Log(errMsg);
             CloseChannel();

@@ -660,7 +660,7 @@ namespace UnitTests.DistributedP2P
 
             var ss = tcs.Task.Result;
             Assert.AreEqual(data.Length, received);
-
+             
 
 
         }
@@ -729,9 +729,9 @@ namespace UnitTests.DistributedP2P
             var res1 = cl1.ConnectAsync("127.0.0.1", 20010).Result;
             var res2 = cl2.ConnectAsync("127.0.0.1", 20010).Result;
 
-            var data = new byte[1280000];
+            var data = new byte[128000];
             data[0] = 1;
-            int iter = 100;
+            int iter = 1000;
 
 
             cl2.PeerConnected += Cl2_PeerConnected;
@@ -743,12 +743,12 @@ namespace UnitTests.DistributedP2P
             Assert.IsNotNull(channel1);
             channel1.Start();
 
-           
+            Thread.Sleep(100);
+
             Parallel.For(0, iter, (i) =>
             {
                 channel1.SendAsync(data, 0, data.Length);
             });
-            Thread.Sleep(100);
 
             void Cl2_PeerConnected(IChannel obj)
             {
@@ -762,7 +762,7 @@ namespace UnitTests.DistributedP2P
                 if (arg3 != data.Length)
                     throw new Exception();
 
-                if(Interlocked.Increment(ref numReceived) == 100)
+                if(Interlocked.Increment(ref numReceived) == iter)
                     tcs.TrySetResult(true);
             }
 
@@ -803,6 +803,7 @@ namespace UnitTests.DistributedP2P
             Assert.IsNotNull(channel1);
             channel1.Start();
 
+            Thread.Sleep(100);
 
             for (int i = 0; i < iter; i++)
             {
@@ -811,7 +812,6 @@ namespace UnitTests.DistributedP2P
                 if(i%10 == 0)
                     Thread.Sleep(1);
             };
-            Thread.Sleep(100);
 
             void Cl2_PeerConnected(IChannel obj)
             {
@@ -829,7 +829,10 @@ namespace UnitTests.DistributedP2P
                 if (Interlocked.Increment(ref numReceived) == 100)
                     tcs.TrySetResult(true);
             }
-
+            Task.Delay(2000).ContinueWith(t =>
+            {
+                tcs.TrySetResult(false);
+            });
             var ss = tcs.Task.Result;
             Assert.AreEqual(iter, numReceived);
 

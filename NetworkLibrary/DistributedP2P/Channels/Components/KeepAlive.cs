@@ -23,6 +23,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             while (!stop)
             {
                 await Task.Delay(4000);
+                if (stop) break; 
                 SendKeepAlive();
 
                 if ((DateTime.Now - lastReceived).TotalMilliseconds > 10000)
@@ -45,8 +46,8 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         RandomNumberGenerator r = RandomNumberGenerator.Create();
         private void SendKeepAlive()
         {
-            r.GetBytes(innerBuff, 0, 16);
-            SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 16);
+            r.GetBytes(innerBuff, 0, 32);
+            SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 32);
             Console.WriteLine("Keep alive sent");
         }
 

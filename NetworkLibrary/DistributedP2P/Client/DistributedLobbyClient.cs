@@ -82,6 +82,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                     serverEndpoint = new EndpointData(ip, port);
                     SessionId = conState.SessionId;
                     DiscoveryServerEndpoint = new EndpointData(ip, conState.EDSPort);
+                    Console.WriteLine($"Connected to server {ip}:{port} with session {SessionId} and discovery port {conState.EDSPort}");
                     IsConnected = true;
                     timeSync.StartAutoTimeSync(5000);
                     return true;
@@ -255,7 +256,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (strategy == TcpHolePunchStrategy.Sequential)
                 {
-                    var state = new ClientTcpHolepunchState2(Guid.NewGuid(), destination, this, serverEndpoint, info);
+                    var state = new ClientTcpHolepunchState2(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
                     stateManager.RegisterState(state);
                     state.Start();
 
@@ -324,7 +325,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void ManageTcpHolepunchRequest2(MessageEnvelope envelope)
         {
-            var state = new ClientTcpHolepunchState2(envelope.MessageId, envelope.From, this, serverEndpoint, null);
+            var state = new ClientTcpHolepunchState2(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);

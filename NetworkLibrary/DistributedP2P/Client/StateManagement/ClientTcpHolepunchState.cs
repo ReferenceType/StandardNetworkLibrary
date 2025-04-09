@@ -148,7 +148,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             for (int i = 0; i < 4; i++)
             {
-                if (TryConnect(publicEp, (1000)))
+                if (TryConnect(publicEp, (2000)))
                     return;
                 //PreciseTimeAwaiter.Wait(nextTryTime - connection.GetTime());
                 if (IsEstablished) return;

@@ -48,13 +48,13 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         {
             r.GetBytes(innerBuff, 0, 32);
             SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 32);
-            Console.WriteLine("Keep alive sent");
+            //Console.WriteLine("Keep alive sent");
         }
 
         private void HandleKeepAlive(byte[] buffer, int offset, int count)
         {
             lastReceived = DateTime.Now;
-            Console.WriteLine("Keep alive received");
+            //Console.WriteLine("Keep alive received");
         }
 
         internal void Close()

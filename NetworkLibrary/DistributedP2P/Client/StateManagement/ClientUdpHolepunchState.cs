@@ -6,8 +6,6 @@ using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -35,7 +33,6 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private IPEndPoint selfRemoteEp;
         private IPEndPoint selfLocalEp;
-
 
         public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerendPoint, ChannelInfo info) : base(stateId, 20000)
         {
@@ -92,11 +89,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                         break;
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                OnError(ex.StackTrace);
+                OnError(ex.Message + "\n" + ex.StackTrace);
             }
-            
+
         }
 
         // the destination peer of hp
@@ -129,6 +126,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
+
             int offs = message.PayloadOffset;
             var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
 
@@ -137,31 +135,31 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             var time = double.Parse(message.KeyValuePairs["Time"]);
 
-           
+
             if (epMsg.LocalEndpoints.Count > 0)
             {
-                var now0 = connection.GetTime();
-                var delay0 = (time - now0) / 4;
-                PreciseTimeAwaiter.Wait(delay0);
+                //var now0 = connection.GetTime();
+                //var delay0 = (time - now0) / 4;
+                Thread.Sleep(50);
 
                 foreach (EndpointData localEp in epMsg.LocalEndpoints)
                 {
                     for (int i = 0; i < 2; i++)
                     {
                         TryPunch(localEp, MessageFlags.HP);
-                        PreciseTimeAwaiter.Wait(20);
+                        Thread.Sleep(100);
                         if (IsCompleted()) return;
                     }
                 }
             }
-           
+
 
             if (IsCompleted()) return;
 
             // use server ip, peer is on same network as server
             bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
-            EndpointData publicEp = new EndpointData() { Ip = useServerIp?serverEndpoint.Ip: epMsg.IpRemote, Port = epMsg.PortRemote };
-            
+            EndpointData publicEp = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
+
 
             var now = connection.GetTime();
             var delay = time - now;
@@ -172,10 +170,10 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             PreciseTimeAwaiter.Wait(delay);
             if (IsCompleted()) return;
 
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 8; i++)
             {
                 TryPunch(publicEp, MessageFlags.HP);
-                PreciseTimeAwaiter.Wait(20 * i * i);
+                PreciseTimeAwaiter.Wait(20 + (20 * i * i));
                 if (IsCompleted()) return;
             }
 
@@ -188,27 +186,27 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         }
         private object m = new object();
         PooledMemoryStream stream = new PooledMemoryStream();
-     
+
         private void TryPunch(IPEndPoint ep, MessageFlags flag)
         {
             lock (m)
             {
 
-                Log($"Sending {flag.ToString() }To " + ep.ToString());
-                
+                Log($"Sending {flag.ToString()}To " + ep.ToString());
+
                 stream.Position = 0;
                 stream.WriteByte((byte)flag);
                 var epd = new EndpointData(ep);
                 KnownTypeSerializer.SerializeEndpointData(stream, epd);
 
-                Socket.SendTo(stream.GetBuffer(),stream.Position32, SocketFlags.None, ep);
+                Socket.SendTo(stream.GetBuffer(), stream.Position32, SocketFlags.None, ep);
             }
 
         }
 
         private async Task StartUdpSocket()
         {
-          
+
             Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             Socket.SendBufferSize = 12800000;
             Socket.ReceiveBufferSize = 12800000;
@@ -228,7 +226,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             Receive();
 
-           
+
         }
         private async void Receive()
         {
@@ -245,8 +243,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     var completedTask = await Task.WhenAny(receiveTask, Task.Delay(5000));
                     if (completedTask == receiveTask)
                     {
-                        SocketReceiveFromResult received = receiveTask.Result;
-                        
+                        SocketReceiveFromResult received = await receiveTask;
+
                         if (buffer[0] == (byte)MessageFlags.HP)
                         {
                             // this must be only once
@@ -254,7 +252,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                             {
                                 var ipep = (IPEndPoint)received.RemoteEndPoint;
                                 Log("[-]Received 0xFF from " + ipep.ToString());
-                                TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);                               
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
                             }
 
                         }
@@ -282,7 +280,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                         return;
                     }
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Log("ERROR" + e.Message);
                     Cancel();
@@ -305,6 +303,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             if (Interlocked.CompareExchange(ref SuccesfulEndpoint, ipep, null) != null)
                 return;
+          
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchSucces;
@@ -336,15 +335,18 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             Completed(false);
         }
-
+        // Need consesus!
         private void HandleRemoteSucces(MessageEnvelope message)
         {
-           
             if (ChannelInfo.RequiresKeyExchange())
                 SharedSecret = df.CalculateSharedSecret(otherPublicKey);
 
+            if (SuccesfulEndpoint == null)
+                throw new Exception("Endpont is null");
+
             Log("Punched");
             Completed(true);
+
         }
 
         protected override void Completed(bool succes)

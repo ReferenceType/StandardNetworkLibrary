@@ -86,7 +86,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.StartHP;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Time"] = (connection.GetTime() + 500).ToString();
+            msg.KeyValuePairs["Time"] = ((connection.GetTime() + 500) + (200*Math.Max(fromAdresses.LocalEndpoints.Count, toAddresses.LocalEndpoints.Count))).ToString();
 
             sessionManager.GetSessionData(From, out ServerSession sesFrom);
             sessionManager.GetSessionData(To, out ServerSession sesTo);

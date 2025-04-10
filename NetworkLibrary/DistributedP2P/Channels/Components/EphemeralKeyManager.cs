@@ -123,7 +123,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         //[Bob]
         private void HandleFinalize()
         {
-            Console.WriteLine("KeyExchanged");
+           // Console.WriteLine("KeyExchanged");
             if (closed) return;
 
             CurrKeyNumber = currKeyNumber;

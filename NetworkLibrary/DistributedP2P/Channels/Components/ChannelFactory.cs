@@ -69,7 +69,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                     break;
                 case ChannelType.SecureTcp:
                     var symetricKey = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
-                    var algo = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey, AesMode.GCM);
+                    var algo = AesManager.Create(AesMode.GCM, symetricKey, HKDFLite.DeriveKey(info.ChannelName,outputLength:16) );
                     channel = new SecureTcpChannel(algo, info, connectedSocket, isInitiator);
                     break;
                 case ChannelType.Udp:
@@ -78,7 +78,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                     break;
                 case ChannelType.SecureUdp:
                     var symetricKey2 = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
-                    var algo2 = new NetworkLibrary.Components.ConcurrentAesAlgorithm(symetricKey2, AesMode.GCM);
+                    var algo2 = AesManager.Create(AesMode.GCM, symetricKey2, HKDFLite.DeriveKey(info.ChannelName,outputLength: 16));
                     channel = new SecureUdpChannel(connectedSocket, endpoint, algo2, info, isInitiator);
 
                     break;

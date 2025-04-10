@@ -1,20 +1,102 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Client.StateManagement;
 using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.DistributedP2P.Server.StateManagement;
-using NetworkLibrary.P2P.Generic;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
-using System.Threading;
 
 namespace NetworkLibrary.P2P.Components.HolePunch
 {
     public class KnownTypeSerializer
     {
 
-        #region AuthenticatedPeerList
+        #region ClientHolepunchData
+
+        internal static void SerializeHolepunchData(PooledMemoryStream stream, ClientHolepunchData hpData)
+        {
+            byte index = 0;
+            int oldPos = stream.Position32;
+            stream.WriteByte(index);
+
+            if (hpData.ChannelInfo != null)
+            {
+                SerializeChannelInfo(stream, hpData.ChannelInfo);
+                index = 1;
+
+            }
+            if (hpData.Endpoints != null)
+            {
+                SerializeEndpointTransferMessage(stream, hpData.Endpoints);
+                index += 2;
+            }
+
+            if (hpData.DHPublic != null)
+            {
+                PrimitiveEncoder.WriteInt32(stream, hpData.DHPublic.Length);
+                stream.Write(hpData.DHPublic,0,hpData.DHPublic.Length);
+                index += 4;
+            }
+
+            var buf = stream.GetBuffer();
+            buf[oldPos] = index;
+
+        }
+
+
+        internal static ClientHolepunchData DeserializeHolepunchData(byte[] buffer, ref int offset)
+        {
+            var hpData =  new ClientHolepunchData();
+            var index = buffer[offset++];
+
+
+            if ((index & 1) != 0)
+            {
+                hpData.ChannelInfo = DeserializeChannelInfo(buffer, ref offset);
+            }
+            if ((index & 1 << 1) != 0)
+            {
+                hpData.Endpoints = DeserializeEndpointTransferMessage(buffer, ref offset);
+            }
+            if ((index & 1 << 2) != 0)
+            {
+                int Dhlen = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                if (Dhlen > 0)
+                {
+                    hpData.DHPublic = ByteCopy.ToArray(buffer, offset, Dhlen);
+                    offset += Dhlen;
+                }
+                else
+                    hpData.DHPublic =  new byte[0];
+            }
+
+            return hpData;
+        }
+
+        #endregion
+
+        #region ChannelInfo
+
+        public static void SerializeChannelInfo(PooledMemoryStream stream, ChannelInfo channelInfo)
+        {
+            PrimitiveEncoder.WriteInt32(stream, (int)channelInfo.ChannelType);
+            PrimitiveEncoder.WriteStringUtf8(stream, channelInfo.ChannelName ?? "");
+        }
+
+
+        public static ChannelInfo DeserializeChannelInfo(byte[] buffer, ref int offset)
+        {
+            return new ChannelInfo()
+            {
+                ChannelType = (ChannelType)PrimitiveEncoder.ReadInt32(buffer, ref offset),
+                ChannelName = PrimitiveEncoder.ReadStringUtf8(buffer, ref offset),
+            };
+        }
+        #endregion
+
+        #region PeerStatusList
         internal static void SerializePeerStatusList(PooledMemoryStream stream, PeerStatusList statusList)
         {
             byte index = 0;
@@ -22,7 +104,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
             int oldPos = stream.Position32;
             stream.WriteByte(index);
 
-            if (statusList.NewOnline.Count>0)
+            if (statusList.NewOnline.Count > 0)
             {
                 PrimitiveEncoder.WriteInt32(stream, statusList.NewOnline.Count);
                 foreach (var item in statusList.NewOnline)
@@ -31,7 +113,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
                 }
                 index = 1;
             }
-            if (statusList.WentOffline.Count>0)
+            if (statusList.WentOffline.Count > 0)
             {
                 PrimitiveEncoder.WriteInt32(stream, statusList.WentOffline.Count);
                 foreach (var item in statusList.WentOffline)
@@ -56,10 +138,10 @@ namespace NetworkLibrary.P2P.Components.HolePunch
                 for (int i = 0; i < len; i++)
                 {
                     //online
-                    var sts =  DeserializePeerStatus(buffer, ref offset);
+                    var sts = DeserializePeerStatus(buffer, ref offset);
                     data.NewOnline.TryAdd(sts.EphemeralId, sts);
                 }
-               
+
             }
 
 
@@ -77,7 +159,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
             return data;
         }
 
-        internal static void SerializePeerStatus(PooledMemoryStream stream, PeerStatus status) 
+        internal static void SerializePeerStatus(PooledMemoryStream stream, PeerStatus status)
         {
             PrimitiveEncoder.WriteGuid(stream, status.EphemeralId);
             PrimitiveEncoder.WriteGuid(stream, status.PeerId);
@@ -87,7 +169,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
         internal static PeerStatus DeserializePeerStatus(byte[] buffer, ref int offset)
         {
             PeerStatus peerStatus = new PeerStatus();
-            peerStatus.EphemeralId = PrimitiveEncoder.ReadGuid(buffer,ref offset);
+            peerStatus.EphemeralId = PrimitiveEncoder.ReadGuid(buffer, ref offset);
             peerStatus.PeerId = PrimitiveEncoder.ReadGuid(buffer, ref offset);
             peerStatus.OnlineSince = PrimitiveEncoder.ReadDatetime(buffer, ref offset);
 
@@ -96,6 +178,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 
 
         #endregion
+
         #region PipeData
 
         internal static void SerializePipeData(PooledMemoryStream stream, PipeData pipeData)
@@ -219,6 +302,37 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 
 
         public static EndpointTransferMessage DeserializeEndpointTransferMessage(byte[] buffer, int offset)
+        {
+            var index = buffer[offset++];
+
+            var data = new EndpointTransferMessage();
+            if ((index & 1) != 0)
+            {
+                int len = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                data.IpRemote = ByteCopy.ToArray(buffer, offset, len);
+                offset += len;
+            }
+
+
+            if ((index & 1 << 1) != 0)
+            {
+                data.PortRemote = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+            }
+
+            if ((index & 1 << 2) != 0)
+            {
+                int listCount = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                data.LocalEndpoints = new List<EndpointData>(listCount + 1);
+                for (int i = 0; i < listCount; i++)
+                {
+                    data.LocalEndpoints.Add(DeserializeEndpointData(buffer, ref offset));
+                }
+            }
+
+            return data;
+        }
+
+        public static EndpointTransferMessage DeserializeEndpointTransferMessage(byte[] buffer, ref int offset)
         {
             var index = buffer[offset++];
 

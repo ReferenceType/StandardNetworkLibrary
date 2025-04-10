@@ -28,7 +28,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public ChannelType ChannelType { get; internal set; }
 
-        public string ChannelName { get; internal set; }
+        public string ChannelName { get; internal set; } = "";
 
         internal bool RequiresKeyExchange()
         {

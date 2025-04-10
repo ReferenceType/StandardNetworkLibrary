@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using NetworkLibrary.Components;
 using NetworkLibrary.Components.Crypto;
+using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.TCP.AES;
@@ -24,7 +25,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         /// </summary>
         public int KeyRotationPeriodMs { get; private set; } = 1000;
 
-        public SecureTcpChannel(ConcurrentAesAlgorithm algo,ChannelInfo info, Socket connectedSocket, bool isInitiator) : base(info, connectedSocket)
+        public SecureTcpChannel(IAesAlgorithm algo,ChannelInfo info, Socket connectedSocket, bool isInitiator) : base(info, connectedSocket)
         {
             this.isInitiator = isInitiator;
             encBuff = BufferPool.RentBuffer(128000);

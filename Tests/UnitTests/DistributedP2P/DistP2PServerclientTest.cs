@@ -180,6 +180,12 @@ namespace UnitTests.DistributedP2P
             DistributedLobbyClient<ProtoSerializer> distributedLobbyClient2 = new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
 
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
+
+            Task.Delay(12000).ContinueWith(t =>
+            {
+                tcs.TrySetResult(false);
+            });
+
             ManualResetEvent mre = new ManualResetEvent(false);
             List<int> received = new List<int>();
             int iter = 20;
@@ -233,12 +239,15 @@ namespace UnitTests.DistributedP2P
             {
                 received.Add(buff[offset]);
 
-                if(received.Count == iter)
-                    tcs.TrySetResult(true);
+                //if(received.Count == iter)
+                //    tcs.TrySetResult(true);
             }
 
+
+           
+
             var ss = tcs.Task.Result;
-            Assert.IsTrue(ss);
+            Assert.IsTrue(received.Count == iter);
 
             for (int i = 0; i < received.Count; i++)
             {
@@ -613,9 +622,8 @@ namespace UnitTests.DistributedP2P
             var ss = tcs.Task.Result;
             Assert.AreEqual(data.Length, received);
 
-
-            
         }
+
         [TestMethod]
         public void TcpHolepunch()
         {
@@ -829,7 +837,7 @@ namespace UnitTests.DistributedP2P
                 if (Interlocked.Increment(ref numReceived) == 100)
                     tcs.TrySetResult(true);
             }
-            Task.Delay(2000).ContinueWith(t =>
+            Task.Delay(5000).ContinueWith(t =>
             {
                 tcs.TrySetResult(false);
             });

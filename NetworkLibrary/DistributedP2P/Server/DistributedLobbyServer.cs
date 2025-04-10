@@ -55,10 +55,10 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         SessionManager sessionManager;
         Components.StateManager stateManager =  new Components.StateManager();
-        PipeManager piper;
+        RelayService piper;
         Stopwatch serverClock = new Stopwatch();
 
-        PipeManager pipeManager;
+        RelayService pipeManager;
 
         private byte[] serverKey = new byte[16];
 
@@ -85,7 +85,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             var random = RandomNumberGenerator.Create();
             var key = new byte[32];
             random.GetNonZeroBytes(key);
-            pipeManager = new PipeManager(TcpPort, UdpPort, key);
+            pipeManager = new RelayService(TcpPort, UdpPort, key);
 
             sslServer.OnClientRequestedConnection += ValidateSslConnection;
             sslServer.OnClientAccepted += SslClientAccepted;

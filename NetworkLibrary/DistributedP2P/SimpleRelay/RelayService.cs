@@ -1,22 +1,12 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Net;
-using System.Text;
-using NetworkLibrary.Components;
-using NetworkLibrary.Components.Crypto.DigitalSignature;
-using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.TCP.Base;
-using NetworkLibrary.UDP;
-using NetworkLibrary.P2P.Components.HolePunch;
-using NetworkLibrary.Utils;
-using System.IO;
+﻿using NetworkLibrary.Components.Crypto.DigitalSignature;
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server.StateManagement;
-using System.Threading.Tasks;
-using System.Threading;
-using System.Security.Cryptography;
-using System.Net.Sockets;
+using NetworkLibrary.TCP.Base;
+using NetworkLibrary.UDP;
+using NetworkLibrary.Utils;
+using System;
+using System.Collections.Concurrent;
+using System.Net;
 
 namespace NetworkLibrary.DistributedP2P.SimpleRelay
 {
@@ -58,7 +48,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
         }
     }
 
-    internal class PipeManager:IDisposable 
+    internal class RelayService : IDisposable
     {
         int tokenLifetimeMs = 200000;
 
@@ -71,13 +61,21 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
         private ConcurrentDictionary<Guid, PipeState<Guid>> activeTcpPipeStates = new ConcurrentDictionary<Guid, PipeState<Guid>>();
         private ConcurrentDictionary<Guid, PipeState<IPEndPoint>> activeUdpPipeStates = new ConcurrentDictionary<Guid, PipeState<IPEndPoint>>();
 
+        // Guid will be the id of coming peer, determined by relay.
+        //Room state will hold room id.
+        private ConcurrentDictionary<Guid, PeerRoomState> activeRoomStates = new ConcurrentDictionary<Guid, PeerRoomState>();
+        private ConcurrentDictionary<Guid, Room> activeRooms = new ConcurrentDictionary<Guid, Room>();
+
+        private ConcurrentDictionary<Guid, Room> roomMapTcp = new ConcurrentDictionary<Guid, Room>();
+        private ConcurrentDictionary<IPEndPoint, Room> roomMapUdp = new ConcurrentDictionary<IPEndPoint, Room>();
+
         private readonly ConcurrentDictionary<Guid, TcpTokenStorage> tokenStorage = new ConcurrentDictionary<Guid, TcpTokenStorage>();
 
         byte[] cryptoKey;
         PrivateKeySign signer;
         readonly object tokenMtex = new object();
 
-        public PipeManager(int TcpPort, int UdpPort, byte[] pipeKey)
+        public RelayService(int TcpPort, int UdpPort, byte[] pipeKey)
         {
             TcpServer = new AsyncTcpServer(TcpPort);
             TcpServer.GatherConfig = ScatterGatherConfig.UseBuffer;
@@ -149,6 +147,11 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                 TcpServer.SendBytesToClient(to, bytes, offset, count);
                 return true;
             }
+            else if (roomMapTcp.TryGetValue(guid, out var room))
+            {
+                room.HandleMessage(guid, bytes, offset, count);
+                return true;
+            }
             return false;
         }
 
@@ -159,17 +162,22 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                 UdpServer.SendBytesToClient(to, bytes, offset, count);
                 return true;
             }
+            else if (roomMapUdp.TryGetValue(endpoint, out var room))
+            {
+                room.HandleMessage(endpoint, bytes, offset, count);
+                return true;
+            }
             return false;
         }
 
 
         //tcp
-        private void ManagePipeToken(Guid guid, byte[] bytes, int offset, int count)
+        private void ManagePipeToken(Guid ephemeralId, byte[] bytes, int offset, int count)
         {
             // state object etc
             lock (tokenMtex)
             {
-                tokenStorage.TryGetValue(guid, out var storage);
+                tokenStorage.TryGetValue(ephemeralId, out var storage);
 
                 int result = storage.StoreTokenFragment(bytes, offset, count);
 
@@ -178,7 +186,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
 
                 if (result == -1)// nonsense
                 {
-                    RemoveTcpClient(guid);
+                    RemoveTcpClient(ephemeralId);
                     return;
                 }
 
@@ -190,7 +198,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                     {
                         if (VerifyToken(storage.Token, token.Expiration))
                         {
-                            pipeState.RegisterClient(guid);
+                            pipeState.RegisterClient(ephemeralId);
 
                             if (pipeState.IsComplete())
                             {
@@ -198,21 +206,40 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                                 TcpPipeCreated(pipeState.Clients[0], pipeState.Clients[1]);
                             }
 
-                            TcpServer.SendBytesToClient(guid, new byte[1] { 0x01 });
+                            TcpServer.SendBytesToClient(ephemeralId, new byte[1] { 0x01 });
                         }
                         else
                         {
-                            RemoveTcpClient(guid);
+                            RemoveTcpClient(ephemeralId);
                         }
+                    }
+                    else if (activeRoomStates.TryRemove(token.Token, out var roomState))//token is peerId
+                    {
+                        if (VerifyToken(storage.Token, token.Expiration))
+                        {
+                            if (roomState.Verify(token,ephemeralId))
+                            {
+                                if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
+                                {
+                                    room.Add(token.Token, roomState);
+                                    TcpServer.SendBytesToClient(ephemeralId, new byte[1] { 0x01 });
+                                }
+                            }
+                        }
+                        else
+                        {
+                            RemoveTcpClient(ephemeralId);
+                        }
+
                     }
                     else
                     {
-                        RemoveTcpClient(guid);
+                        RemoveTcpClient(ephemeralId);
                     }
                 }
                 else
                 {
-                    RemoveTcpClient(guid);
+                    RemoveTcpClient(ephemeralId);
                 }
             }
         }
@@ -252,6 +279,26 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                         UdpServer.RemoveClient(clientEp);
                     }
                 }
+                else if (activeRoomStates.TryRemove(token.Token, out var roomState))//token is peerId
+                {
+                    if (VerifyToken(tokenBytes, token.Expiration))
+                    {
+                        if (roomState.Verify(token,clientEp))
+                        {
+                            if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
+                            {
+                                room.Add(token.Token, roomState);
+                                UdpServer.SendBytesToClient(clientEp, new byte[1] { 0x01 }, 0, 1);
+
+                            }
+                        }
+                    }
+                    else
+                    {
+                        UdpServer.RemoveClient(clientEp);
+                    }
+                }
+
                 else
                 {
                     UdpServer.RemoveClient(clientEp);
@@ -299,7 +346,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             TcpServer.CloseSession(guid);
         }
 
-        internal void TcpPipeCreated(Guid from, Guid to)
+        private void TcpPipeCreated(Guid from, Guid to)
         {
             pipeMapTcp.TryAdd(from, to);
             pipeMapTcp.TryAdd(to, from);
@@ -308,13 +355,13 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             CancelTimeout(to);
         }
 
-        internal void UdpPipeCreated(IPEndPoint from, IPEndPoint to)
+        private void UdpPipeCreated(IPEndPoint from, IPEndPoint to)
         {
             pipeMapUdp.TryAdd(from, to);
             pipeMapUdp.TryAdd(to, from);
         }
 
-        internal void HandleUdpPipeDisconnect(IPEndPoint from)
+        private void HandleUdpPipeDisconnect(IPEndPoint from)
         {
             if (pipeMapUdp.TryRemove(from, out var to))
             {
@@ -322,7 +369,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             }
         }
 
-        internal void HandleTcpPipeDisconnect(Guid from)
+        private void HandleTcpPipeDisconnect(Guid from)
         {
             if (pipeMapTcp.TryRemove(from, out Guid to))
             {
@@ -333,31 +380,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             tokenStorage.TryRemove(from, out _);
         }
 
-        internal byte[] GetPipeToken(bool tcp)
-        {
-            byte[] data = new byte[PipeData.TokenLength];
-            int offset = 0;
-            PipeToken pipeData = new PipeToken();
-
-            pipeData.Token = Guid.NewGuid();
-            pipeData.Expiration = DateTime.UtcNow.AddMilliseconds(tokenLifetimeMs);
-
-            PrimitiveEncoder.WriteGuid(data, ref offset, pipeData.Token);//16
-
-            long Time = pipeData.Expiration.ToBinary();
-            PrimitiveEncoder.WriteFixedInt64(data, ref offset, Time); //8
-
-            byte[] signature = signer.Sign(data, 0, 24);
-            Buffer.BlockCopy(signature, 0, data, offset, 32);//32
-
-            if (tcp)
-                RegisterTcpToken(pipeData);
-            else
-                RegisterUdpToken(pipeData);
-
-            return data;
-        }
-
+       
         private void RegisterTcpToken(PipeToken pipeData)
         {
             activeTcpPipeStates.TryAdd(pipeData.Token, new PipeState<Guid>(pipeData));
@@ -370,7 +393,118 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             TimerService.RegisterTimer(pipeData.Token, tokenLifetimeMs, () => activeUdpPipeStates.TryRemove(pipeData.Token, out _));
 
         }
+        private void Createtoken(Guid tokenId, out byte[] data, out PipeToken pipeData)
+        {
+            data = new byte[PipeData.TokenLength];
+            int offset = 0;
+            pipeData = new PipeToken();
+            pipeData.Token = tokenId;
+            pipeData.Expiration = DateTime.UtcNow.AddMilliseconds(tokenLifetimeMs);
 
+            PrimitiveEncoder.WriteGuid(data, ref offset, pipeData.Token);//16
+
+            long Time = pipeData.Expiration.ToBinary();
+            PrimitiveEncoder.WriteFixedInt64(data, ref offset, Time); //8
+
+            byte[] signature = signer.Sign(data, 0, 24);
+            Buffer.BlockCopy(signature, 0, data, offset, 32);//32
+        }
+
+       
+
+
+        // for direct p2p
+        public byte[] GetPipeToken(bool tcp)
+        {
+            byte[] data;
+            PipeToken pipeData;
+            Createtoken(Guid.NewGuid(), out data, out pipeData);
+
+            if (tcp)
+                RegisterTcpToken(pipeData);
+            else
+                RegisterUdpToken(pipeData);
+
+            return data;
+        }
+
+        //for broadcast
+        public bool CreateRoom(Guid roomId, RoomProtocol protocol)
+        {
+            Room room = new Room(roomId, protocol);
+            room.PeerRegistered += HandleRoomPeerRegistered;
+            room.PeerLeft += HandleRoomPeerLeft;
+            room.SendMessage += RouteRoomMessage;
+            room.RoomDestroyed += () => activeRooms.TryRemove(room.roomId, out _);
+
+            bool good = activeRooms.TryAdd(roomId, room);
+            if (good)
+            {
+                return true;
+            }
+            else
+            {
+                room.Clear();
+                return false;
+            }
+        }
+
+        // get token for spesific peer, who wants to join a room
+        public byte[] GetRoomToken(Guid roomId, Guid peerId)
+        {
+            if (activeRooms.TryGetValue(roomId, out var room))
+            {
+                PeerRoomState state = new PeerRoomState();
+                state.RoomId = roomId;
+                state.ExpectedClient = peerId;
+
+                Createtoken(peerId, out byte[] data, out PipeToken token);
+
+                if (activeRoomStates.TryAdd(peerId, state))
+                    return data;
+
+                return null;
+            }
+            return null;
+        }
+
+        public void RemovePeerFromRoom(Guid roomId, Guid peerId)
+        {
+            if (activeRooms.TryGetValue(roomId, out var room))
+            {
+                room.RemovePeer(peerId);
+
+            }
+        }
+
+        private void RouteRoomMessage( PeerRoomState to, byte[] b, int o, int c)
+        {
+            if (to.isTcp)
+            {
+                TcpServer.SendBytesToClient(to.EphemeralId, b, o, c);
+            }
+            else
+            {
+                UdpServer.SendBytesToClient(to.AssociatedEndpoint, b, o, c);
+            }
+        }
+
+        private void HandleRoomPeerLeft(PeerRoomState state)
+        {
+            if (state.isTcp)
+            {
+                roomMapTcp.TryRemove(state.EphemeralId, out _);
+            }
+            else
+            {
+                roomMapUdp.TryRemove(state.AssociatedEndpoint, out _);
+            }
+        }
+
+        private void HandleRoomPeerRegistered(PeerRoomState state)
+        {
+            throw new NotImplementedException();
+        }
         public void Dispose()
         {
             TcpServer.ShutdownServer();

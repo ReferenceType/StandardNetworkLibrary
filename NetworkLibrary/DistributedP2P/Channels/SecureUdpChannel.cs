@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components;
+using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.UDP.Reliable.Components;
@@ -16,7 +17,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         public int KeyRotationPeriodMs { get; private set; } = 1000;//every minute
 
-        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, ConcurrentAesAlgorithm algo, ChannelInfo info, bool isInitiator) : base(udpSocket, receiveEp, info)
+        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, IAesAlgorithm algo, ChannelInfo info, bool isInitiator) : base(udpSocket, receiveEp, info)
         {
             keyManager = new EphemeralKeyManager(algo, isInitiator ? KeyRotationPeriodMs : -1);
             keyManager.SendData += SendKeyMsg;

@@ -84,28 +84,15 @@ namespace NetworkLibrary.Components.Crypto.Algorithms
             var non = GenerateNextNonce(out int nonceSize);
 
             int encryptedDataLength = nonceSize + tagSize + cipherSize;
-            Span<byte> encryptedData;
-            unsafe
-            {
-                fixed (byte* buffer = &output[outputOffset])
-                {
-                    encryptedData = new Span<byte>(buffer, encryptedDataLength);
-                }
-            }
+            Span<byte> encryptedData = new Span<byte>(output, outputOffset, encryptedDataLength);
+           
             Buffer.BlockCopy(non, 4, output, outputOffset, nonceSize);
 
             var nonce = encryptedData.Slice(0, nonceSize);
             var tag = encryptedData.Slice(nonceSize + cipherSize, tagSize);
             var cipherBytes = encryptedData.Slice(nonceSize, cipherSize);
 
-            // RandomNumberGenerator.Fill(nonce);
-
-            unsafe
-            {
-                fixed (byte* buffer = &data[offset])
-                    aes.Encrypt(non, new ReadOnlySpan<byte>(buffer, count), cipherBytes, tag);
-            }
-
+            aes.Encrypt(non, new ReadOnlySpan<byte>(data,offset, count), cipherBytes, tag);
             return encryptedDataLength;
         }
         public int EncryptInto(byte[] data, int offset, int count,
@@ -117,14 +104,9 @@ namespace NetworkLibrary.Components.Crypto.Algorithms
                 int cipherSize = count + count1;
 
                 int encryptedDataLength = tagSize + nonceSize + cipherSize;
-                Span<byte> encryptedData = new Span<byte>(output);
-                unsafe
-                {
-                    fixed (byte* buffer = &output[outputOffset])
-                    {
-                        encryptedData = new Span<byte>(buffer, encryptedDataLength);
-                    }
-                }
+                Span<byte> encryptedData = new Span<byte>(output, outputOffset, encryptedDataLength);
+
+
                 Buffer.BlockCopy(non, 4, output, outputOffset, nonceSize);
 
                 var nonce = encryptedData.Slice(0, nonceSize);
@@ -135,28 +117,16 @@ namespace NetworkLibrary.Components.Crypto.Algorithms
                 Buffer.BlockCopy(data, offset, b, 0, count);
                 Buffer.BlockCopy(data1, offset1, b, count, count1);
                 // Generate secure nonce
+                aes.Encrypt(non, new ReadOnlySpan<byte>(b,0, cipherSize), cipherBytes, tag);
 
-                unsafe
-                {
-                    fixed (byte* buffer = &b[0])
-                        aes.Encrypt(non, new ReadOnlySpan<byte>(buffer, cipherSize), cipherBytes, tag);
-
-                }
                 BufferPool.ReturnBuffer(b);
                 return encryptedDataLength;
             }
         }
         public int DecryptInto(byte[] data, int offset, int count, byte[] output, int outputOffset)
         {
-            Span<byte> encryptedData;
-            unsafe
-            {
-                fixed (byte* buffer = &data[offset])
-                {
-                    encryptedData = new Span<byte>(buffer, count);
-                }
-            }
-
+            Span<byte> encryptedData = new Span<byte>(data, offset, count);
+          
             int oldOff = offset;
             var nonce = ParseNonce(data, ref offset, ref count).AsSpan();
             int nonceSize = offset - oldOff;
@@ -167,13 +137,7 @@ namespace NetworkLibrary.Components.Crypto.Algorithms
             var tag = encryptedData.Slice(nonceSize + cipherSize, tagSize);
             var cipherBytes = encryptedData.Slice(nonceSize, cipherSize);
 
-            unsafe
-            {
-                fixed (byte* buffer = &output[outputOffset])
-                {
-                    aes2.Decrypt(nonce, cipherBytes, tag, new Span<byte>(buffer, cipherSize));
-                }
-            }
+            aes2.Decrypt(nonce, cipherBytes, tag, new Span<byte>(output,outputOffset, cipherSize));
 
             return cipherSize;
         }

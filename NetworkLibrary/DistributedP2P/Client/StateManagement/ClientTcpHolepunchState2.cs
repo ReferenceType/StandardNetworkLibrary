@@ -2,6 +2,7 @@
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -11,7 +12,13 @@ using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 {
-    //Todo 0.0.0.0 means server ip!
+    class ClientHolepunchData
+    {
+        public ChannelInfo ChannelInfo { get; set; }
+        public EndpointTransferMessage Endpoints { get; set; }
+        public byte[] DHPublic;
+    }
+
     internal class ClientTcpHolepunchState2 : ConversationStateBase
     {
         private readonly Guid destId;
@@ -23,11 +30,10 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         public IPEndPoint SuccesfulEndpoint;
 
         private DiffieHellman df = new DiffieHellman();
-        private byte[] otherPublicKey;
+        private byte[] othersPublicKey;
         public byte[] SharedSecret;
         public ChannelInfo ChannelInfo;
 
-        private int localPort;
         private Socket listeningSocket;
         private Socket acceptedSocket;
         private Socket connectedSocket;
@@ -35,13 +41,16 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private int connected = 0;
         private int accepted = 0;
 
-        IPEndPoint selfEndpoint = new IPEndPoint(IPAddress.Any,0);
         int swapCnt = 0;
 
         bool isListening = false;
         List<EndpointData> localEndpoints =  new List<EndpointData>();
-        EndpointData publicEndpoint;
-        private EndpointData selfRemoteEp;
+       
+        private IPEndPoint selfRemoteEp;
+        private IPEndPoint selfLocalEp = new IPEndPoint(IPAddress.Any, 0);
+        private EndpointData publicEndpointToConnect;
+
+        
 
         private bool IsEstablished => Interlocked.CompareExchange(ref established, 0, 0) == 1;
         public ClientTcpHolepunchState2(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint,EndpointData discoveryServerEp, ChannelInfo info) : base(stateId, 10000)
@@ -59,30 +68,25 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             isInitiator = true;
             Log(StateId.ToString());
 
-            selfRemoteEp = await BindPort();
-            if (selfRemoteEp == null)
-                return;
+            await BindPort();
 
-            localPort = selfEndpoint.Port;
-
-            Log("Bound on port " + localPort);
+            Log("Local port " + selfLocalEp.Port);
             Log("Remote port " + selfRemoteEp.Port);
 
             var msg = CreateEnvelope();
-            msg.Header = InternalConstants.RequestSimultaneousHolepunchTcp;
-            msg.KeyValuePairs = new Dictionary<string, string>();
-           // msg.KeyValuePairs["PortLocal"] = selfEndpoint.ToString();
-            msg.KeyValuePairs["Port"] = selfRemoteEp.Port.ToString();
-            msg.KeyValuePairs["Type"] = ((int)ChannelInfo.ChannelType).ToString();
-            msg.KeyValuePairs["Name"] = ChannelInfo.ChannelName;
-
-            if (ChannelInfo.RequiresKeyExchange())
-                msg.KeyValuePairs["DH"] = Convert.ToBase64String(df.GetPublicKey());
-
             msg.To = destId;
+            msg.Header = InternalConstants.RequestSimultaneousHolepunchTcp;
+           
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            KnownTypeSerializer.SerializeHolepunchData(stream,GetHpData());
 
+            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
             connection.SendAsyncMessage(msg);
+
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
+
+      
 
         public override void HandleMessage(MessageEnvelope message)
         {
@@ -113,59 +117,47 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private async void HandleRemoteHpRequest(MessageEnvelope message)
         {
             Log(StateId.ToString());
+            int offs = message.PayloadOffset;
+            var hpData  = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
 
-            ChannelInfo = new ChannelInfo();
-            ChannelInfo.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
-            ChannelInfo.ChannelName = message.KeyValuePairs["Name"];
+            ChannelInfo = hpData.ChannelInfo;
 
-            selfRemoteEp = await BindPort();
-            if (selfRemoteEp == null)
-                return;
+            await BindPort();
 
+            Log("Local port " + selfLocalEp.Port);
+            Log("Remote port " + selfRemoteEp.Port);
 
-            localPort = StartTcpListener();
-            Log("listening on port " + localPort);
-
+            StartTcpListener();
+            Log("listening");
 
             var msg = CreateEnvelope();
-            msg.Header = InternalConstants.AckRequestHolepunchTcp;
-            msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Port"] = selfRemoteEp.Port.ToString();
-
-            if (ChannelInfo.RequiresKeyExchange())
-                msg.KeyValuePairs["DH"] = Convert.ToBase64String(df.GetPublicKey());
-
             msg.To = destId;
+            msg.Header = InternalConstants.AckRequestHolepunchTcp;
+           
+            var hpd = GetHpData();
+            hpd.ChannelInfo = null;
+
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            KnownTypeSerializer.SerializeHolepunchData(stream, hpd);
+            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
 
             connection.SendAsyncMessage(msg);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
 
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
             if (IsCompleted()) return;
+            int offs = message.PayloadOffset;
 
-            var epMsg = KnownTypeSerializer.DeserializeEndpointTransferMessage(message.Payload, message.PayloadOffset);
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+
+            var epMsg = hpData.Endpoints;
+            othersPublicKey = hpData.DHPublic;
             localEndpoints = epMsg.LocalEndpoints;
 
             bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
-            publicEndpoint = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
-
-            if (ChannelInfo.RequiresKeyExchange())
-                otherPublicKey = Convert.FromBase64String(message.KeyValuePairs["DH"]);
-
-            ////213.243.208.162
-            //foreach (var ep in localEndpoints)
-            //{
-            //    ep.Ip[0] = 213;
-            //    ep.Ip[1] = 243;
-            //    ep.Ip[2] = 208;
-            //    ep.Ip[3] = 162;
-
-            //    publicEndpoint.Ip[0] = 213;
-            //    publicEndpoint.Ip[1] = 243;
-            //    publicEndpoint.Ip[2] = 208;
-            //    publicEndpoint.Ip[3] = 162;
-            //}
+            publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
 
             if (!isListening)
             {
@@ -178,22 +170,21 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         {
             try
             {
-                // if there are local endpoints to test
                 if (localEndpoints.Count > 0)
                 {
-                    //foreach (EndpointData localEp in localEndpoints)
-                    //{
-                    //    if (TryConnect(localEp, 500))
-                    //        return;
+                    foreach (EndpointData localEp in localEndpoints)
+                    {
+                        if (TryConnect(localEp, 600))
+                            return;
 
-                    //    if (IsCompleted()) return;
+                        if (IsCompleted()) return;
 
-                    //}
+                    }
                 }
 
                 for (int i = 0; i < 1; i++)
                 {
-                    if (TryConnect(publicEndpoint, (2000)))
+                    if (TryConnect(publicEndpointToConnect, (2000)))
                         return;
 
                     if (IsCompleted()) return;
@@ -270,7 +261,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             try
             {
                 Log("Connecting to " + endpoint.ToIpEndpoint().ToString());
-                connectSocket.Bind(selfEndpoint);
+                connectSocket.Bind(selfLocalEp);
 
                 var connectTask = connectSocket.ConnectAsync(endpoint.ToIpEndpoint());
                 var timeoutTask = Task.Delay(timeoutMs);
@@ -302,19 +293,20 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
         }
 
-        private async Task<EndpointData> BindPort()
+        private async Task BindPort()
         {
             var clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            clientSocket.Bind(selfEndpoint);
+            clientSocket.Bind(selfLocalEp);
+            selfLocalEp = (IPEndPoint)clientSocket.LocalEndPoint;
 
             var remoteEp = await EndpointDiscoveryClient.GetTcpPublicEndpoint(clientSocket,discoveryServerEp.ToIpEndpoint(),5000);
             if (remoteEp == null)
             {
                 Log("Failed to get public endpoint");
-                return null;
+                remoteEp = new EndpointData("0.0.0.0",selfLocalEp.Port);
             }
-            selfEndpoint = (IPEndPoint)clientSocket.LocalEndPoint;
 
+            selfRemoteEp = remoteEp.ToIpEndpoint();
 
             try
             {
@@ -323,9 +315,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 clientSocket = null;
             }
             catch { }
-
-            return remoteEp;
-
+           
         }
 
         private int StartTcpListener()
@@ -334,9 +324,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             listeningSocket.SendBufferSize = 12800000;
             listeningSocket.ReceiveBufferSize = 12800000;
 
-            listeningSocket.Bind(selfEndpoint);
+            listeningSocket.Bind(selfLocalEp);
 
-            selfEndpoint = (IPEndPoint)listeningSocket.LocalEndPoint;
+            selfLocalEp = (IPEndPoint)listeningSocket.LocalEndPoint;
 
 
             Listen();
@@ -425,12 +415,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleRemoteSucces(MessageEnvelope message)
         {
-            Thread.Sleep(100);
-            string use = message.KeyValuePairs["Use"];
+          
             if (ChannelInfo.RequiresKeyExchange())
-                SharedSecret = df.CalculateSharedSecret(otherPublicKey);
+                SharedSecret = df.CalculateSharedSecret(othersPublicKey);
 
-            if (use == "Connected")
+            if (connectedSocket!=null)
             {
                 Socket = connectedSocket;
             }
@@ -438,6 +427,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             {
                 Socket = acceptedSocket;
             }
+
             if(Socket == null)
             {
                 Log("Failed to get socket");
@@ -493,7 +483,32 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             Console.WriteLine(prefix + log);
         }
 
+        private ClientHolepunchData GetHpData()
+        {
+            ClientHolepunchData hpd = new ClientHolepunchData();
+            hpd.ChannelInfo = ChannelInfo;
 
+            var epm = new EndpointTransferMessage();
+            var pub = new EndpointData(selfRemoteEp);
+            epm.IpRemote = pub.Ip;
+            epm.PortRemote = pub.Port;
+
+            var localIps = IPHelper.GetLocalIPAddresses4();
+            int localPort = selfLocalEp.Port;
+            foreach (var ip in localIps)
+            {
+                epm.LocalEndpoints.Add(new EndpointData(ip, localPort));
+            }
+
+            hpd.Endpoints = epm;
+
+
+            if (ChannelInfo.RequiresKeyExchange())
+            {
+                hpd.DHPublic = df.GetPublicKey();
+            }
+            return hpd;
+        }
     }
 
 

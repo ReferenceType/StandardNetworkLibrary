@@ -63,6 +63,29 @@ namespace NetworkLibrary.Components.Crypto
             }
         }
 
+        public static IAesAlgorithm Create(AesMode AesMode, byte[] Key, byte[] IV)
+        {
+            switch (AesMode)
+            {
+                case AesMode.CBCRandomIV:
+                    return new AesCbcRandIVAlgorithm(Key, IV);
+                case AesMode.GCM:
+                    //return new AesGcmManagedAlgorithm(Key, IV);
+#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+                    return new AesGcmAlgorithm(Key, IV);
+#endif
+                    return new AesGcmManagedAlgorithm(Key, IV);
+                case AesMode.CBCCtrIV:
+                    return new AesCbcCtrIVAlgorithm(Key, IV);
+                case AesMode.CBCCtrIVHMAC:
+                    return new AesCbcHmacCtrAlgorithm(Key, IV);
+                case AesMode.None:
+                    return new NoEncyption();
+
+                default: throw new NotImplementedException();
+            }
+        }
+
         public byte[] Decrypt(byte[] bytes)
         {
             var alg = GetAlgorithm();

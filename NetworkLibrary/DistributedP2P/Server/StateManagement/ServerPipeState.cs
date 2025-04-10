@@ -20,7 +20,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
     internal class ServerPipeState : ConversationStateBase
     {
-        private PipeManager piper;
+        private RelayService piper;
         private Guid from, to;
         private int ackCount = 0;
         private readonly IDistributedConnection connection;
@@ -30,7 +30,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private string destinationDhPublicKey;
         private string requesterDhPublicKey;
         private ChannelInfo chInfo =  new ChannelInfo();
-        public ServerPipeState(Guid stateId, IDistributedConnection connection, PipeManager piper) : base(stateId, 20000)
+        public ServerPipeState(Guid stateId, IDistributedConnection connection, RelayService piper) : base(stateId, 20000)
         {
             this.connection = connection;
             this.piper = piper;

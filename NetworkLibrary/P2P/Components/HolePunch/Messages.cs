@@ -29,7 +29,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 
         public EndpointData(IPEndPoint ep)
         {
-            Ip = ep.Address.GetAddressBytes();
+            Ip = ep.Address.MapToIPv4().GetAddressBytes();
             Port = ep.Port;
         }
 

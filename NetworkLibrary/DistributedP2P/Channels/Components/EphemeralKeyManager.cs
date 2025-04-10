@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.Components.Crypto;
+using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.Components.Crypto.DiffieHellman;
 using NetworkLibrary.Components.Crypto.KeyDerivation;
 using NetworkLibrary.DistributedP2P.Components;
@@ -16,7 +17,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         DiffieHellman df = new DiffieHellman();
 
-        internal ConcurrentDictionary<byte, ConcurrentAesAlgorithm> keyStore = new ConcurrentDictionary<byte, ConcurrentAesAlgorithm>();
+        internal ConcurrentDictionary<byte, IAesAlgorithm> keyStore = new ConcurrentDictionary<byte, IAesAlgorithm>();
 
         byte[] innerBuffer = new byte[1024];
 
@@ -24,9 +25,12 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         internal byte CurrKeyNumber = 0;
         private int keyRotationPeriod;
         private bool closed = false;
+        private byte[] IV =  new byte[16];
         RandomNumberGenerator rng = RandomNumberGenerator.Create();
         Guid timerGuid = Guid.NewGuid();
-        public EphemeralKeyManager(ConcurrentAesAlgorithm initialKey, int keyRotationPeriod = 1000)
+
+        int overallCounter = 0;
+        public EphemeralKeyManager(IAesAlgorithm initialKey, int keyRotationPeriod = 1000)
         {
             keyStore[0] = initialKey;
             this.keyRotationPeriod = keyRotationPeriod;
@@ -82,12 +86,14 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             if (closed) return;
 
             currKeyNumber++;
+            overallCounter++;
 
             df = new DiffieHellman();
             var sharedSecret = df.CalculateSharedSecret(ByteCopy.ToArray(buffer, offset, count));
             var privKey = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
-            var algo = new ConcurrentAesAlgorithm(privKey, AesMode.GCM);
-            keyStore[currKeyNumber] = algo;
+            var iv = HKDFLite.DeriveKey("DiffieHellman" + overallCounter.ToString(), outputLength: 16);
+
+            keyStore[currKeyNumber] = AesManager.Create(AesMode.GCM, privKey, iv);
 
             byte[] myPublic = df.GetPublicKey();
             SendData?.Invoke(MessageFlags.KeyExchangeAck, myPublic, 0, myPublic.Length);
@@ -99,11 +105,13 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             if (closed) return;
 
             currKeyNumber++;
+            overallCounter++;
 
             var sharedSecret = df.CalculateSharedSecret(ByteCopy.ToArray(buffer, offset, count));
             var privKey = HKDFLite.DeriveKey(sharedSecret, outputLength: 16);
-            var algo = new ConcurrentAesAlgorithm(privKey, AesMode.GCM);
-            keyStore[currKeyNumber] = algo;
+            var iv = HKDFLite.DeriveKey("DiffieHellman" + overallCounter.ToString(), outputLength: 16);
+
+            keyStore[currKeyNumber] = AesManager.Create(AesMode.GCM, privKey, iv); ;
 
             rng.GetBytes(innerBuffer, 0, 32);
             SendData?.Invoke(MessageFlags.KeyExchangeFin, innerBuffer, 0, 32);
@@ -122,7 +130,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         }
 
 
-        public bool GetAlgorithm(byte keyNum, out ConcurrentAesAlgorithm algo)
+        public bool GetAlgorithm(byte keyNum, out IAesAlgorithm algo)
         {
             return keyStore.TryGetValue(keyNum, out algo);
         }
@@ -138,5 +146,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             keyRotationPeriod = timeMs;
             TimedKeyExchange();
         }
+
+
     }
 }

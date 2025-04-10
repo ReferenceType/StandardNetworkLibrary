@@ -88,6 +88,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
                     sendStream.WriteInt(amountWritten + prefixLen + 1);
                     sendStream.Position32 = lastPos;
 
+                    Interlocked.Exchange(ref msgAvailable, 1);
 
                 }
                 catch (Exception ex)
@@ -116,27 +117,38 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         private void SignalSend()
         {
+            bool send = false;
             lock (sendMtex)
             {
                 if (Interlocked.CompareExchange(ref sendActive, 1, 0) == 0)
                 {
+                   
                     lock (bufferMutex)
                     {
-                        var flush = Interlocked.Exchange(ref sendStream, flushStream);
-                        Interlocked.Exchange(ref flushStream, flush);
-                        sendStream.Position32 = 0;
-                    }
+                        if (Interlocked.CompareExchange(ref msgAvailable, 0, 1) == 1)
+                        {
+                            var temp = sendStream;
+                            sendStream = flushStream;
+                            flushStream = temp;
 
-                    sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
-                    if (!connectedSocket.SendAsync(sendArgs))
-                    {
-                        ThreadPool.UnsafeQueueUserWorkItem(_ => Sent(null, sendArgs), null);
+                            sendStream.Position32 = 0;
+                            send = true;
+                        }
+                        else
+                        {
+                            Interlocked.Exchange(ref sendActive, 0);
+                        }
                     }
                 }
-                else
+
+            }
+
+            if (send)
+            {
+                sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
+                if (!connectedSocket.SendAsync(sendArgs))
                 {
-                    if (sendStream.Position32 != 0)
-                        Interlocked.Exchange(ref msgAvailable, 1);
+                    ThreadPool.UnsafeQueueUserWorkItem(_ => Sent(null, sendArgs), null);
                 }
             }
         }
@@ -163,26 +175,26 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 bool send = false;
                 lock (sendMtex)
                 {
-                    if (Interlocked.CompareExchange(ref msgAvailable, 0, 1) == 1)
+                    lock (bufferMutex)
                     {
-                        lock (bufferMutex)
+                        if (Interlocked.CompareExchange(ref msgAvailable, 0, 1) == 1)
                         {
-                            var flush = Interlocked.Exchange(ref sendStream, flushStream);
-                            Interlocked.Exchange(ref flushStream, flush);
-
+                            var temp = sendStream;
+                            sendStream = flushStream;
+                            flushStream = temp;
                             sendStream.Position32 = 0;
+
+                            send = true;
                         }
-                        send = true;
-                    }
-                    else
-                    {
-                        Interlocked.Exchange(ref sendActive, 0);
+                        else
+                        {
+                            Interlocked.Exchange(ref sendActive, 0);
+                        }
                     }
                 }
 
                 if (send)
                 {
-
                     sendArgs.SetBuffer(flushStream.GetBuffer(), 0, flushStream.Position32);
 
                     if (!connectedSocket.SendAsync(sendArgs))

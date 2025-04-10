@@ -14,12 +14,15 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
     {
         private readonly IDistributedConnection connection;
         private readonly SessionManager sessionManager;
+
         Guid From;
         Guid To;
-        int fromPort;
-        string fromPublicKey;
-        int toPort;
-        string toPublicKey;
+        EndpointTransferMessage fromAdresses;
+        byte[] fromPublicKey;
+
+        EndpointTransferMessage toAddresses;
+        byte[] toPublicKey;
+
         ChannelInfo info;
         private int succesCount;
 
@@ -51,59 +54,77 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         // obtain port from destination endpoint
         private void HandleHolepunchRequest(MessageEnvelope message)
         {
-            info =  new ChannelInfo();
-            info.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
-            info.ChannelName = message.KeyValuePairs["Name"];
+            int offs = message.PayloadOffset;
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+
+            info = hpData.ChannelInfo;
+            fromPublicKey = hpData.DHPublic;
+            fromAdresses = hpData.Endpoints;
 
             From = message.From;
             To = message.To;
-            fromPort = int.Parse(message.KeyValuePairs["Port"]);
-            if(info.RequiresKeyExchange())
-                fromPublicKey = message.KeyValuePairs["DH"];
+
+            hpData.Endpoints = null;
+            hpData.DHPublic = null;
+
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+
+            KnownTypeSerializer.SerializeHolepunchData(stream, hpData);
+            message.SetPayload(stream.GetBuffer(), 0, stream.Position32);
             connection.SendAsyncMessage(message);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
 
         private void HandleHolepunchRequestAck(MessageEnvelope message)
         {
-            toPort = int.Parse(message.KeyValuePairs["Port"]);
-            if (info.RequiresKeyExchange())
-                toPublicKey = message.KeyValuePairs["DH"];
 
-            //signal
-            double startTime = connection.GetTime();
-            startTime += 500;
-
+            int offs = message.PayloadOffset;
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+            toPublicKey = hpData.DHPublic;
+            toAddresses = hpData.Endpoints;
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.StartHP;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Time"] = startTime.ToString(CultureInfo.InvariantCulture);
+            msg.KeyValuePairs["Time"] = (connection.GetTime() + 500).ToString();
 
             sessionManager.GetSessionData(From, out ServerSession sesFrom);
             sessionManager.GetSessionData(To, out ServerSession sesTo);
 
+
+
             if (sesFrom != null && sesTo != null)
             {
-                IPHelper.ObtainIpEndpoints(fromPort, toPort, sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
+                if (IPHelper.IsZero(toAddresses.IpRemote))
+                    toAddresses.IpRemote = sesTo.ClientPublicIp.Address.MapToIPv4().GetAddressBytes();
+                if (IPHelper.IsZero(fromAdresses.IpRemote))
+                    fromAdresses.IpRemote = sesFrom.ClientPublicIp.Address.MapToIPv4().GetAddressBytes();
+
+                IPHelper.ObtainIpEndpoints(fromAdresses,
+                                           toAddresses,
+                                           out var FromNeedsToKnow,
+                                           out var ToNeedsToKnow);
+
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
-                stream.Position32 = 0;
 
-                KnownTypeSerializer.SerializeEndpointTransferMessage(stream, FromNeedsToKnow);
-                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 msg.To = From;
-                if (info.RequiresKeyExchange())
-                    msg.KeyValuePairs["DH"] = toPublicKey;
+                hpData.Endpoints = FromNeedsToKnow;
+                hpData.DHPublic = toPublicKey;
+                KnownTypeSerializer.SerializeHolepunchData(stream, hpData);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 connection.SendAsyncMessage(msg);
 
                 stream.Position32 = 0;
 
-                KnownTypeSerializer.SerializeEndpointTransferMessage(stream, ToNeedsToKnow);
-                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 msg.To = To;
-                if (info.RequiresKeyExchange())
-                    msg.KeyValuePairs["DH"] = fromPublicKey;
+                hpData.Endpoints = ToNeedsToKnow;
+                hpData.DHPublic = fromPublicKey;
+                KnownTypeSerializer.SerializeHolepunchData(stream, hpData);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 connection.SendAsyncMessage(msg);
+
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
             else
             {

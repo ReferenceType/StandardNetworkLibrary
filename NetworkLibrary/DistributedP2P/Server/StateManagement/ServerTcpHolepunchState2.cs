@@ -3,6 +3,7 @@ using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
@@ -15,10 +16,12 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private readonly SessionManager sessionManager;
         Guid From;
         Guid To;
-        int fromPort;
-        string fromPublicKey;
-        int toPort;
-        string toPublicKey;
+        EndpointTransferMessage fromAdresses;
+        byte[] fromPublicKey;
+
+        EndpointTransferMessage toAddresses;
+        byte[] toPublicKey;
+
         ChannelInfo info;
         private int succesCount;
 
@@ -66,26 +69,34 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         // obtain port from destination endpoint
         private void HandleHolepunchRequest(MessageEnvelope message)
         {
-            info = new ChannelInfo();
-            info.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
-            info.ChannelName = message.KeyValuePairs["Name"];
+            int offs = message.PayloadOffset;
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+
+            info = hpData.ChannelInfo;
+            fromPublicKey = hpData.DHPublic;
+            fromAdresses = hpData.Endpoints;
 
             From = message.From;
             To = message.To;
-            fromPort = int.Parse(message.KeyValuePairs["Port"]);
-            if (info.RequiresKeyExchange())
-                fromPublicKey = message.KeyValuePairs["DH"];
+
+            hpData.Endpoints = null;
+            hpData.DHPublic = null;
+
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+
+            KnownTypeSerializer.SerializeHolepunchData(stream, hpData);
+            message.SetPayload(stream.GetBuffer(), 0, stream.Position32);
             connection.SendAsyncMessage(message);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+
         }
 
         private void HandleHolepunchRequestAck(MessageEnvelope message)
         {
-            toPort = int.Parse(message.KeyValuePairs["Port"]);
-            if (info.RequiresKeyExchange())
-                toPublicKey = message.KeyValuePairs["DH"];
-
-
-
+            int offs = message.PayloadOffset;
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+            toPublicKey = hpData.DHPublic;
+            toAddresses = hpData.Endpoints;
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.StartHP;
@@ -94,33 +105,40 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             sessionManager.GetSessionData(From, out ServerSession sesFrom);
             sessionManager.GetSessionData(To, out ServerSession sesTo);
 
+         
+
             if (sesFrom != null && sesTo != null)
             {
-                IPHelper.ObtainIpEndpoints(fromPort, toPort, sesFrom, sesTo, out var FromNeedsToKnow, out var ToNeedsToKnow);
+                if (IPHelper.IsZero(toAddresses.IpRemote))
+                    toAddresses.IpRemote = sesTo.ClientPublicIp.Address.MapToIPv4().GetAddressBytes();
+                if (IPHelper.IsZero(fromAdresses.IpRemote))
+                    fromAdresses.IpRemote = sesFrom.ClientPublicIp.Address.MapToIPv4().GetAddressBytes();
 
-                // coordination signal
-                double startTime = connection.GetTime();
-                startTime += 1000 * (1 + Math.Max(FromNeedsToKnow.LocalEndpoints.Count, ToNeedsToKnow.LocalEndpoints.Count));
-                msg.KeyValuePairs["Time"] = startTime.ToString(CultureInfo.InvariantCulture);
+                IPHelper.ObtainIpEndpoints(fromAdresses,
+                                           toAddresses,
+                                           out var FromNeedsToKnow,
+                                           out var ToNeedsToKnow);
+
 
                 var stream = SharerdMemoryStreamPool.RentStreamStatic();
-                stream.Position32 = 0;
 
-                KnownTypeSerializer.SerializeEndpointTransferMessage(stream, FromNeedsToKnow);
-                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 msg.To = From;
-                if (info.RequiresKeyExchange())
-                    msg.KeyValuePairs["DH"] = toPublicKey;
+                hpData.Endpoints = FromNeedsToKnow;
+                hpData.DHPublic = toPublicKey;
+                KnownTypeSerializer.SerializeHolepunchData(stream, hpData);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 connection.SendAsyncMessage(msg);
 
                 stream.Position32 = 0;
 
-                KnownTypeSerializer.SerializeEndpointTransferMessage(stream, ToNeedsToKnow);
-                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 msg.To = To;
-                if (info.RequiresKeyExchange())
-                    msg.KeyValuePairs["DH"] = fromPublicKey;
+                hpData.Endpoints = ToNeedsToKnow;
+                hpData.DHPublic = fromPublicKey;
+                KnownTypeSerializer.SerializeHolepunchData(stream, hpData);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
                 connection.SendAsyncMessage(msg);
+
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
             else
             {
@@ -146,62 +164,18 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
         }
         int succCounter = 0;
+
         private void HandleSucces(MessageEnvelope message)
         {
-            if (Interlocked.Increment(ref succCounter) == 1)
+            if (Interlocked.Increment(ref succCounter) == 2)
             {
-                var sts = message.KeyValuePairs["Status"];
-
                 var msg = CreateEnvelope();
                 msg.Header = InternalConstants.PunchSuccesAck;
-                msg.KeyValuePairs = new Dictionary<string, string>();
-                msg.SetPayload(message.Payload, message.PayloadOffset, message.PayloadCount);
-
-                if (sts == "Accepted")
-                {
-
-                    if (message.From == From)
-                    {
-                        msg.KeyValuePairs["Use"] = "Connected";
-                        connection.SendAsyncMessage(To, msg);
-
-                        msg.KeyValuePairs["Use"] = "Accepted";
-                        connection.SendAsyncMessage(From, msg);
-                    }
-                    else if (message.From == To)
-                    {
-                        msg.KeyValuePairs["Use"] = "Connected";
-                        connection.SendAsyncMessage(From, msg);
-
-                        msg.KeyValuePairs["Use"] = "Accepted";
-                        connection.SendAsyncMessage(To, msg);
-                    }
-
-                }
-                else // connected
-                {
-
-                    if (message.From == From)
-                    {
-                        msg.KeyValuePairs["Use"] = "Accepted";
-                        connection.SendAsyncMessage(To, msg);
-
-                        msg.KeyValuePairs["Use"] = "Connected";
-                        connection.SendAsyncMessage(From, msg);
-                    }
-                    else if (message.From == To)
-                    {
-                        msg.KeyValuePairs["Use"] = "Accepted";
-                        connection.SendAsyncMessage(From, msg);
-
-                        msg.KeyValuePairs["Use"] = "Connected";
-                        connection.SendAsyncMessage(To, msg);
-                    }
-                }
+                connection.SendAsyncMessage(To, msg);
+                connection.SendAsyncMessage(From, msg);
                 Completed(true);
 
             }
-
         }
 
     }

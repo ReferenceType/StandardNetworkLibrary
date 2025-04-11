@@ -152,11 +152,12 @@ namespace NetworkLibrary.DistributedP2P.Client
                         break;
 
                     case InternalConstants.RequestSequentialHolepunchTcp:
-                        ManageTcpHolepunchRequest(envelope);
+                        ManageSequentialTcpHolepunchReq(envelope);
                         break;
 
                     case InternalConstants.RequestSimultaneousHolepunchTcp:
-                        ManageTcpHolepunchRequest2(envelope);
+                        ManageSimyltaneousTcpHolepunchReq(envelope);
+                      
                         break;
 
                 }
@@ -256,7 +257,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (strategy == TcpHolePunchStrategy.Sequential)
                 {
-                    var state = new ClientTcpHolepunchState2(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
+                    var state = new ClientSequentialTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
                     stateManager.RegisterState(state);
                     state.Start();
 
@@ -270,7 +271,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                 }
                 else
                 {
-                    var state = new ClientTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, info);
+                    var state = new ClientSimultaneousTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
                     stateManager.RegisterState(state);
                     state.Start();
 
@@ -306,9 +307,9 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         }
 
-        private void ManageTcpHolepunchRequest(MessageEnvelope envelope)
+        private void ManageSimyltaneousTcpHolepunchReq(MessageEnvelope envelope)
         {
-            var state = new ClientTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, null);
+            var state = new ClientSimultaneousTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);
@@ -323,9 +324,9 @@ namespace NetworkLibrary.DistributedP2P.Client
             }
         }
 
-        private void ManageTcpHolepunchRequest2(MessageEnvelope envelope)
+        private void ManageSequentialTcpHolepunchReq(MessageEnvelope envelope)
         {
-            var state = new ClientTcpHolepunchState2(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null);
+            var state = new ClientSequentialTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);

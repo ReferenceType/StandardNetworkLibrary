@@ -17,8 +17,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         private UdpChannelBase innerchannel;
 
-        public event Action<byte[], int, int> OnMessageReceived;
-        public event Action Disconnected;
+        public event Action<byte[], int, int> OnBytesReceived;
+        public event Action OnDisconnected;
 
         protected JumboModule JumboUdp = new JumboModule(0);
         internal ReliableModule ReliableUdp;
@@ -70,7 +70,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         public void Start()
         {
-            innerchannel.OnMessageReceived += BytesReceived;
+            innerchannel.OnBytesReceived += BytesReceived;
+            innerchannel.OnDisconnected += HandleDisconnect;
             innerchannel.Start();
         }
 
@@ -131,7 +132,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         protected virtual void HandleMessage(byte[] buffer, int offset, int count)
         {
-            OnMessageReceived?.Invoke(buffer, offset, count);
+            OnBytesReceived?.Invoke(buffer, offset, count);
         }
 
         protected void HandleJumboSegment(byte[] buffer, int offset, int count)
@@ -236,7 +237,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             if (Interlocked.CompareExchange(ref isClosed, 1, 0) == 0)
             {
-                Disconnected?.Invoke();
+                OnDisconnected?.Invoke();
                 Dispose();
             }
 
@@ -257,8 +258,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
             innerchannel.CloseChannel();
 
-            Disconnected = null;
-            OnMessageReceived = null;
+            OnDisconnected = null;
+            OnBytesReceived = null;
 
 
         }

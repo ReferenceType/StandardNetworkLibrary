@@ -7,6 +7,7 @@ using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Cryptography;
 
 namespace NetworkLibrary.DistributedP2P.SimpleRelay
 {
@@ -71,24 +72,26 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
 
         private readonly ConcurrentDictionary<Guid, TcpTokenStorage> tokenStorage = new ConcurrentDictionary<Guid, TcpTokenStorage>();
 
-        byte[] cryptoKey;
+        byte[] cryptoKey = new byte[32];
         PrivateKeySign signer;
         readonly object tokenMtex = new object();
 
-        public RelayService(int TcpPort, int UdpPort, byte[] pipeKey)
+        public RelayService(int TcpPort, int UdpPort)
         {
+            var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(cryptoKey, 0, cryptoKey.Length);
+
             TcpServer = new AsyncTcpServer(TcpPort);
             TcpServer.GatherConfig = ScatterGatherConfig.UseBuffer;
             UdpServer = new AsyncUdpServer(UdpPort);
-
-            cryptoKey = pipeKey;
+            UdpServer.ClientDisconnected += HandleUdpPipeDisconnect;
 
             TcpServer.OnClientAccepted += TcpClientAccepted;
             TcpServer.OnClientDisconnected += HandleTcpPipeDisconnect;
 
             TcpServer.OnBytesReceived += HandleTcpBytes;
             UdpServer.OnBytesRecieved += HandleUdpBytes;
-            signer = new PrivateKeySign(pipeKey);
+            signer = new PrivateKeySign(cryptoKey);
 
 
             UdpServer.StartServer();
@@ -217,7 +220,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                     {
                         if (VerifyToken(storage.Token, token.Expiration))
                         {
-                            if (roomState.Verify(token,ephemeralId))
+                            if (roomState.Verify(token, ephemeralId))
                             {
                                 if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
                                 {
@@ -283,7 +286,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                 {
                     if (VerifyToken(tokenBytes, token.Expiration))
                     {
-                        if (roomState.Verify(token,clientEp))
+                        if (roomState.Verify(token, clientEp))
                         {
                             if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
                             {
@@ -367,6 +370,10 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             {
                 pipeMapUdp.TryRemove(to, out _);
             }
+            else if(roomMapUdp.TryRemove(from, out Room room))
+            {
+                room.HandleDisconnect(from);
+            }
         }
 
         private void HandleTcpPipeDisconnect(Guid from)
@@ -376,11 +383,15 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                 TcpServer.CloseSession(to);
                 pipeMapTcp.TryRemove(to, out _);
             }
+            else if (roomMapTcp.TryRemove(from, out Room room))
+            {
+                room.HandleDisconnect(from);
+            }
 
             tokenStorage.TryRemove(from, out _);
         }
 
-       
+
         private void RegisterTcpToken(PipeToken pipeData)
         {
             activeTcpPipeStates.TryAdd(pipeData.Token, new PipeState<Guid>(pipeData));
@@ -410,7 +421,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             Buffer.BlockCopy(signature, 0, data, offset, 32);//32
         }
 
-       
+
 
 
         // for direct p2p
@@ -477,7 +488,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             }
         }
 
-        private void RouteRoomMessage( PeerRoomState to, byte[] b, int o, int c)
+        private void RouteRoomMessage(PeerRoomState to, byte[] b, int o, int c)
         {
             if (to.isTcp)
             {

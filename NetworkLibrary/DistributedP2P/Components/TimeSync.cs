@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NetworkLibrary.Utils;
 using NetworkLibrary.P2P;
-using NetworkLibrary.DistributedP2P.Server;
 
 namespace NetworkLibrary.DistributedP2P.Components
 {
@@ -95,39 +94,44 @@ namespace NetworkLibrary.DistributedP2P.Components
 
                 //12 first, 3,2,1
 
-                int sampleSize = 3;
+                int sampleSize = 12;
                 var sCnt = Interlocked.CompareExchange(ref syncCount, 0, 0);
 
-                if (sCnt == 0)
-                    sampleSize = 12;
-
                 if (sCnt > 50)
-                    sampleSize = 2;
+                    sampleSize = 4;
 
-                if (sCnt > 100)
-                    sampleSize = 1;
-
-
+               var localHistory = new List<TimeResult>();
+               var localHistoryd = new List<TimeResult>();
                 for (int i = 0; i < sampleSize; i++)
                 {
                     var result = usePtp ? await GetOffsetPTP().ConfigureAwait(false) : await GetOffsetNTP().ConfigureAwait(false);
                     if (result.Succes)
                     {
-                        timesHistory.Add(result.PreciseTime);
-                        timesHistoryd.Add(result.DateTimeOffset);
+                        localHistory.Add(result);
+                        localHistoryd.Add(result);
                     }
                     else return false;
                 }
+
+                var bestSamples = localHistory.OrderBy(x => x.RTT).Take((sampleSize / 2)).Select(x => x.PreciseTime).ToList();
+                var bestSamplesd = localHistoryd.OrderBy(x => x.RTT).Take((sampleSize / 2)).Select(x=>x.DateTimeOffset).ToList();
+                //var bestSamples = localHistory;
+                //var bestSamplesd = localHistoryd;
+
+                timesHistory.AddRange(bestSamples);
+                timesHistoryd.AddRange(bestSamplesd);
+                
 
                 if (timesHistory.Count < 4)
                     return false;
 
                 var times = Statistics.FilterOutliers(timesHistory);
                 var timesd = Statistics.FilterOutliers(timesHistoryd);
-                if (timesHistory.Count > 600)
+
+                if (timesHistory.Count > 100)
                 {
-                    timesHistory = timesHistory.Skip(60).ToList();
-                    timesHistoryd = timesHistoryd.Skip(60).ToList();
+                    timesHistory = timesHistory.Skip(10).ToList();
+                    timesHistoryd = timesHistoryd.Skip(10).ToList();
                 }
 
                 double average = times.Sum() / times.Count();
@@ -158,7 +162,7 @@ namespace NetworkLibrary.DistributedP2P.Components
 
         }
 
-        class TimeResult { public double PreciseTime; public bool Succes; public DateTime ServerUTC; public TimeSpan DateTimeOffset; }
+        class TimeResult { public double PreciseTime; public bool Succes; public DateTime ServerUTC; public TimeSpan DateTimeOffset;  public double RTT; }
 
         private async Task<TimeResult> GetOffsetNTP()
         {
@@ -173,18 +177,17 @@ namespace NetworkLibrary.DistributedP2P.Components
             var response = await connection.SendMessageAndWaitResponse(msg).ConfigureAwait(false);
             if (response.Header != MessageEnvelope.RequestTimeout)
             {
+                var now1 = clientClock.Elapsed.TotalMilliseconds;
+                var now1d = DateTime.UtcNow;
 
                 var serverTime = PrimitiveEncoder.ReadFixedDouble(response.Payload, response.PayloadOffset);
                 var serverTimed = response.TimeStamp;
-
-                var now1 = clientClock.Elapsed.TotalMilliseconds;
-                var now1d = DateTime.UtcNow;
 
                 var timeOffset = ((serverTime - now) + (serverTime - now1)) / 2;
                 var timeOffsetd = ((serverTimed - nowd) + (serverTimed - now1d)).TotalMilliseconds / 2;
                 TimeSpan offd = TimeSpan.FromMilliseconds(timeOffsetd);
 
-                return new TimeResult() { PreciseTime = timeOffset, DateTimeOffset = offd, Succes = true };
+                return new TimeResult() { PreciseTime = timeOffset, DateTimeOffset = offd, Succes = true, RTT = now1-now };
             }
             return new TimeResult();
 
@@ -203,13 +206,14 @@ namespace NetworkLibrary.DistributedP2P.Components
                 var t3d = t2d;
 
                 var t4 = await GetServerTime();
+                var trtt = clientClock.Elapsed.TotalMilliseconds;
 
                 if (t4.Succes)
                 {
                     double offset = (((t4.PreciseTime - t3) - (t2 - t1.PreciseTime)) / 2);
                     double offsetd = (((t4.ServerUTC - t3d) - (t2d - t1.ServerUTC)).TotalMilliseconds / 2);
                     TimeSpan offd = TimeSpan.FromMilliseconds(offsetd);
-                    return new TimeResult() { PreciseTime = offset, DateTimeOffset = offd, Succes = true };
+                    return new TimeResult() { PreciseTime = offset, DateTimeOffset = offd, Succes = true,RTT = t2- trtt };
                 }
                 else
                     return new TimeResult();

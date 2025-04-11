@@ -1,25 +1,17 @@
 ﻿using NetworkLibrary.Components.Crypto.DiffieHellman;
 using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
-using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkLibrary.Utils;
 
 namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 {
-    class ClientHolepunchData
-    {
-        public ChannelInfo ChannelInfo { get; set; }
-        public EndpointTransferMessage Endpoints { get; set; }
-        public byte[] DHPublic;
-    }
-
-    internal class ClientTcpHolepunchState2 : ConversationStateBase
+    internal class ClientSimultaneousTcpHolepunchState : ConversationStateBase
     {
         private readonly Guid destId;
         private readonly IDistributedConnection connection;
@@ -30,10 +22,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         public IPEndPoint SuccesfulEndpoint;
 
         private DiffieHellman df = new DiffieHellman();
-        private byte[] othersPublicKey;
+        private byte[] otherPublicKey;
+        List<EndpointData> localEndpoints = new List<EndpointData>();
+
         public byte[] SharedSecret;
         public ChannelInfo ChannelInfo;
 
+        private int localPort;
         private Socket listeningSocket;
         private Socket acceptedSocket;
         private Socket connectedSocket;
@@ -41,19 +36,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private int connected = 0;
         private int accepted = 0;
 
-        int swapCnt = 0;
-
-        bool isListening = false;
-        List<EndpointData> localEndpoints =  new List<EndpointData>();
-       
         private IPEndPoint selfRemoteEp;
         private IPEndPoint selfLocalEp = new IPEndPoint(IPAddress.Any, 0);
         private EndpointData publicEndpointToConnect;
 
-        
 
         private bool IsEstablished => Interlocked.CompareExchange(ref established, 0, 0) == 1;
-        public ClientTcpHolepunchState2(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint,EndpointData discoveryServerEp, ChannelInfo info) : base(stateId, 10000)
+        public ClientSimultaneousTcpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerEp, ChannelInfo info) : base(stateId, 5000)
         {
             this.destId = destId;
             this.connection = connection;
@@ -65,28 +54,31 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         //the initiator
         public async void Start()
         {
+
             isInitiator = true;
             Log(StateId.ToString());
 
             await BindPort();
+            Log($"Local port {selfLocalEp.Port} Remote port {selfRemoteEp.Port}");
 
-            Log("Local port " + selfLocalEp.Port);
-            Log("Remote port " + selfRemoteEp.Port);
+            StartListening();
+            Log("listening");
 
             var msg = CreateEnvelope();
             msg.To = destId;
             msg.Header = InternalConstants.RequestSimultaneousHolepunchTcp;
-           
+
             var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            KnownTypeSerializer.SerializeHolepunchData(stream,GetHpData());
+            KnownTypeSerializer.SerializeHolepunchData(stream, GetHpData());
 
             msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
             connection.SendAsyncMessage(msg);
 
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+           
         }
 
-      
+
 
         public override void HandleMessage(MessageEnvelope message)
         {
@@ -107,9 +99,6 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 case InternalConstants.PunchFailAck:
                     HandleFailure();
                     break;
-                case InternalConstants.PunchSwap:
-                    Swap();
-                    break;
             }
         }
 
@@ -118,22 +107,19 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         {
             Log(StateId.ToString());
             int offs = message.PayloadOffset;
-            var hpData  = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
 
             ChannelInfo = hpData.ChannelInfo;
-
             await BindPort();
+            Log($"Local port {selfLocalEp.Port} Remote port {selfRemoteEp.Port}");
 
-            Log("Local port " + selfLocalEp.Port);
-            Log("Remote port " + selfRemoteEp.Port);
-
-            StartTcpListener();
+            StartListening();
             Log("listening");
 
             var msg = CreateEnvelope();
             msg.To = destId;
             msg.Header = InternalConstants.AckRequestHolepunchTcp;
-           
+
             var hpd = GetHpData();
             hpd.ChannelInfo = null;
 
@@ -143,154 +129,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             connection.SendAsyncMessage(msg);
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
-        }
-
-        private void StartHolepunchRoutine(MessageEnvelope message)
-        {
-            if (IsCompleted()) return;
-            int offs = message.PayloadOffset;
-
-            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
-
-            var epMsg = hpData.Endpoints;
-            othersPublicKey = hpData.DHPublic;
-            localEndpoints = epMsg.LocalEndpoints;
-
-            bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
-            publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
-
-            if (!isListening)
-            {
-                TryPunch();
-            }
-
-        }
-
-        private void TryPunch()
-        {
-            try
-            {
-                if (localEndpoints.Count > 0)
-                {
-                    foreach (EndpointData localEp in localEndpoints)
-                    {
-                        if (TryConnect(localEp, 600))
-                            return;
-
-                        if (IsCompleted()) return;
-
-                    }
-                }
-
-                for (int i = 0; i < 1; i++)
-                {
-                    if (TryConnect(publicEndpointToConnect, (2000)))
-                        return;
-
-                    if (IsCompleted()) return;
-
-                }
-            }
-            catch { }
-            finally
-            {
-                if(Interlocked.CompareExchange(ref established,0,0) == 0)
-                    SwapAndNotify();
-            }
-        }
-
-        //this one only when we tried to connect and failed
-        // so we will listen only
-        private void SwapAndNotify()
-        {
-            if (IsCompleted()) return;
 
            
-            int cnt = 0;
-            while (!isListening)
-            {
-                try
-                {
-                    if (IsCompleted()) return;
-                    Swap();
-                    if (IsCompleted()) return;
-                }
-                catch {
-                    Thread.Sleep(200); 
-                }
-
-                cnt++;
-                if (cnt > 10)
-                    break;
-
-            }
-
-            var msg = CreateEnvelope();
-            msg.Header = InternalConstants.PunchSwap;
-            connection.SendAsyncMessage(msg);
-        }
-
-        private void Swap()
-        {
-            if (swapCnt++ > 3)
-            {
-                Log("Max attempts reached");
-                Cancel();
-                return;
-            }
-
-            if (IsCompleted()) return;
-
-            if (isListening)
-            {
-                Log("Swapping to Sender");
-                StopListener();
-                ThreadPool.UnsafeQueueUserWorkItem( _ => TryPunch(), null);
-            }
-            else
-            {
-                Log("Swapping to Listener");
-                StartTcpListener();
-            }
-        }
-
-        private bool TryConnect(EndpointData endpoint, int timeoutMs = 600)
-        {
-            Socket connectSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-            try
-            {
-                Log("Connecting to " + endpoint.ToIpEndpoint().ToString());
-                connectSocket.Bind(selfLocalEp);
-
-                var connectTask = connectSocket.ConnectAsync(endpoint.ToIpEndpoint());
-                var timeoutTask = Task.Delay(timeoutMs);
-
-                if (Task.WhenAny(connectTask, timeoutTask).GetAwaiter().GetResult() == connectTask)
-                {
-                    if (connectTask.IsFaulted)
-                    {
-                        throw connectTask.Exception;
-                    }
-                    HandleConnectedSocket(connectSocket);
-                    Log($"Successfully connected to {endpoint.ToIpEndpoint()}");
-                    return true;
-
-                }
-                else
-                {
-                    Log($"Connection to {endpoint.ToIpEndpoint()} timed out after {timeoutMs}ms");
-                    connectSocket.Close();
-                    connectSocket.Dispose();
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"Connect attempt to {endpoint.ToIpEndpoint()} failed: {ex.Message}");
-                connectSocket.Close();
-                return false;
-            }
         }
 
         private async Task BindPort()
@@ -299,11 +139,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             clientSocket.Bind(selfLocalEp);
             selfLocalEp = (IPEndPoint)clientSocket.LocalEndPoint;
 
-            var remoteEp = await EndpointDiscoveryClient.GetTcpPublicEndpoint(clientSocket,discoveryServerEp.ToIpEndpoint(),5000);
+            var remoteEp = await EndpointDiscoveryClient.GetTcpPublicEndpoint(clientSocket, discoveryServerEp.ToIpEndpoint(), 5000);
             if (remoteEp == null)
             {
                 Log("Failed to get public endpoint");
-                remoteEp = new EndpointData("0.0.0.0",selfLocalEp.Port);
+                remoteEp = new EndpointData("0.0.0.0", selfLocalEp.Port);
             }
 
             selfRemoteEp = remoteEp.ToIpEndpoint();
@@ -315,22 +155,106 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 clientSocket = null;
             }
             catch { }
-           
+
         }
 
-        private int StartTcpListener()
+        private void StartHolepunchRoutine(MessageEnvelope message)
+        {
+
+            if (IsCompleted()) return;
+            int offs = message.PayloadOffset;
+
+            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+
+            var epMsg = hpData.Endpoints;
+            otherPublicKey = hpData.DHPublic;
+            localEndpoints = epMsg.LocalEndpoints;
+
+            bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
+            publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
+            var time = double.Parse(message.KeyValuePairs["Time"]);
+
+          
+            // if there are local endpoints to test
+            if (epMsg.LocalEndpoints.Count > 0)
+            {
+                foreach (EndpointData localEp in epMsg.LocalEndpoints)
+                {
+                    if (TryConnect(localEp, 500))
+                        return;
+                    if (IsEstablished) return;
+                }
+            }
+
+            if (IsEstablished) return;
+
+            var now = connection.GetTime();
+            var delay = time - now;
+           
+            Log("Delay: " + delay.ToString() + "ms");
+
+            PreciseTimeAwaiter.Wait(delay);
+            if (IsEstablished) return;
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (TryConnect(publicEndpointToConnect, (2000)))
+                    return;
+                if (IsEstablished) return;
+            }
+
+        }
+
+
+        private bool TryConnect(EndpointData endpoint, int timeoutMs = 600)
+        {
+            Socket connectSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+            try
+            {
+                Log("Connecting to " + endpoint.ToIpEndpoint().ToString());
+                connectSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                connectSocket.Bind(new IPEndPoint(IPAddress.Any, localPort));
+
+                var connectTask = connectSocket.ConnectAsync(endpoint.ToIpEndpoint());
+                var timeoutTask = Task.Delay(timeoutMs);
+
+                if (Task.WhenAny(connectTask, timeoutTask).GetAwaiter().GetResult() == connectTask)
+                {
+
+                    connectSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, false);
+                    HandleConnectedSocket(connectSocket);
+                    Log($"Successfully connected to {endpoint.ToIpEndpoint()}");
+                    return true;
+
+                }
+                else
+                {
+                    Log($"Connection to {endpoint.ToIpEndpoint()} timed out after {timeoutMs}ms");
+                    connectSocket.Close();
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Connect attempt to {endpoint.ToIpEndpoint()} failed: {ex.Message}");
+                connectSocket.Close();
+                return false;
+            }
+        }
+
+
+        private int StartListening()
         {
             listeningSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             listeningSocket.SendBufferSize = 12800000;
             listeningSocket.ReceiveBufferSize = 12800000;
+            listeningSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
             listeningSocket.Bind(selfLocalEp);
 
-            selfLocalEp = (IPEndPoint)listeningSocket.LocalEndPoint;
-
-
             Listen();
-            isListening = true;
+
             return ((IPEndPoint)listeningSocket.LocalEndPoint).Port;
         }
 
@@ -353,26 +277,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             {
                 Log("Failed Accept: " + e.Message);
             }
-
+         
         }
-
-        private void StopListener()
-        {
-            try
-            {
-                isListening = false;
-                listeningSocket?.Close();
-                listeningSocket?.Dispose();
-                listeningSocket = null;
-            }
-            catch { } 
-        }
-            
 
         private void HandleConnectedSocket(Socket socket)
         {
-            if (IsCompleted()) return;
-
             Interlocked.Exchange(ref established, 1);
             if (Interlocked.Exchange(ref connected, 1) == 1)
                 return;
@@ -388,16 +297,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleAcceptedSocket(Socket socket)
         {
-            if (IsCompleted()) return;
-
-
             Interlocked.Exchange(ref established, 1);
             if (Interlocked.Exchange(ref accepted, 1) == 1)
                 return;
 
             Log($"Successfully accepted {(IPEndPoint)socket.RemoteEndPoint}");
             acceptedSocket = socket;
-
+         
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchSucces;
@@ -406,6 +312,14 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             connection.SendAsyncMessage(msg);
         }
 
+        private void TimedOut()
+        {
+            Log("Timed out");
+            var msg = CreateEnvelope();
+            msg.Header = InternalConstants.PunchFail;
+            connection.SendAsyncMessage(msg);
+            Cancel();
+        }
 
         private void HandleFailure()
         {
@@ -415,11 +329,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleRemoteSucces(MessageEnvelope message)
         {
-          
+            string use = message.KeyValuePairs["Use"];
             if (ChannelInfo.RequiresKeyExchange())
-                SharedSecret = df.CalculateSharedSecret(othersPublicKey);
+                SharedSecret = df.CalculateSharedSecret(otherPublicKey);
 
-            if (connectedSocket!=null)
+            if (use == "Connected")
             {
                 Socket = connectedSocket;
             }
@@ -428,31 +342,9 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 Socket = acceptedSocket;
             }
 
-            if(Socket == null)
-            {
-                Log("Failed to get socket");
-                Completed(false);
-                return;
-            }
             SuccesfulEndpoint = (IPEndPoint)Socket.RemoteEndPoint;
             Log("Punched");
             Completed(true);
-        }
-
-        public override void Cancel()
-        {
-            lock(cancellationMutex)
-            {
-                if (!IsCompleted())
-                {
-                    Log("Cancelled");
-                    var msg = CreateEnvelope();
-                    msg.Header = InternalConstants.PunchFail;
-                    connection.SendAsyncMessage(msg);
-                    Completed(false);
-                }
-            }
-   
         }
 
         protected override void Completed(bool succes)
@@ -502,13 +394,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             hpd.Endpoints = epm;
 
-
             if (ChannelInfo.RequiresKeyExchange())
             {
                 hpd.DHPublic = df.GetPublicKey();
             }
             return hpd;
         }
+
     }
 
 

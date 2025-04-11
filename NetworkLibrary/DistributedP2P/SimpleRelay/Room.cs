@@ -76,6 +76,32 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             return removed;
         }
 
+        internal bool HandleDisconnect(IPEndPoint peerEndpoint)
+        {
+            foreach (var item in roster)
+            {
+                if (item.Value.AssociatedEndpoint.Equals(peerEndpoint))
+                {
+                    RemovePeer(item.Key);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        internal bool HandleDisconnect(Guid ephemeralId)
+        {
+            foreach (var item in roster)
+            {
+                if (item.Value.EphemeralId.Equals(ephemeralId))
+                {
+                    RemovePeer(item.Key);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public void Clear()
         {
             PeerRegistered = null;

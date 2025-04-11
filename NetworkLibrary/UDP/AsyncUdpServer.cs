@@ -18,6 +18,8 @@ namespace NetworkLibrary.UDP
         public BytesRecieved OnBytesRecieved;
         public int ClientReceiveBufferSize = 65000;
 
+        public Action<IPEndPoint> ClientDisconnected;
+
         public int SocketReceiveBufferSize
         {
             get => receiveBufferSize;
@@ -116,6 +118,7 @@ namespace NetworkLibrary.UDP
             if (e.SocketError != SocketError.Success)
             {
                 StartReceiveSentinel();
+                ClientDisconnected?.Invoke(e.RemoteEndPoint as IPEndPoint);
                 e.Dispose();
                 return;
             }

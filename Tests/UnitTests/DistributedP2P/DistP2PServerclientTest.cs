@@ -8,6 +8,7 @@ using Protobuff.Components.Serialiser;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -139,7 +140,7 @@ namespace UnitTests.DistributedP2P
             byte[] data = new byte[12800000];
 
             channel1.Start();
-            channel1.SendAsync(data, 0, data.Length);
+            channel1.Send(data, 0, data.Length);
             Thread.Sleep(100);
             mre.Set();
 
@@ -149,8 +150,8 @@ namespace UnitTests.DistributedP2P
             {
                 mre.WaitOne();//emulate bad syncronisation
                 var channel = (TcpChannel)channel_;
-                channel.BytesReceived += Channel_BytesReceived;
-                channel.Disconnected += Disconnected;
+                channel.OnBytesReceived += Channel_BytesReceived;
+                channel.OnDisconnected += Disconnected;
                 channel.Start();
             }
 
@@ -214,7 +215,7 @@ namespace UnitTests.DistributedP2P
             for (int i = 0; i < iter; i++)
             {
                 data[0] = (byte)i;
-                channel1.SendAsync(data, 0, data.Length);
+                channel1.Send(data, 0, data.Length);
                 if(i%2 ==0)
                     Thread.Sleep(1000);
             }
@@ -224,8 +225,8 @@ namespace UnitTests.DistributedP2P
             {
                // mre.WaitOne();//emulate bad syncronisation
                 var channel = (SecureTcpChannel)channel_;
-                channel.BytesReceived += Channel_BytesReceived;
-                channel.Disconnected += Disconnected;
+                channel.OnBytesReceived += Channel_BytesReceived;
+                channel.OnDisconnected += Disconnected;
                 channel.Start();
             }
 
@@ -286,7 +287,7 @@ namespace UnitTests.DistributedP2P
             void Cl2_PeerConnected(IChannel obj)
             {
                 var udpChannel = (UdpChannel)obj;
-                udpChannel.OnMessageReceived += (b,o,c) => 
+                udpChannel.OnBytesReceived += (b,o,c) => 
                 { 
                     received = c; tcs.SetResult(true); };
                 udpChannel.Start();
@@ -335,7 +336,7 @@ namespace UnitTests.DistributedP2P
             void Cl2_PeerConnected(IChannel obj)
             {
                 var udpChannel = (SecureUdpChannel)obj;
-                udpChannel.OnMessageReceived += (b, o, c) =>
+                udpChannel.OnBytesReceived += (b, o, c) =>
                 {
                     received = c; 
                     if(++cnt == 2)
@@ -513,6 +514,7 @@ namespace UnitTests.DistributedP2P
         [TestMethod]
         public void Timesync()
         {
+
             using var server = ArrangeServer();
             var cl1 = GetClient();
             Thread.Sleep(1337);
@@ -524,6 +526,12 @@ namespace UnitTests.DistributedP2P
             double time1 = cl1.GetTime();
             double time2 = cl2.GetTime();
             double time3 = server.GetTime();
+          
+
+            Console.WriteLine(time1);
+            Console.WriteLine(time2);
+            Console.WriteLine(time3);
+
             Assert.IsTrue(Math.Abs(time1 - time2) < 1);
             Assert.IsTrue(Math.Abs(time1 - time3) < 1);
         }
@@ -560,7 +568,7 @@ namespace UnitTests.DistributedP2P
             void Cl2_PeerConnected(IChannel obj)
             {
                 var ch = (UdpChannel)obj;
-                ch.OnMessageReceived += Ch_OnMessageReceived;
+                ch.OnBytesReceived += Ch_OnMessageReceived;
                 ch.Start();
             }
 
@@ -609,7 +617,7 @@ namespace UnitTests.DistributedP2P
             void Cl2_PeerConnected(IChannel obj)
             {
                 var ch = (SecureUdpChannel)obj;
-                ch.OnMessageReceived += Ch_OnMessageReceived;
+                ch.OnBytesReceived += Ch_OnMessageReceived;
                 ch.Start();
             }
 
@@ -650,13 +658,13 @@ namespace UnitTests.DistributedP2P
 
             var data = new byte[1280];
             data[0] = 1;
-            channel1.SendAsync(data, 0, data.Length);
+            channel1.Send(data, 0, data.Length);
             Thread.Sleep(100);
 
             void Cl2_PeerConnected(IChannel obj)
             {
                 var ch = (TcpChannel)obj;
-                ch.BytesReceived += Ch_OnMessageReceived;
+                ch.OnBytesReceived += Ch_OnMessageReceived;
                 ch.Start();
             }
 
@@ -699,13 +707,13 @@ namespace UnitTests.DistributedP2P
 
             var data = new byte[12800000];
             data[0] = 1;
-            channel1.SendAsync(data, 0, data.Length);
+            channel1.Send(data, 0, data.Length);
             Thread.Sleep(100);
 
             void Cl2_PeerConnected(IChannel obj)
             {
                 var ch = (SecureTcpChannel)obj;
-                ch.BytesReceived += Ch_OnMessageReceived;
+                ch.OnBytesReceived += Ch_OnMessageReceived;
                 ch.Start();
             }
 
@@ -755,13 +763,13 @@ namespace UnitTests.DistributedP2P
 
             Parallel.For(0, iter, (i) =>
             {
-                channel1.SendAsync(data, 0, data.Length);
+                channel1.Send(data, 0, data.Length);
             });
 
             void Cl2_PeerConnected(IChannel obj)
             {
                 var ch = (TcpChannel)obj;
-                ch.BytesReceived += Ch_OnMessageReceived;
+                ch.OnBytesReceived += Ch_OnMessageReceived;
                 ch.Start();
             }
 
@@ -816,7 +824,7 @@ namespace UnitTests.DistributedP2P
             for (int i = 0; i < iter; i++)
             {
                 data[0] = (byte)i;
-                channel1.SendAsync(data, 0, data.Length);
+                channel1.Send(data, 0, data.Length);
                 if(i%10 == 0)
                     Thread.Sleep(1);
             };
@@ -824,7 +832,7 @@ namespace UnitTests.DistributedP2P
             void Cl2_PeerConnected(IChannel obj)
             {
                 var ch = (TcpChannel)obj;
-                ch.BytesReceived += Ch_OnMessageReceived;
+                ch.OnBytesReceived += Ch_OnMessageReceived;
                 ch.Start();
             }
             void Ch_OnMessageReceived(byte[] arg1, int arg2, int arg3)

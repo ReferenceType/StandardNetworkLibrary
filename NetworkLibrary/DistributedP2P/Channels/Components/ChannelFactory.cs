@@ -13,7 +13,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 {
     internal class ChannelFactory
     {
-        public static IChannel CreateChannel(ClientTcpHolepunchState TcpHpstate, bool isInitiator)
+        public static IChannel CreateChannel(ClientSimultaneousTcpHolepunchState TcpHpstate, bool isInitiator)
         {
             ChannelInfo info = TcpHpstate.ChannelInfo;
             Socket connectedSocket = TcpHpstate.Socket;
@@ -24,7 +24,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             return CreateChannel(info, connectedSocket, sharedSecret, endpoint, channelType, isInitiator);
         }
 
-        public static IChannel CreateChannel(ClientTcpHolepunchState2 TcpHpstate, bool isInitiator)
+        public static IChannel CreateChannel(ClientSequentialTcpHolepunchState TcpHpstate, bool isInitiator)
         {
             ChannelInfo info = TcpHpstate.ChannelInfo;
             Socket connectedSocket = TcpHpstate.Socket;

@@ -46,8 +46,8 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         RandomNumberGenerator r = RandomNumberGenerator.Create();
         private void SendKeepAlive()
         {
-            r.GetBytes(innerBuff, 0, 32);
-            SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 32);
+            r.GetBytes(innerBuff, 0, 16);
+            SendData?.Invoke(MessageFlags.KeepAliveMessage, innerBuff, 0, 16);
             //Console.WriteLine("Keep alive sent");
         }
 

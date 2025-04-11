@@ -13,8 +13,8 @@ namespace NetworkLibrary.DistributedP2P.Channels
     {
         public ChannelInfo Info { get; private set; }
 
-        public event Action<byte[], int, int> BytesReceived;
-        public event Action Disconnected;
+        public event Action<byte[], int, int> OnBytesReceived;
+        public event Action OnDisconnected;
 
         private readonly Socket connectedSocket;
         private int totalBytesReceived;
@@ -60,7 +60,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             return pinger.Ping();
         }
 
-        public void SendAsync(byte[] buffer, int offset, int count)
+        public void Send(byte[] buffer, int offset, int count)
         {
             FlagAndSend(MessageFlags.StandardMessage, buffer, offset, count);
         }
@@ -162,14 +162,21 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 if (e.SocketError != SocketError.Success)
                 {
                     ErrorAndEnd($"While sending a socket error occured {e.SocketError}");
-                    CloseChannel();
                     return;
                 }
-
                 else if (e.BytesTransferred == 0)
                 {
                     Log("0 bytes Sent");
                     CloseChannel();
+                    return;
+                }
+                else if (e.BytesTransferred < e.Count)
+                {
+                    sendArgs.SetBuffer(e.Offset + e.BytesTransferred, e.Count - e.BytesTransferred);
+                    if (!connectedSocket.SendAsync(sendArgs))
+                    {
+                        ThreadPool.UnsafeQueueUserWorkItem(_ => Sent(null, sendArgs), null);
+                    }
                     return;
                 }
                 bool send = false;
@@ -216,6 +223,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             Receive();
         }
+
         private void InitializeReceiver()
         {
             receiveArgs = new SocketAsyncEventArgs();
@@ -247,6 +255,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 CloseChannel();
                 return;
             }
+
             totalBytesReceived += e.BytesTransferred;
             try
             {
@@ -290,7 +299,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         protected void PublishBytes(byte[] buffer, int offset, int count)
         {
-            BytesReceived?.Invoke(buffer, offset, count);
+            OnBytesReceived?.Invoke(buffer, offset, count);
         }
 
         public void CloseChannel()
@@ -310,7 +319,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch { }
             keepAlive.Close();
-            Disconnected?.Invoke();
+            OnDisconnected?.Invoke();
         }
 
 

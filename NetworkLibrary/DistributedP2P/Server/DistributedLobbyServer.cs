@@ -1,26 +1,18 @@
 ﻿using NetworkLibrary.Components.Crypto.Certificate;
 using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.P2P.Components.StateManagement;
-using NetworkLibrary.TCP.Base;
-using NetworkLibrary.TCP.SSL.Base;
-using NetworkLibrary.UDP;
+using NetworkLibrary.DistributedP2P.Server.StateManagement;
+using NetworkLibrary.DistributedP2P.SimpleRelay;
 using NetworkLibrary.MessageProtocol;
+using NetworkLibrary.P2P;
+using NetworkLibrary.P2P.Components.HolePunch;
+using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
-using System.Net;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Data.Common;
-using NetworkLibrary.P2P;
-using System.Diagnostics;
-
+using System.Threading;
 using System.Threading.Tasks;
-using NetworkLibrary.DistributedP2P.Server.StateManagement;
-using System.Security.Cryptography;
-using NetworkLibrary.DistributedP2P.SimpleRelay;
-using NetworkLibrary.Utils;
-using NetworkLibrary.P2P.Components.HolePunch;
 
 namespace NetworkLibrary.DistributedP2P.Server
 {
@@ -38,7 +30,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         public int UdpPort;
         public int DiscoveryServerPort;
     }
-    public class DistributedLobbyServerBase<S> : IDistributedConnection,IDisposable where S : ISerializer, new()
+    public class DistributedLobbyServerBase<S> : IDistributedConnection, IDisposable where S : ISerializer, new()
     {
         public readonly int SSlPort;
         public readonly int TcpPort;
@@ -54,11 +46,12 @@ namespace NetworkLibrary.DistributedP2P.Server
         IServerDbConnector dbConnector;
 
         SessionManager sessionManager;
-        Components.StateManager stateManager =  new Components.StateManager();
+        Components.StateManager stateManager = new Components.StateManager();
         RelayService piper;
         Stopwatch serverClock = new Stopwatch();
 
-        RelayService pipeManager;
+        RelayService relayService;
+        RoomManager roomManager = new RoomManager();
 
         private byte[] serverKey = new byte[16];
 
@@ -82,10 +75,8 @@ namespace NetworkLibrary.DistributedP2P.Server
 
             sslServer = new SecureMessageServer<S>(SSlPort, serverCertificate);
 
-            var random = RandomNumberGenerator.Create();
-            var key = new byte[32];
-            random.GetNonZeroBytes(key);
-            pipeManager = new RelayService(TcpPort, UdpPort, key);
+
+            relayService = new RelayService(TcpPort, UdpPort);
 
             sslServer.OnClientRequestedConnection += ValidateSslConnection;
             sslServer.OnClientAccepted += SslClientAccepted;
@@ -101,7 +92,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             discoveryServer.Start();
         }
 
-      
+
 
         private bool ValidateSslConnection(Socket acceptedSocket)
         {
@@ -112,9 +103,9 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         private void SslClientAccepted(Guid ephemeralClientId)
         {
-            TimerService.RegisterTimer(ephemeralClientId, 20000, () => 
-            { 
-                if (!sessionManager.IsSessionActive(ephemeralClientId)) 
+            TimerService.RegisterTimer(ephemeralClientId, 20000, () =>
+            {
+                if (!sessionManager.IsSessionActive(ephemeralClientId))
                 {
                     sslServer.CloseSession(ephemeralClientId);
                 }
@@ -125,7 +116,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
 
             Guid stateId = msg.MessageId;
-            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector,DiscoveryServerPort);
+            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector, DiscoveryServerPort);
             stateManager.RegisterState(state);
             state.HandleMessage(msg);
 
@@ -139,7 +130,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             {
                 var sessionEp = sslServer.GetSessionEndpoint(state.EphemeralClientId);
                 var statusList = sessionManager.CreateSession(state.clientDbInfo, state.EphemeralClientId, sessionEp, state.clientLocalIps);
-                if(statusList!=null)
+                if (statusList != null)
                     PublishPeerList(new List<PeerStatusList>() { statusList });
             }
         }
@@ -184,11 +175,11 @@ namespace NetworkLibrary.DistributedP2P.Server
             // ping
 
             message.From = clientId;
-           
+
             if (stateManager.HandleMessage(message))
                 return;
 
-           
+
 
             switch (message.Header)
             {
@@ -198,16 +189,16 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 case InternalConstants.PipeRequestTcp:
 
-                    var pipeState = new ServerPipeState(message.MessageId, this, pipeManager);
+                    var pipeState = new ServerPipeState(message.MessageId, this, relayService);
                     stateManager.RegisterState(pipeState);
                     pipeState.HandleMessage(message);
 
-                break;
+                    break;
 
 
                 case InternalConstants.PipeRequestUdp:
 
-                    var pipeState1 = new ServerPipeState(message.MessageId, this, pipeManager);
+                    var pipeState1 = new ServerPipeState(message.MessageId, this, relayService);
                     stateManager.RegisterState(pipeState1);
                     pipeState1.HandleMessage(message);
 
@@ -219,34 +210,65 @@ namespace NetworkLibrary.DistributedP2P.Server
                     state.HandleMessage(message);
                     break;
 
-                case InternalConstants.RequestSequentialHolepunchTcp:
-                    var state2 = new ServerTcpHolepunchState(message.MessageId, this, sessionManager);
+                case InternalConstants.RequestSimultaneousHolepunchTcp:
+                    var state2 = new ServerSimultaneousTcpHolepunchState(message.MessageId, this, sessionManager);
                     stateManager.RegisterState(state2);
                     state2.HandleMessage(message);
                     break;
 
-                case InternalConstants.RequestSimultaneousHolepunchTcp:
-                    var state3 = new ServerTcpHolepunchState2(message.MessageId, this, sessionManager);
+                case InternalConstants.RequestSequentialHolepunchTcp:
+                    var state3 = new ServerSequentialTcpHolepunchState(message.MessageId, this, sessionManager);
                     stateManager.RegisterState(state3);
                     state3.HandleMessage(message);
                     break;
 
                 case Constants.TimeSync:
-
+                    //if (ctr++ % 2 == 0)
+                    {
+                        //Thread.Sleep(80);
+                    }
                     byte[] time = new byte[8];
                     message.Payload = time;
                     PrimitiveEncoder.WriteFixedDouble(time, 0, serverClock.Elapsed.TotalMilliseconds);
                     message.TimeStamp = DateTime.UtcNow;
+                    //if (ctr % 3 == 0)
+                    {
+                        //Thread.Sleep(100);
+                    }
                     SendAsyncMessage(clientId, message);
 
-                break;
+                    break;
             }
+        }
+        int ctr = 0;
+        private bool CreateRoom(string roomName, string roomPassword, RoomProtocol protocol)
+        {
+            if (roomManager.TryCreateRoom(roomName, roomPassword, out Guid RoomId))
+            {
+                if (relayService.CreateRoom(RoomId, protocol))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool GetRoomToken(Guid peerId, Guid roomId, out byte[] token)
+        {
+            token = relayService.GetRoomToken(peerId, roomId);
+            return token != null;
+        }
+
+        private bool RemoveFromRoom(Guid peerId, Guid roomId)
+        {
+            return true;
         }
 
         public void SendAsyncMessage(Guid clientId, MessageEnvelope message)
         {
             sslServer.SendAsyncMessage(clientId, message);
         }
+
         public void SendAsyncMessage(MessageEnvelope message)
         {
             sslServer.SendAsyncMessage(message.To, message);
@@ -256,7 +278,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             return sslServer.SendMessageAndWaitResponse(destination, envelope);
         }
 
-        public Task<MessageEnvelope> SendMessageAndWaitResponse( MessageEnvelope envelope)
+        public Task<MessageEnvelope> SendMessageAndWaitResponse(MessageEnvelope envelope)
         {
             return sslServer.SendMessageAndWaitResponse(envelope.To, envelope);
         }
@@ -278,7 +300,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             return DateTime.UtcNow;
         }
 
-        public double GetTime() 
+        public double GetTime()
         {
             return serverClock.Elapsed.TotalMilliseconds;
         }
@@ -289,10 +311,10 @@ namespace NetworkLibrary.DistributedP2P.Server
         public void Dispose()
         {
             sslServer.ShutdownServer();
-            pipeManager.Dispose();
+            relayService.Dispose();
             discoveryServer.Dispose();
         }
 
-       
+
     }
 }

@@ -1,5 +1,4 @@
 ﻿using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.P2P.Generic;
 using System;

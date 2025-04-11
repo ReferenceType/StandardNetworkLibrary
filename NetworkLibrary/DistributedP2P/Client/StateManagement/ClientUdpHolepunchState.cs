@@ -2,7 +2,6 @@
 using NetworkLibrary.Components.Crypto.DiffieHellman;
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.DistributedP2P.Server;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
@@ -33,6 +32,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private IPEndPoint selfRemoteEp;
         private IPEndPoint selfLocalEp;
+
+        private int conditionCount = 0;
 
         public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerendPoint, ChannelInfo info) : base(stateId, 20000)
         {
@@ -134,7 +135,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             otherPublicKey = hpData.DHPublic;
 
             var time = double.Parse(message.KeyValuePairs["Time"]);
-
+            SignalCompletionCondition();
 
             if (epMsg.LocalEndpoints.Count > 0)
             {
@@ -293,7 +294,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
 
         }
-
+        // only called once when succesfuly received.
         private void ReceivedBidirectional(EndPoint remoteEndPoint)
         {
 
@@ -308,6 +309,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchSucces;
             connection.SendAsyncMessage(msg);
+
+            SignalCompletionCondition();
         }
 
         private void TimedOut()
@@ -338,15 +341,23 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         // Need consesus!
         private void HandleRemoteSucces(MessageEnvelope message)
         {
-            if (ChannelInfo.RequiresKeyExchange())
-                SharedSecret = df.CalculateSharedSecret(otherPublicKey);
+            SignalCompletionCondition();
+        }
 
-            if (SuccesfulEndpoint == null)
-                throw new Exception("Endpont is null");
+        private void SignalCompletionCondition()
+        {
+            if(Interlocked.Increment(ref conditionCount) == 3)
+            {
+                if (ChannelInfo.RequiresKeyExchange())
+                    SharedSecret = df.CalculateSharedSecret(otherPublicKey);
 
-            Log("Punched");
-            Completed(true);
+                if (SuccesfulEndpoint == null)
+                    throw new Exception("Endpont is null");
 
+                Log("Punched");
+                Completed(true);
+            }
+           
         }
 
         protected override void Completed(bool succes)

@@ -1,14 +1,12 @@
 ﻿using NetworkLibrary.DistributedP2P.Client;
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Channels.Components
 {
-    internal class UdpChannelBase : IChannel, IDisposable
+    internal class UdpChannelBase : IDisposable
     {
         private Socket udpSocket;
         private SocketAsyncEventArgs receiveArgs;
@@ -16,7 +14,8 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         public ChannelInfo Info { get; private set; }
 
-        public event Action<byte[], int, int> OnMessageReceived;
+        public event Action<byte[], int, int> OnBytesReceived;
+        public event Action OnDisconnected;
         public UdpChannelBase(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
             this.udpSocket = udpSocket;
@@ -31,7 +30,14 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         public void Send(byte[] data, int offset, int count)
         {
-            udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
+            try
+            {
+                udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
+            }
+            catch(Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+            }
         }
 
         private void StartReceiver()
@@ -43,7 +49,6 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             receiveArgs.Completed += OnReceiveCompleted;
             receiveArgs.RemoteEndPoint = associatedEndpoint;
             Receive();
-
         }
 
         private void Receive()
@@ -66,7 +71,6 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
                 if (e.BytesTransferred > 0)
                 {
-
                     try
                     {
                         ProcessReceivedData(e.Buffer, e.Offset, e.BytesTransferred, e.RemoteEndPoint);
@@ -87,40 +91,52 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         private void ProcessReceivedData(byte[] buffer, int offset, int bytesTransferred, EndPoint remoteEndPoint)
         {
-            OnMessageReceived?.Invoke(buffer, offset, bytesTransferred);
+            OnBytesReceived?.Invoke(buffer, offset, bytesTransferred);
         }
 
         private void HandleSocketError(SocketError error)
         {
-            Console.WriteLine($"Socket error occurred: {error}");
+            if (error != SocketError.Shutdown)
+                Log($"Socket error occurred: {error}");
+
+            OnDisconnected?.Invoke();
+            CloseChannel();
         }
 
+        private void Log(string err)
+        {
+            Console.WriteLine(err);
+        }
 
         public virtual void CloseChannel()
         {
             Dispose();
         }
+
+        int disposed = 0;
         public virtual void Dispose()
         {
-            try
+            if (Interlocked.CompareExchange(ref disposed, 1, 0) == 0)
             {
-                if (receiveArgs != null)
+                try
                 {
+                    if (receiveArgs != null)
+                    {
 
-                    BufferPool.ReturnBuffer(receiveArgs.Buffer);
-                    receiveArgs.Dispose();
-                    receiveArgs = null;
-                }
+                        BufferPool.ReturnBuffer(receiveArgs.Buffer);
+                        receiveArgs.Dispose();
+                        receiveArgs = null;
+                    }
 
-                if (udpSocket != null)
-                {
-                    udpSocket.Close();
-                    udpSocket.Dispose();
-                    udpSocket = null;
+                    if (udpSocket != null)
+                    {
+                        udpSocket.Close();
+                        udpSocket.Dispose();
+                        udpSocket = null;
+                    }
                 }
+                catch { }
             }
-            catch { }
-
         }
 
     }

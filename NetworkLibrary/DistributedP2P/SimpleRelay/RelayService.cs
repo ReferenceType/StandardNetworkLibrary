@@ -201,6 +201,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                     {
                         if (VerifyToken(storage.Token, token.Expiration))
                         {
+                            Console.WriteLine("TokenVerified");
                             pipeState.RegisterClient(ephemeralId);
 
                             if (pipeState.IsComplete())
@@ -213,6 +214,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                         }
                         else
                         {
+                            Console.WriteLine("Token Rejected");
                             RemoveTcpClient(ephemeralId);
                         }
                     }

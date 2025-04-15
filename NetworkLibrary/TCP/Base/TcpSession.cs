@@ -47,9 +47,9 @@ namespace NetworkLibrary.TCP.Base
         private long totalMessageReceived = 0;
         private long totalMsgReceivedPrev;
         private long totalMSgSentPrev;
-//#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
-//        Memory<byte> receiveMemory;
-//#endif
+        //#if NETSTANDARD2_1_OR_GREATER || NET5_0_OR_GREATER
+        //        Memory<byte> receiveMemory;
+        //#endif
         #endregion
 
         public IPEndPoint RemoteEndpoint => (IPEndPoint)sessionSocket.RemoteEndPoint;
@@ -73,7 +73,7 @@ namespace NetworkLibrary.TCP.Base
             InitialiseSendArgs();
             InitialiseReceiveArgs();
             messageBuffer = CreateMessageQueue();
-            ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(),null);
+            ThreadPool.UnsafeQueueUserWorkItem((e) => Receive(), null);
         }
 
         protected virtual void ConfigureSocket()
@@ -148,37 +148,51 @@ namespace NetworkLibrary.TCP.Base
 
         private void BytesRecieved(object sender, SocketAsyncEventArgs e)
         {
-            if (IsSessionClosing())
+            while (true)
             {
-                ReleaseReceiveResourcesIdempotent();
-                return;
-            }
+                if (IsSessionClosing())
+                {
+                    ReleaseReceiveResourcesIdempotent();
+                    return;
+                }
 
-            if (e.SocketError != SocketError.Success)
-            {
-                HandleError(e, "while recieving from ");
-                Disconnect();
-                ReleaseReceiveResourcesIdempotent();
-                return;
-            }
-            else if (e.BytesTransferred == 0)
-            {
-                Disconnect();
-                ReleaseReceiveResourcesIdempotent();
-                return;
-            }
-            totalBytesReceived += e.BytesTransferred;
-            try
-            {
-                HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
-            }
-            catch (Exception ex)
-            {
-                MiniLogger.Log(MiniLogger.LogLevel.Error, ex.Message + "\n" + ex.StackTrace);
-                EndSession();
-            }
-            Receive();
+                if (e.SocketError != SocketError.Success)
+                {
+                    HandleError(e, "while recieving from ");
+                    Disconnect();
+                    ReleaseReceiveResourcesIdempotent();
+                    return;
+                }
+                else if (e.BytesTransferred == 0)
+                {
+                    Disconnect();
+                    ReleaseReceiveResourcesIdempotent();
+                    return;
+                }
+                totalBytesReceived += e.BytesTransferred;
+                try
+                {
+                    HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
+                }
+                catch (Exception ex)
+                {
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, ex.Message + "\n" + ex.StackTrace);
+                    EndSession();
+                }
+                //Receive();
 
+                try
+                {
+                    ClientRecieveEventArg.SetBuffer(0, ClientRecieveEventArg.Buffer.Length);
+                    if (sessionSocket.ReceiveAsync(ClientRecieveEventArg))
+                    {
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                when (ex is ObjectDisposedException || ex is NullReferenceException)
+                { ReleaseReceiveResourcesIdempotent(); }
+            }
         }
 
         protected virtual void HandleReceived(byte[] buffer, int offset, int count)
@@ -438,7 +452,7 @@ namespace NetworkLibrary.TCP.Base
             {
                 if (!IsSessionClosing())
                 {
-                    MiniLogger.Log(MiniLogger.LogLevel.Error,"Error on sent callback tcp session"+ ex.Message);
+                    MiniLogger.Log(MiniLogger.LogLevel.Error, "Error on sent callback tcp session" + ex.Message);
                     EndSession();
                 }
             }
@@ -531,7 +545,7 @@ namespace NetworkLibrary.TCP.Base
                 BufferPool.ReturnBuffer(recieveBuffer);
             }
             catch { }
-          
+
         }
 
         protected void DcAndDispose()

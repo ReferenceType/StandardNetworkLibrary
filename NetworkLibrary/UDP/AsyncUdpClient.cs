@@ -57,8 +57,6 @@ namespace NetworkLibrary.UDP
             clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
             clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
-            //clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            //clientSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.PacketInformation, true);
 
             int dscpValue = 40; // Critical services
             byte tos = (byte)(dscpValue << 2); // Shift left by 2 bits

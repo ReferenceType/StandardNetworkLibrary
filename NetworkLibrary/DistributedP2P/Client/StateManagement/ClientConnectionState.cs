@@ -1,6 +1,4 @@
 ﻿using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.P2P.Components.HolePunch;
-using NetworkLibrary.P2P.Generic;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -14,12 +12,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private readonly IClientDbConnection clientDbConnector;
         private readonly IClientAuthenticationToken authToken;
 
-
-        private TaskCompletionSource<IConversationState> Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource<bool> timeSyncComplete = new TaskCompletionSource<bool>();
 
         public Guid SessionId { get; private set; }
         public int EDSPort { get; private set; }
-        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken):base(stateId,20000)
+        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken) : base(stateId, 20000)
         {
             this.connection = connection;
             this.clientDbConnector = clientDbConnector;
@@ -43,17 +40,26 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     HandleConnectionFail(message);
                     break;
 
-               
+
             }
         }
 
-        private void SyncTime(MessageEnvelope message)
+        private async void SyncTime(MessageEnvelope message)
         {
-            var task = connection.SyncTime().ContinueWith(t =>
+            bool res = await timeSyncComplete.Task;
+            if (res)
             {
                 MessageEnvelope msg = CreateEnvelope();
                 msg.Header = InternalConstants.SyncTime;
                 connection.SendAsyncMessage(msg);
+            }
+        }
+
+        private void SyncTime()
+        {
+            var task = connection.SyncTime().ContinueWith(t =>
+            {
+                timeSyncComplete.TrySetResult(true);
             });
 
         }
@@ -76,6 +82,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
 
             connection.SendAsyncMessage(msg);
+            SyncTime();
             // now server will authenticate after this
             // may ask additional data to link, if we are first timer
             // then succes or fail

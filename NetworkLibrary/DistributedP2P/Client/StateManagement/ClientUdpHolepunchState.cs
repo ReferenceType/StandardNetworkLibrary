@@ -217,7 +217,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             selfLocalEp = (IPEndPoint)Socket.LocalEndPoint;
 
-            var remoteEp = await EndpointDiscoveryClient.GetUdpPublicEndpoint(Socket, discoveryServerendPoint.ToIpEndpoint(), 5000);
+            var remoteEp = await EndpointDiscoveryClient.GetUdpPublicEndpoint(Socket, discoveryServerendPoint.ToIpEndpoint(), 3000);
             if (remoteEp == null)
             {
                 Log("Failed to get public endpoint");

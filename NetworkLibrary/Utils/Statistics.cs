@@ -7,9 +7,9 @@ namespace NetworkLibrary.Utils
 {
     public class Statistics
     {
-        public static IEnumerable<double> FilterOutliers(List<double> times)
+        public static IEnumerable<double> FilterOutliers(IEnumerable<double> times)
         {
-            if (times == null || times.Count < 4)
+            if (times == null || times.Count() < 4)
             {
                 throw new ArgumentException("The list must contain at least 4 elements.");
             }

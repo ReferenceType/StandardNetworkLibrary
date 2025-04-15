@@ -20,7 +20,7 @@ using NetworkLibrary.DistributedP2P.Channels.Components;
 
 namespace NetworkLibrary.DistributedP2P.Client
 {
-    public class DistributedLobbyClient<S> : IDistributedConnection where S : ISerializer, new()
+    public class DistributedLobbyClient<S> : IDistributedConnection, IDisposable where S : ISerializer, new()
     {
         IClientDbConnection clientDbConnector;
         IClientAuthenticationProvider clientAuthProvider;
@@ -48,6 +48,9 @@ namespace NetworkLibrary.DistributedP2P.Client
         }
 
         private EndpointData serverEndpoint= new EndpointData();
+
+        bool isDisposed = false;
+
         public DistributedLobbyClient(IClientDbConnection clientDbConnector,
                                       IClientAuthenticationProvider clientAuthProvider,
                                       X509Certificate2 certificate = null)
@@ -62,6 +65,9 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public async Task<bool> ConnectAsync(string ip, int port)
         {
+            if (isDisposed)
+                throw new ObjectDisposedException(this.ToString());
+
             if (IsConnected)
                 return true;
 
@@ -70,6 +76,9 @@ namespace NetworkLibrary.DistributedP2P.Client
             bool res = await sslClient.ConnectAsync(ip, port);
             if (res)
             {
+                serverEndpoint = new EndpointData(ip, port);
+                timeSync.SetEndpoint(serverEndpoint);
+
                 Guid conversationId = Guid.NewGuid();
                 var conState = new ClientConnectionState(conversationId, this, clientDbConnector, authToken);
                 stateManager.RegisterState(conState);
@@ -79,12 +88,11 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                 if (conState.IsSuccesful)
                 {
-                    serverEndpoint = new EndpointData(ip, port);
                     SessionId = conState.SessionId;
                     DiscoveryServerEndpoint = new EndpointData(ip, conState.EDSPort);
                     Console.WriteLine($"Connected to server {ip}:{port} with session {SessionId} and discovery port {conState.EDSPort}");
                     IsConnected = true;
-                    timeSync.StartAutoTimeSync(5000);
+                    timeSync.StartAutoTimeSync();
                     return true;
                 }
 
@@ -201,9 +209,6 @@ namespace NetworkLibrary.DistributedP2P.Client
             }
             return copy;
         }
-
-    
-
 
         public async Task<IChannel> OpenRelayChannel(Guid destinationPeer, ChannelInfo Info)
         {
@@ -368,6 +373,19 @@ namespace NetworkLibrary.DistributedP2P.Client
             Disconnected?.Invoke();
         }
 
+        public void Dispose()
+        {
+            if (isDisposed)
+                return;
 
+            isDisposed = true;
+            try
+            {
+                sslClient?.Dispose();
+                timeSync?.Dispose();
+            }
+            catch { }
+            
+        }
     }
 }

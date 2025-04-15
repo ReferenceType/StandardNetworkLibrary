@@ -32,7 +32,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         public ClientPipeState(MessageEnvelope message,IDistributedConnection connection, EndpointData serverEndpoint) : base(message.MessageId)
         {
             this.connection = connection;
-          
+            this.serverEndpoint = serverEndpoint;
+
         }
 
         public void Start(Guid destinationPeer)
@@ -157,7 +158,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
              sharedSecret = df.CalculateSharedSecret(Convert.FromBase64String(otherPublic));
         }
 
-        private async Task<Socket> TryConnectWithTimeout(EndpointData endpoint, int timeout = 500)
+        private async Task<Socket> TryConnectWithTimeout(EndpointData endpoint, int timeout = 5000)
         {
             var clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             
@@ -212,12 +213,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             return await tcs.Task;
         }
 
-        private async Task<bool> TokenExchange(Socket connectedSocket, byte[] token, int timeoutMs = 500)
+        private async Task<bool> TokenExchange(Socket connectedSocket, byte[] token, int timeoutMs = 5000)
         {
             try
             {
-                connectedSocket.SendTimeout = timeoutMs;
-                connectedSocket.ReceiveTimeout = timeoutMs;
+                
 
                 int bytesSent = await connectedSocket.SendAsync(new ArraySegment<byte>(token), SocketFlags.None);
                 if (bytesSent != token.Length)
@@ -238,8 +238,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 int bytesReceived = receiveTask.Result;
 
-                connectedSocket.SendTimeout = -1;
-                connectedSocket.ReceiveTimeout = -1;
+               
 
                 return bytesReceived == 1;
             }

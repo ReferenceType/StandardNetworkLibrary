@@ -4,6 +4,7 @@ using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using NetworkLibrary.DistributedP2P.SimpleRelay;
 using NetworkLibrary.MessageProtocol;
 using NetworkLibrary.P2P;
+using NetworkLibrary.P2P.Components;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
@@ -30,7 +31,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         public int UdpPort;
         public int DiscoveryServerPort;
     }
-    public class DistributedLobbyServerBase<S> : IDistributedConnection, IDisposable where S : ISerializer, new()
+    public class DistributedLobbyServerBase: IDistributedConnection, IDisposable
     {
         public readonly int SSlPort;
         public readonly int TcpPort;
@@ -39,7 +40,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         private X509Certificate2 serverCertificate;
 
-        SecureMessageServer<S> sslServer;
+        SecureMessageServer<MockSerializer> sslServer;
 
 
         IAuthenticator authenticator;
@@ -52,7 +53,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         RelayService relayService;
         RoomManager roomManager = new RoomManager();
-
+        NTPServer ntpServer;
         private byte[] serverKey = new byte[16];
 
         EndpointDiscoveryServer discoveryServer;
@@ -73,8 +74,10 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
             serverClock.Start();
 
-            sslServer = new SecureMessageServer<S>(SSlPort, serverCertificate);
+            sslServer = new SecureMessageServer<MockSerializer>(SSlPort, serverCertificate);
 
+            ntpServer = new NTPServer(SSlPort, serverClock);
+            ntpServer.Start();
 
             relayService = new RelayService(TcpPort, UdpPort);
 
@@ -223,24 +226,31 @@ namespace NetworkLibrary.DistributedP2P.Server
                     break;
 
                 case Constants.TimeSync:
-                    //if (ctr++ % 2 == 0)
-                    {
-                        //Thread.Sleep(80);
-                    }
-                    byte[] time = new byte[8];
-                    message.Payload = time;
-                    PrimitiveEncoder.WriteFixedDouble(time, 0, serverClock.Elapsed.TotalMilliseconds);
-                    message.TimeStamp = DateTime.UtcNow;
-                    //if (ctr % 3 == 0)
-                    {
-                        //Thread.Sleep(100);
-                    }
-                    SendAsyncMessage(clientId, message);
+                    HandleTimeSync(clientId, message);
 
                     break;
             }
         }
+
+        private  void HandleTimeSync(Guid clientId, MessageEnvelope message)
+        {
+            ////if (ctr++ % 2 == 0)
+            //{
+            //    await Task.Delay(r.Next(50, 300));
+            //}
+            byte[] time = new byte[8];
+            message.Payload = time;
+            PrimitiveEncoder.WriteFixedDouble(time, 0, serverClock.Elapsed.TotalMilliseconds);
+            message.TimeStamp = DateTime.UtcNow;
+            ////if (ctr % 3 == 0)
+            //{
+            //    await Task.Delay(r.Next(50, 300));
+            //}
+            SendAsyncMessage(clientId, message);
+        }
+
         int ctr = 0;
+        Random r = new Random(42);
         private bool CreateRoom(string roomName, string roomPassword, RoomProtocol protocol)
         {
             if (roomManager.TryCreateRoom(roomName, roomPassword, out Guid RoomId))
@@ -313,6 +323,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             sslServer.ShutdownServer();
             relayService.Dispose();
             discoveryServer.Dispose();
+            ntpServer.Dispose();
         }
 
 

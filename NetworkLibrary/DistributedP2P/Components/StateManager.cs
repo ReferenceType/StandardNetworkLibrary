@@ -40,8 +40,9 @@ namespace NetworkLibrary.DistributedP2P.Components
                 {
                     state.HandleMessage(message);
                 }
-                catch 
+                catch (Exception e)
                 {
+                    Console.WriteLine(e);
                     state.Cancel();
                     UnregisterState(stateId);
                 }

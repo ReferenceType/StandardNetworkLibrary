@@ -17,12 +17,14 @@ namespace NetworkLibrary.DistributedP2P.Components
         public string ErrorMessage { get; protected set; }
 
         protected readonly object cancellationMutex = new object();
+        protected readonly int timeout;
         private TaskCompletionSource<IConversationState> Completion;
         private int isComplete = 0;
 
         public ConversationStateBase(Guid stateId, int timeout = -1)
         {
             this.StateId = stateId;
+            this.timeout = timeout;
             Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             if (timeout > 0)

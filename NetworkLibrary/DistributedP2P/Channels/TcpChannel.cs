@@ -243,31 +243,38 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         private void Received(object sender, SocketAsyncEventArgs e)
         {
-            if (e.SocketError != SocketError.Success)
-            {
-                ErrorAndEnd($"While receiving a socket error occured {e.SocketError}");
-                CloseChannel();
-                return;
-            }
-            else if (e.BytesTransferred == 0)
-            {
-                Log("0 bytes");
-                CloseChannel();
-                return;
-            }
 
-            totalBytesReceived += e.BytesTransferred;
-            try
+            while (true)
             {
-                HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
-            }
-            catch (Exception ex)
-            {
-                ErrorAndEnd(ex.Message + "\n" + ex.StackTrace);
-                return;
-            }
+                if (e.SocketError != SocketError.Success)
+                {
+                    ErrorAndEnd($"While receiving a socket error occured {e.SocketError}");
+                    CloseChannel();
+                    return;
+                }
+                else if (e.BytesTransferred == 0)
+                {
+                    Log("0 bytes");
+                    CloseChannel();
+                    return;
+                }
 
-            Receive();
+                totalBytesReceived += e.BytesTransferred;
+                try
+                {
+                    HandleReceived(e.Buffer, e.Offset, e.BytesTransferred);
+                }
+                catch (Exception ex)
+                {
+                    ErrorAndEnd(ex.Message + "\n" + ex.StackTrace);
+                    throw;
+                }
+                //Receive();
+                if (connectedSocket.ReceiveAsync(receiveArgs))
+                {
+                    return;
+                }
+            }
         }
 
         protected virtual void HandleReceivedBytes(byte[] buffer, int offset, int count)

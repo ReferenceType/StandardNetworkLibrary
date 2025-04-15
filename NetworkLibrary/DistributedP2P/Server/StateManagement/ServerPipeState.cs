@@ -105,7 +105,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             byte[] token = piper.GetPipeToken(isTcpPipe);
             PipeData data = new PipeData();
             data.Token = token;
-            data.PipeEndpoints = new List<EndpointData>() { new EndpointData("127.0.0.1", isTcpPipe ? 20011 : 20012) };
+            data.PipeEndpoints = new List<EndpointData>() { new EndpointData("0.0.0.0", isTcpPipe ? 20011 : 20012) };
 
 
             return Task.FromResult(data);

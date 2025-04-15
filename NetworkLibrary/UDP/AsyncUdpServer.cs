@@ -112,21 +112,31 @@ namespace NetworkLibrary.UDP
            
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Received(object sender, SocketAsyncEventArgs e)
         {
-            if (e.SocketError != SocketError.Success)
+            while (true)
             {
-                StartReceiveSentinel();
-                ClientDisconnected?.Invoke(e.RemoteEndPoint as IPEndPoint);
-                e.Dispose();
-                return;
-            }
+                if (e.SocketError != SocketError.Success)
+                {
+                    StartReceiveSentinel();
+                    ClientDisconnected?.Invoke(e.RemoteEndPoint as IPEndPoint);
+                    e.Dispose();
+                    return;
+                }
 
-            HandleMessage(e);
-            e.RemoteEndPoint = serverEndpoint;
-            e.SetBuffer(0, ClientReceiveBufferSize);
-            Receive(e);
+                HandleMessage(e);
+                e.RemoteEndPoint = serverEndpoint;
+                e.SetBuffer(0, ClientReceiveBufferSize);
+                //Receive(e);
+                try
+                {
+                    if (ServerSocket.ReceiveFromAsync(e))
+                    {
+                        return;
+                    }
+                }
+                catch (Exception ex) when (ex is ObjectDisposedException) { }
+            }
         }
 
         private void HandleMessage(SocketAsyncEventArgs e)

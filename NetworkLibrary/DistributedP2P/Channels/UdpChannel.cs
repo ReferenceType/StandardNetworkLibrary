@@ -39,7 +39,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             JumboUdp.MessageReceived = HandleMessage;
 
             SenderModule sender = new SenderModule();
-
+            //sender.SoftwindowTrim = 1f;
             sender.MaxSegmentSize = 1280;
             sender.MinWindowSize = 1280 * 2;
 

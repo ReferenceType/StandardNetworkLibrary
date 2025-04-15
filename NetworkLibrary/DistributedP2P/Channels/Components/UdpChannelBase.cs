@@ -34,7 +34,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             {
                 udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Log($"{e.Message}\n{e.StackTrace}");
             }
@@ -61,7 +61,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         private void OnReceiveCompleted(object sender, SocketAsyncEventArgs e)
         {
-            try
+            while (true)
             {
                 if (e.SocketError != SocketError.Success)
                 {
@@ -81,12 +81,14 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                     }
                 }
 
-                Receive();
+                //Receive();
+
+                if (udpSocket.ReceiveFromAsync(receiveArgs))
+                {
+                    return;
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in receive completion: {ex}");
-            }
+
         }
 
         private void ProcessReceivedData(byte[] buffer, int offset, int bytesTransferred, EndPoint remoteEndPoint)

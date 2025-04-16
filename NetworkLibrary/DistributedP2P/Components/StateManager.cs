@@ -42,7 +42,7 @@ namespace NetworkLibrary.DistributedP2P.Components
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e);
+                    Console.WriteLine($"State Management failed{e.Message}\n{e.StackTrace}");
                     state.Cancel();
                     UnregisterState(stateId);
                 }

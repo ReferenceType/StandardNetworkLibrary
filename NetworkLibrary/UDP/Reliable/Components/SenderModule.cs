@@ -373,6 +373,7 @@ namespace NetworkLibrary.UDP.Reliable.Components
                 {
                     MiniLogger.Log(MiniLogger.LogLevel.Error,
                     $"Error occured on rudp sender execution loop: {ex.Message}");
+                    throw;
                 }
 
             }

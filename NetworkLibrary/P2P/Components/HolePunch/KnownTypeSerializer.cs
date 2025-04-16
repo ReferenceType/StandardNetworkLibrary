@@ -6,12 +6,62 @@ using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using NetworkLibrary.Utils;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace NetworkLibrary.P2P.Components.HolePunch
 {
     public class KnownTypeSerializer
     {
+        #region ClientPipeData
+        internal static void SerializeClientPipeData(PooledMemoryStream stream, ClientPipeData hpData)
+        {
+            byte index = 0;
+            int oldPos = stream.Position32;
+            stream.WriteByte(index);
+
+            if (hpData.ChannelInfo != null)
+            {
+                SerializeChannelInfo(stream, hpData.ChannelInfo);
+                index = 1;
+
+            }
+            if (hpData.DHPublic != null)
+            {
+                PrimitiveEncoder.WriteInt32(stream, hpData.DHPublic.Length);
+                stream.Write(hpData.DHPublic, 0, hpData.DHPublic.Length);
+                index += 2;
+            }
+
+            var buf = stream.GetBuffer();
+            buf[oldPos] = index;
+
+        }
+
+
+        internal static ClientPipeData DeserializeClientPipeData(byte[] buffer, ref int offset)
+        {
+            var hpData = new ClientPipeData();
+            var index = buffer[offset++];
+
+
+            if ((index & 1) != 0)
+            {
+                hpData.ChannelInfo = DeserializeChannelInfo(buffer, ref offset);
+            }
+            if ((index & 1 << 1) != 0)
+            {
+                int Dhlen = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                if (Dhlen > 0)
+                {
+                    hpData.DHPublic = ByteCopy.ToArray(buffer, offset, Dhlen);
+                    offset += Dhlen;
+                }
+                else
+                    hpData.DHPublic = new byte[0];
+            }
+
+            return hpData;
+        }
+        #endregion
 
         #region ClientHolepunchData
 
@@ -36,7 +86,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
             if (hpData.DHPublic != null)
             {
                 PrimitiveEncoder.WriteInt32(stream, hpData.DHPublic.Length);
-                stream.Write(hpData.DHPublic,0,hpData.DHPublic.Length);
+                stream.Write(hpData.DHPublic, 0, hpData.DHPublic.Length);
                 index += 4;
             }
 
@@ -48,7 +98,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 
         internal static ClientHolepunchData DeserializeHolepunchData(byte[] buffer, ref int offset)
         {
-            var hpData =  new ClientHolepunchData();
+            var hpData = new ClientHolepunchData();
             var index = buffer[offset++];
 
 
@@ -69,7 +119,7 @@ namespace NetworkLibrary.P2P.Components.HolePunch
                     offset += Dhlen;
                 }
                 else
-                    hpData.DHPublic =  new byte[0];
+                    hpData.DHPublic = new byte[0];
             }
 
             return hpData;
@@ -183,30 +233,52 @@ namespace NetworkLibrary.P2P.Components.HolePunch
 
         internal static void SerializePipeData(PooledMemoryStream stream, PipeData pipeData)
         {
-            stream.Write(pipeData.Token, 0, PipeData.TokenLength);
+            byte index = 0;
+            int oldPos = stream.Position32;
+            stream.WriteByte(index);
 
-            if (pipeData.PipeEndpoints != null && pipeData.PipeEndpoints.Count > 0)
+            if (pipeData.Token != null)
             {
-                PrimitiveEncoder.WriteInt32(stream, pipeData.PipeEndpoints.Count);
-                foreach (EndpointData ep in pipeData.PipeEndpoints)
-                {
-                    SerializeEndpointData(stream, ep);
-                }
+                PrimitiveEncoder.WriteInt32(stream, PipeData.TokenLength);
+                stream.Write(pipeData.Token, 0, PipeData.TokenLength);
+                index = 1;
             }
-            else
-                throw new InvalidOperationException("PipeData.PipeEndpoints is null or empty");
+            if (pipeData.DHPublic != null)
+            {
+                PrimitiveEncoder.WriteInt32(stream, pipeData.DHPublic.Length);
+                stream.Write(pipeData.DHPublic, 0, pipeData.DHPublic.Length);
+                index += 2;
+            }
+            if (pipeData.PipeEndpoint != null)
+            {
+                SerializeEndpointData(stream, pipeData.PipeEndpoint);
+                index += 4;
+            }
+
+            var buf = stream.GetBuffer();
+            buf[oldPos] = index;
         }
 
         internal static PipeData DeserializePipeData(byte[] buffer, ref int offset)
         {
             PipeData pipeData = new PipeData();
-            pipeData.Token = ByteCopy.ToArray(buffer, offset, PipeData.TokenLength);
-            offset += PipeData.TokenLength;
+            var index = buffer[offset++];
 
-            int count = PrimitiveEncoder.ReadInt32(buffer, ref offset);
-            for (int i = 0; i < count; i++)
+            if ((index & 1) != 0)
             {
-                pipeData.PipeEndpoints.Add(DeserializeEndpointData(buffer, ref offset));
+                int len = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                pipeData.Token = ByteCopy.ToArray(buffer, offset, len);
+                offset += len;
+            }
+            if ((index & 1 << 1) != 0)
+            {
+                int len = PrimitiveEncoder.ReadInt32(buffer, ref offset);
+                pipeData.DHPublic = ByteCopy.ToArray(buffer, offset, len);
+                offset += len;
+            }
+            if ((index & 1 << 2) != 0)
+            {
+                pipeData.PipeEndpoint = DeserializeEndpointData(buffer, ref offset);
             }
 
             return pipeData;

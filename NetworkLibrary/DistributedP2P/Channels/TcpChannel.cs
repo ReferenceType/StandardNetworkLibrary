@@ -249,12 +249,10 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 if (e.SocketError != SocketError.Success)
                 {
                     ErrorAndEnd($"While receiving a socket error occured {e.SocketError}");
-                    CloseChannel();
                     return;
                 }
                 else if (e.BytesTransferred == 0)
                 {
-                    Log("0 bytes");
                     CloseChannel();
                     return;
                 }
@@ -267,13 +265,28 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 catch (Exception ex)
                 {
                     ErrorAndEnd(ex.Message + "\n" + ex.StackTrace);
-                    throw;
-                }
-                //Receive();
-                if (connectedSocket.ReceiveAsync(receiveArgs))
-                {
                     return;
                 }
+
+                if (IsSessionClosing())
+                    return;
+
+                //Receive();
+                try
+                {
+                    if (connectedSocket.ReceiveAsync(receiveArgs))
+                    {
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (IsSessionClosing())
+                        return;
+
+                    ErrorAndEnd(ex.Message + "\n" + ex.StackTrace);
+                }
+
             }
         }
 
@@ -282,7 +295,6 @@ namespace NetworkLibrary.DistributedP2P.Channels
             var flag = (MessageFlags)buffer[offset++];
             count--;
             HandleReceivedMessage(buffer, offset, count, flag);
-
         }
 
         protected virtual void HandleReceivedMessage(byte[] buffer, int offset, int count, MessageFlags flag)

@@ -11,10 +11,13 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         private Socket udpSocket;
         private SocketAsyncEventArgs receiveArgs;
         private readonly IPEndPoint associatedEndpoint;
+        int disposed = 0;
+
 
         public ChannelInfo Info { get; private set; }
 
         public event Action<byte[], int, int> OnBytesReceived;
+        public Action<string> LogAvailable;
         public event Action OnDisconnected;
         public UdpChannelBase(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
         {
@@ -30,14 +33,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
         public void Send(byte[] data, int offset, int count)
         {
-            try
-            {
-                udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
-            }
-            catch (Exception e)
-            {
-                Log($"{e.Message}\n{e.StackTrace}");
-            }
+            udpSocket.SendTo(data, offset, count, SocketFlags.None, associatedEndpoint);
         }
 
         private void StartReceiver()
@@ -77,12 +73,22 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error processing received data: {ex}");
+                        Log($"{ex.Message}\n{ex.StackTrace}");
+                        CloseChannel();
+                        throw;
                     }
                 }
+                else
+                {
+                    CloseChannel();
+                    return;
+                }
 
-                //Receive();
 
+                if (Interlocked.CompareExchange(ref disposed, 0, 0) == 1)
+                {
+                    return;
+                }
                 if (udpSocket.ReceiveFromAsync(receiveArgs))
                 {
                     return;
@@ -101,21 +107,21 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
             if (error != SocketError.Shutdown)
                 Log($"Socket error occurred: {error}");
 
-            OnDisconnected?.Invoke();
             CloseChannel();
         }
 
         private void Log(string err)
         {
-            Console.WriteLine(err);
+            LogAvailable?.Invoke(err);
         }
 
         public virtual void CloseChannel()
         {
+            Interlocked.Exchange(ref OnDisconnected, null)?.Invoke();
             Dispose();
         }
 
-        int disposed = 0;
+
         public virtual void Dispose()
         {
             if (Interlocked.CompareExchange(ref disposed, 1, 0) == 0)
@@ -132,12 +138,16 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
 
                     if (udpSocket != null)
                     {
+                        udpSocket.Shutdown(SocketShutdown.Both);
                         udpSocket.Close();
                         udpSocket.Dispose();
                         udpSocket = null;
                     }
                 }
                 catch { }
+                LogAvailable = null;
+                OnBytesReceived = null;
+                OnDisconnected = null;
             }
         }
 

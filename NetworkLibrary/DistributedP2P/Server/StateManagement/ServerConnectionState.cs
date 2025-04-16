@@ -1,8 +1,6 @@
 ﻿using NetworkLibrary.DistributedP2P.Components;
 using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,21 +15,24 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private readonly IDistributedConnection connection;
         private readonly IAuthenticator authenticator;
         private readonly IServerDbConnector dbConnector;
-        private readonly int eDSPort;
+        private readonly int endpointDiscoveryServerPort;
         private IAuthenticationResult tokenResult;
 
         public List<string> clientLocalIps;
 
-        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector,int EDSPort):base(stateId,20000)
+        int timeSynced;
+        int handShakeComplete;
+
+        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector, int EDSPort) : base(stateId, 20000)
         {
             this.EphemeralClientId = clientId;
             this.connection = connection;
             this.authenticator = authenticator;
             this.dbConnector = dbConnector;
-            eDSPort = EDSPort;
+            endpointDiscoveryServerPort = EDSPort;
         }
 
-        
+
         public override void HandleMessage(MessageEnvelope message)
         {
             if (IsCompleted())
@@ -52,10 +53,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
         }
 
-        private void HandleTimeSyncComplete(MessageEnvelope message)
-        {
-            SendGood();
-        }
+       
 
         private void HandleInitialConnectionRequest(MessageEnvelope message)
         {
@@ -76,7 +74,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
             message.KeyValuePairs.Remove("AuthToken");
             message.KeyValuePairs.Remove("AuthMethod");
-            if(message.KeyValuePairs.ContainsKey("AdditionalData"))
+            if (message.KeyValuePairs.ContainsKey("AdditionalData"))
                 message.KeyValuePairs.Remove("AdditionalData");
 
             clientLocalIps = new List<string>();
@@ -86,7 +84,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 clientLocalIps.Add(kv.Key);
             }
 
-            authenticator.Authenticate(token, method, additionalData).ContinueWith(HandleAuthentication);
+            authenticator.Authenticate(token, method, additionalData).ContinueWith(HandleAuthentication, TaskScheduler.Default);
         }
 
         private void HandleAuthentication(Task<IAuthenticationResult> task)
@@ -108,7 +106,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
         private void FindClientDBLink(IAuthenticationResult tokenResult)
         {
-            dbConnector.GetClientData(tokenResult).ContinueWith(t => HandleClientData(t.Result, tokenResult));
+            dbConnector.GetClientData(tokenResult).ContinueWith(t => HandleClientData(t.Result, tokenResult), TaskScheduler.Default);
         }
 
         private void HandleClientData(IClientDbInfo dbResult, IAuthenticationResult tokenResult)
@@ -119,7 +117,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (dbResult.IsValid)
             {
                 clientDbInfo = dbResult;
-                SyncTime();
+                HandShakecomplete();
             }
             else
             {
@@ -127,6 +125,8 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
                 RegisterClient();
             }
         }
+
+
 
         private void RegisterClient()
         {
@@ -138,7 +138,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private void HandleClientPublicData(MessageEnvelope message)
         {
             message.LockBytes();
-            dbConnector.RegisterClient(tokenResult, message.Payload).ContinueWith(HandleDbRegistration);
+            dbConnector.RegisterClient(tokenResult, message.Payload).ContinueWith(HandleDbRegistration, TaskScheduler.Default);
         }
 
         private void HandleDbRegistration(Task<IClientDbInfo> task)
@@ -150,7 +150,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             if (dbResult.IsValid)
             {
                 clientDbInfo = dbResult;
-                SyncTime();
+                HandShakecomplete();
             }
             else
             {
@@ -158,16 +158,23 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
         }
 
-        private void SyncTime()
+        private void HandleTimeSyncComplete(MessageEnvelope message)
         {
-            var msg = CreateEnvelope();
-            msg.Header = InternalConstants.SyncTime;
-            msg.To = EphemeralClientId;
+            if (Interlocked.Exchange(ref timeSynced, 1) == 0)
+            {
+                if (Interlocked.CompareExchange(ref handShakeComplete, 0, 0) == 1)
+                    SendGood();
+            }
 
-            if (IsCompleted())
-                    return;
+        }
 
-            connection.SendAsyncMessage(EphemeralClientId, msg);
+        private void HandShakecomplete()
+        {
+            if (Interlocked.Exchange(ref handShakeComplete, 1) == 0)
+            {
+                if (Interlocked.CompareExchange(ref timeSynced, 0, 0) == 1)
+                    SendGood();
+            }
         }
 
         private void SendGood()
@@ -176,7 +183,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             msg.Header = InternalConstants.ConnectionAckGood;
             msg.To = EphemeralClientId;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["EDSPort"] = eDSPort.ToString();
+            msg.KeyValuePairs["EDSPort"] = endpointDiscoveryServerPort.ToString();
             lock (cancellationMutex)
             {
                 if (IsCompleted())
@@ -193,6 +200,6 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             Completed(false);
         }
 
-       
+
     }
 }

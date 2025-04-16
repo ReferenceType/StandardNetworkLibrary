@@ -63,8 +63,9 @@ namespace NetworkLibrary.DistributedP2P.Components
 
                     udpListener.SendTo(buff, 0, buff.Length, SocketFlags.None, e.RemoteEndPoint);
 
-                    ((IPEndPoint)e.RemoteEndPoint).Address = IPAddress.Any;
-                    ((IPEndPoint)e.RemoteEndPoint).Port = 0;
+                    var ep = (IPEndPoint)e.RemoteEndPoint;
+                    ep.Address = IPAddress.Any;
+                    ep.Port = 0;
                     if (udpListener.ReceiveFromAsync(e))
                     {
                         return; 
@@ -74,7 +75,7 @@ namespace NetworkLibrary.DistributedP2P.Components
                 {
                     if (Interlocked.CompareExchange(ref IsDisposed, 0, 0) == 0)
                     {
-                        Console.WriteLine(ex.Message + "\n" + ex.StackTrace);
+                        Log(ex.Message + "\n" + ex.StackTrace);
                         e.Dispose();
                         Receive(GetReceiveArgs());
                         return;
@@ -90,6 +91,7 @@ namespace NetworkLibrary.DistributedP2P.Components
 
 
         }
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private byte[] GetBuffer()
@@ -111,6 +113,11 @@ namespace NetworkLibrary.DistributedP2P.Components
 
 
             return recArgs;
+        }
+
+        private void Log(string v)
+        {
+            Console.WriteLine(v);
         }
 
         public void Dispose()

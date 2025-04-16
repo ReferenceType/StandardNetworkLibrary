@@ -4,6 +4,7 @@ using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.UDP.Reliable.Components;
 using NetworkLibrary.Utils;
+using System;
 using System.Net;
 using System.Net.Sockets;
 
@@ -55,7 +56,16 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
             keyManager.GetAlgorithm(keyNo, out var algo);
 
-            count = algo.DecryptInto(buffer, offset, count, decryptBuff, 0);
+            try
+            {
+                count = algo.DecryptInto(buffer, offset, count, decryptBuff, 0);
+            }
+            catch
+            { 
+                Log("Decryption failed");
+                return;
+            }
+           
             buffer = decryptBuff;
             offset = 0;
 
@@ -69,13 +79,26 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 case MessageFlags.KeyExchange:
                 case MessageFlags.KeyExchangeAck:
                 case MessageFlags.KeyExchangeFin:
-                    keyManager.HandleMessage(flag, buffer, offset, count);
+                    HandleKeyMessage(buffer, offset, count, flag);
                     break;
             }
 
             base.HandleReivedMessage(buffer, offset, count, flag);
         }
 
+        private void HandleKeyMessage(byte[] buffer, int offset, int count, MessageFlags flag)
+        {
+            try
+            {
+                keyManager.HandleMessage(flag, buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
+
+        }
 
         protected override void SendWithFlag(MessageFlags flag, byte[] buffer, int offset, int count)
         {

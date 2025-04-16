@@ -27,9 +27,6 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         {
             switch (message.Header)
             {
-                case InternalConstants.SyncTime:
-                    SyncTime(message);
-                    break;
                 case InternalConstants.ConnectionGetClientPublicData:
                     SendClientPublicData(message);
                     break;
@@ -39,29 +36,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 case InternalConstants.Error:
                     HandleConnectionFail(message);
                     break;
-
-
             }
-        }
-
-        private async void SyncTime(MessageEnvelope message)
-        {
-            bool res = await timeSyncComplete.Task;
-            if (res)
-            {
-                MessageEnvelope msg = CreateEnvelope();
-                msg.Header = InternalConstants.SyncTime;
-                connection.SendAsyncMessage(msg);
-            }
-        }
-
-        private void SyncTime()
-        {
-            var task = connection.SyncTime().ContinueWith(t =>
-            {
-                timeSyncComplete.TrySetResult(true);
-            });
-
         }
 
         public void Start()
@@ -86,6 +61,18 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             // now server will authenticate after this
             // may ask additional data to link, if we are first timer
             // then succes or fail
+        }
+
+        private void SyncTime()
+        {
+            var task = connection.SyncTime().ContinueWith(t =>
+            {
+                MessageEnvelope msg = CreateEnvelope();
+                msg.Header = InternalConstants.SyncTime;
+                connection.SendAsyncMessage(msg);
+
+            }, TaskScheduler.Default);
+
         }
 
         private void SendClientPublicData(MessageEnvelope message)

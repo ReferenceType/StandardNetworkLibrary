@@ -5,7 +5,6 @@ using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -304,7 +303,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             if (Interlocked.CompareExchange(ref SuccesfulEndpoint, ipep, null) != null)
                 return;
-          
+
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchSucces;
@@ -346,7 +345,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void SignalCompletionCondition()
         {
-            if(Interlocked.Increment(ref conditionCount) == 3)
+            if (Interlocked.Increment(ref conditionCount) == 3)
             {
                 if (ChannelInfo.RequiresKeyExchange())
                     SharedSecret = df.CalculateSharedSecret(otherPublicKey);
@@ -357,7 +356,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 Log("Punched");
                 Completed(true);
             }
-           
+
         }
 
         protected override void Completed(bool succes)
@@ -374,11 +373,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
         }
 
-        private void Log(string log)
+        protected override void Log(string log)
         {
             //return;
             string prefix = isInitiator ? "A: " : "B: ";
-            Console.WriteLine(prefix + log);
+            base.Log(prefix + log);
         }
 
 

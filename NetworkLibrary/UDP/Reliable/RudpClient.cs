@@ -62,7 +62,7 @@ namespace NetworkLibrary.UDP.Reliable
                     connected.TrySetException(new TimeoutException());
                     module.Close();
                 }
-            });
+            }, TaskScheduler.Default);
             return connected.Task;
 
         }

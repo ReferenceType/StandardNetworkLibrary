@@ -1,10 +1,8 @@
 ﻿using NetworkLibrary.DistributedP2P.Client;
 using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.DistributedP2P.SimpleRelay;
 using NetworkLibrary.P2P.Components.HolePunch;
 using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,26 +12,31 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
     {
         public const int TokenLength = 32 + 24;//32 bytes signature, 24 bytes token
         public byte[] Token { get; set; }
+        public byte[] DHPublic { get; set; }
         // localhost, localip, publicip
-        public List<EndpointData> PipeEndpoints { get; set; } = new List<EndpointData>();
+        public EndpointData PipeEndpoint { get; set; }
+    }
+    class PipeResult
+    {
+        public byte[] Token { get; set; }
+        public EndpointData PipeEndpoint { get; set; }
+        public bool IsSuccesfull { get; internal set; }
     }
 
     internal class ServerPipeState : ConversationStateBase
     {
-        private RelayService piper;
         private Guid from, to;
         private int ackCount = 0;
-        private readonly IDistributedConnection connection;
+        private readonly IServerConnection connection;
 
         private string ChannelType;
         bool isTcpPipe = false;
-        private string destinationDhPublicKey;
-        private string requesterDhPublicKey;
-        private ChannelInfo chInfo =  new ChannelInfo();
-        public ServerPipeState(Guid stateId, IDistributedConnection connection, RelayService piper) : base(stateId, 20000)
+        private byte[] destinationsDhPublicKey;
+
+        private ChannelInfo chInfo = new ChannelInfo();
+        public ServerPipeState(Guid stateId, IServerConnection connection) : base(stateId, 20000)
         {
             this.connection = connection;
-            this.piper = piper;
         }
 
         /*
@@ -48,100 +51,118 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
         public override void HandleMessage(MessageEnvelope message)
         {
-            switch (message.Header)
+            try
             {
-                case InternalConstants.PipeRequestTcp:
-                    HandlePipeRequest(message, true);
-                    break;
-                case InternalConstants.PipeRequestUdp:
-                    HandlePipeRequest(message, false);
-                    break;
+                switch (message.Header)
+                {
+                    case InternalConstants.PipeRequestTcp:
+                        HandlePipeRequest(message, true);
+                        break;
+                    case InternalConstants.PipeRequestUdp:
+                        HandlePipeRequest(message, false);
+                        break;
 
-                case InternalConstants.PipeReqAck://do nack also
-                    HandlePipeReqAck(message);
-                    break;
+                    case InternalConstants.PipeReqAck://do nack also
+                        HandlePipeReqAck(message);
+                        break;
 
-                case InternalConstants.ConnectionAckGood:
-                    HandleGoodAck(message);
-                    break;
+                    case InternalConstants.ConnectionAckGood:
+                        HandleGoodAck(message);
+                        break;
 
-                case InternalConstants.ConnectionAckBad:
-                    HandleBadAck(message);
-                    break;
+                    case InternalConstants.ConnectionAckBad:
+                        HandleBadAck();
+                        break;
+
+                }
 
             }
+            catch (Exception ex)
+            {
+                Log($"Exception occured on server pipe state: {ex.Message}\n{ex.StackTrace}");
+                HandleBadAck();
+            }
+
+
         }
-
-        private void HandlePipeReqAck(MessageEnvelope message)
-        {
-            if (chInfo.RequiresKeyExchange())
-                destinationDhPublicKey = message.KeyValuePairs["DH"];
-
-            ObtainPipeToken().ContinueWith(HandlePipeToken);
-        }
-
+        //[A]
         private void HandlePipeRequest(MessageEnvelope message, bool tcp)
         {
             this.from = message.From;
             this.to = message.To;
-            ChannelType = message.KeyValuePairs["Type"];
 
-            chInfo.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
-            chInfo.ChannelName = message.KeyValuePairs["Name"];
+            int offs = message.PayloadOffset;
+            var clientPipeData = KnownTypeSerializer.DeserializeClientPipeData(message.Payload, ref offs);
 
-            if (chInfo.RequiresKeyExchange())
-            {
-                requesterDhPublicKey = message.KeyValuePairs["DH"];
-                message.KeyValuePairs.Remove("DH");
-            }
+            chInfo = clientPipeData.ChannelInfo;
 
-            connection.SendAsyncMessage(message);
+            connection.SendAsyncMessage(message);// dest will know dh token in this.
             isTcpPipe = tcp;
         }
-
-        private Task<PipeData> ObtainPipeToken()
+        //[B]
+        private void HandlePipeReqAck(MessageEnvelope message)
         {
-            //do only local for now
-            byte[] token = piper.GetPipeToken(isTcpPipe);
-            PipeData data = new PipeData();
-            data.Token = token;
-            data.PipeEndpoints = new List<EndpointData>() { new EndpointData("0.0.0.0", isTcpPipe ? 20011 : 20012) };
+            int offs = message.PayloadOffset;
+            var clientPipeData = KnownTypeSerializer.DeserializeClientPipeData(message.Payload, ref offs);
 
+            if (chInfo.RequiresKeyExchange())
+                destinationsDhPublicKey = clientPipeData.DHPublic;// requester will now this on pipetoken
 
-            return Task.FromResult(data);
+            connection.GetPipeToken(isTcpPipe, from, to, HandlePipeResult);
+                
         }
 
-
-        private void HandlePipeToken(Task<PipeData> task)
+        private void HandlePipeResult(PipeResult result)
         {
-            var data = task.Result;
+            if (result.IsSuccesfull)
+            {
+                var data = new PipeData
+                {
+                    Token = result.Token,
+                    PipeEndpoint = result.PipeEndpoint
+                };
+                HandlePipeToken(data);
+            }
+            else
+            {
+                Log("Unable to obtain pipe token");
+                HandleBadAck();
+            }
+        
+        }
+
+      
+        private void HandlePipeToken(PipeData data)
+        {
             var msg = CreateEnvelope();
             msg.Header = isTcpPipe ? InternalConstants.PipeTokenDeliveryTcp : InternalConstants.PipeTokenDeliveryUdp;
+
             var stream = SharerdMemoryStreamPool.RentStreamStatic();
+
+            // destination already knows the public key
+            KnownTypeSerializer.SerializePipeData(stream, data);
+            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+            connection.SendAsyncMessage(to, msg);
+
+            // requester will know from this message
+            data.DHPublic = destinationsDhPublicKey;
             stream.Position32 = 0;
 
             KnownTypeSerializer.SerializePipeData(stream, data);
             msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-            msg.KeyValuePairs = new Dictionary<string, string>();
-
-            if(chInfo.RequiresKeyExchange())
-                msg.KeyValuePairs["DH"] = destinationDhPublicKey;
-
             connection.SendAsyncMessage(from, msg);
-
-            if (chInfo.RequiresKeyExchange())
-                msg.KeyValuePairs["DH"] = requesterDhPublicKey;
-
-            connection.SendAsyncMessage(to, msg);
 
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
 
 
-        private void HandleBadAck(MessageEnvelope message)
+        private void HandleBadAck()
         {
             lock (cancellationMutex)
             {
+                if (IsCompleted())
+                    return;
+
                 var msg = CreateEnvelope();
                 msg.Header = InternalConstants.ConnectionAckBad;
                 connection.SendAsyncMessage(from, msg);
@@ -156,6 +177,9 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             {
                 lock (cancellationMutex)
                 {
+                    if (IsCompleted())
+                        return;
+
                     var msg = CreateEnvelope();
                     msg.Header = InternalConstants.ConnectionAckGood;
                     connection.SendAsyncMessage(from, msg);

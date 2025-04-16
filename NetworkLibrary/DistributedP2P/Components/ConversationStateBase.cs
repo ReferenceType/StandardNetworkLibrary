@@ -92,6 +92,11 @@ namespace NetworkLibrary.DistributedP2P.Components
             }
         }
 
+        protected virtual void Log(string log)
+        {
+            Console.WriteLine(log);
+        }
+
        
     }
 }

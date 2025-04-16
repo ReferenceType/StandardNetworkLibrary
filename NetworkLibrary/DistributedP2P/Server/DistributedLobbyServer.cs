@@ -12,7 +12,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.Server
@@ -31,7 +30,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         public int UdpPort;
         public int DiscoveryServerPort;
     }
-    public class DistributedLobbyServerBase: IDistributedConnection, IDisposable
+    public class DistributedLobbyServerBase : IServerConnection, IDisposable
     {
         public readonly int SSlPort;
         public readonly int TcpPort;
@@ -192,7 +191,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 case InternalConstants.PipeRequestTcp:
 
-                    var pipeState = new ServerPipeState(message.MessageId, this, relayService);
+                    var pipeState = new ServerPipeState(message.MessageId, this);
                     stateManager.RegisterState(pipeState);
                     pipeState.HandleMessage(message);
 
@@ -201,7 +200,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 case InternalConstants.PipeRequestUdp:
 
-                    var pipeState1 = new ServerPipeState(message.MessageId, this, relayService);
+                    var pipeState1 = new ServerPipeState(message.MessageId, this);
                     stateManager.RegisterState(pipeState1);
                     pipeState1.HandleMessage(message);
 
@@ -231,8 +230,10 @@ namespace NetworkLibrary.DistributedP2P.Server
                     break;
             }
         }
+        int ctr = 0;
+        Random r = new Random(42);
 
-        private  void HandleTimeSync(Guid clientId, MessageEnvelope message)
+        private void HandleTimeSync(Guid clientId, MessageEnvelope message)
         {
             ////if (ctr++ % 2 == 0)
             //{
@@ -249,8 +250,19 @@ namespace NetworkLibrary.DistributedP2P.Server
             SendAsyncMessage(clientId, message);
         }
 
-        int ctr = 0;
-        Random r = new Random(42);
+
+        void IServerConnection.GetPipeToken(bool isTcpPipe, Guid fromEphemeral, Guid toEphemeral, Action<PipeResult> onReady)
+        {
+            // so we need to find a service here, on the relay services, prioritize locality then load.
+            var res = new PipeResult();
+            res.IsSuccesfull = true;
+            res.Token = relayService.GetPipeToken(isTcpPipe);
+            res.PipeEndpoint = new EndpointData("0.0.0.0", isTcpPipe ? 20011 : 20012);
+
+            onReady?.Invoke(res);
+        }
+
+
         private bool CreateRoom(string roomName, string roomPassword, RoomProtocol protocol)
         {
             if (roomManager.TryCreateRoom(roomName, roomPassword, out Guid RoomId))

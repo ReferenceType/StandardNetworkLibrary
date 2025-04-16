@@ -368,11 +368,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         }
 
-        private void Log(string log)
+        protected override void Log(string log)
         {
             //return;
             string prefix = isInitiator ? "A: " : "B: ";
-            Console.WriteLine(prefix + log);
+            base.Log(prefix + log);
         }
 
         private ClientHolepunchData GetHpData()

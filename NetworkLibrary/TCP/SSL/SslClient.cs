@@ -104,7 +104,7 @@ namespace NetworkLibrary.TCP.SSL.Base
                         catch { }
                         tcs.SetResult(false);
                     }
-                });
+                }, TaskScheduler.Default);
 
                 if (!clientSocket.ConnectAsync(earg))
                 {

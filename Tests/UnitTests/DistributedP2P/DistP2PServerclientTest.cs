@@ -248,8 +248,8 @@ namespace UnitTests.DistributedP2P
             {
                 received.Enqueue(buff[offset]);
 
-                //if(received.Count == iter)
-                //    tcs.TrySetResult(true);
+                if (received.Count == iter)
+                    tcs.TrySetResult(true);
             }
 
 
@@ -297,8 +297,10 @@ namespace UnitTests.DistributedP2P
             {
                 var udpChannel = (UdpChannel)obj;
                 udpChannel.OnBytesReceived += (b,o,c) => 
-                { 
-                    received = c; tcs.SetResult(true); };
+                {
+                    received = c;
+                    tcs.SetResult(true);
+                };
                 udpChannel.Start();
             }
 
@@ -349,13 +351,18 @@ namespace UnitTests.DistributedP2P
                 {
                     received = c; 
                     if(++cnt == 2)
+                    {
                         tcs.SetResult(true);
+
+                    }
                 };
                 udpChannel.Start();
             }
 
             var ss = tcs.Task.Result;
             Assert.AreEqual(received, data.Length);
+
+            Thread.Sleep(1000);
 
         }
 
@@ -525,6 +532,7 @@ namespace UnitTests.DistributedP2P
         {
 
             using var server = ArrangeServer();
+            Thread.Sleep(1337);
             var cl1 = GetClient();
             Thread.Sleep(1337);
             var cl2 = GetClient();

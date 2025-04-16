@@ -156,6 +156,7 @@ namespace NetworkLibrary.UDP.Reliable.Components
                 {
                     MiniLogger.Log(MiniLogger.LogLevel.Error,
                         $"Critical errror occured on reliable udp receiver module: {ex.Message} Trace:{ex.StackTrace}");
+                    throw;
                 }
             }
         }

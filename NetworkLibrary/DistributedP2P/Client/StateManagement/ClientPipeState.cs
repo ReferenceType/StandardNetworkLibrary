@@ -1,15 +1,19 @@
-﻿using NetworkLibrary.DistributedP2P.Components;
+﻿using NetworkLibrary.Components.Crypto.DiffieHellman;
+using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.P2P.Components.HolePunch;
+using NetworkLibrary.Utils;
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading.Tasks;
-using NetworkLibrary.Components.Crypto.DiffieHellman;
 
 namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 {
+    class ClientPipeData
+    {
+        public ChannelInfo ChannelInfo { get; set; }
+        public byte[] DHPublic;
+    }
     internal class ClientPipeState : ConversationStateBase
     {
         private readonly IDistributedConnection connection;
@@ -22,14 +26,17 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         public ChannelInfo ChannelInfo;
         private DiffieHellman df;
-        public ClientPipeState(Guid stateId, IDistributedConnection connection,EndpointData serverEndpoint,ChannelInfo info) : base(stateId, 20000)
+        private bool isInitiator;
+
+        public ClientPipeState(Guid stateId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info) : base(stateId, 20000)
         {
             this.connection = connection;
             this.serverEndpoint = serverEndpoint;
             this.ChannelInfo = info;
+            isInitiator = true;
         }
 
-        public ClientPipeState(MessageEnvelope message,IDistributedConnection connection, EndpointData serverEndpoint) : base(message.MessageId)
+        public ClientPipeState(MessageEnvelope message, IDistributedConnection connection, EndpointData serverEndpoint) : base(message.MessageId)
         {
             this.connection = connection;
             this.serverEndpoint = serverEndpoint;
@@ -42,33 +49,31 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             this.destinationPeer = destinationPeer;
 
             var msg = CreateEnvelope();
-            msg.Header = tcp?InternalConstants.PipeRequestTcp:InternalConstants.PipeRequestUdp;
+            msg.Header = tcp ? InternalConstants.PipeRequestTcp : InternalConstants.PipeRequestUdp;
             msg.To = destinationPeer;
-            msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["Type"] = ((int)ChannelInfo.ChannelType).ToString();
-            msg.KeyValuePairs["Name"] = ChannelInfo.ChannelName;
 
-            if (ChannelInfo.RequiresKeyExchange())
-            {
-                df = new DiffieHellman();
-                byte[] key = df.GetPublicKey();
-                string keyStr = Convert.ToBase64String(key);
-                msg.KeyValuePairs["DH"] = keyStr;
-            }
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+            var data = GetPipeData();
+
+            KnownTypeSerializer.SerializeClientPipeData(stream, data);
+            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
 
             connection.SendAsyncMessage(msg);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+
+            Log("Requested Pipe");
         }
 
         public override void HandleMessage(MessageEnvelope message)
         {
-            switch(message.Header)
+            switch (message.Header)
             {
                 // the listener
                 case InternalConstants.PipeRequestTcp:
                 case InternalConstants.PipeRequestUdp:
                     HandleConnectionRequest(message);
                     break;
-                  
+
                 case InternalConstants.PipeTokenDeliveryTcp:
                     HandlePipeTokenTcp(message);
                     break;
@@ -89,79 +94,88 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleConnectionRequest(MessageEnvelope message)
         {
-            ChannelInfo = new ChannelInfo();
-            ChannelInfo.ChannelType = (ChannelType)int.Parse(message.KeyValuePairs["Type"]);
-            ChannelInfo.ChannelName = message.KeyValuePairs["Name"];
+            Log("Connection Request Received");
+            int offs = message.PayloadOffset;
+            var pipeData = KnownTypeSerializer.DeserializeClientPipeData(message.Payload, ref offs);
+            ChannelInfo = pipeData.ChannelInfo;
+
+            var myData = GetPipeData();
+
+            if (ChannelInfo.RequiresKeyExchange())
+            {
+                GenerateSharedSecret(pipeData.DHPublic);
+            }
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PipeReqAck;
-           
-            if (ChannelInfo.RequiresKeyExchange())
-            {
-                df = new DiffieHellman();
-                byte[] key = df.GetPublicKey();
-                string keyStr = Convert.ToBase64String(key);
 
-                msg.KeyValuePairs = new Dictionary<string, string>();
-                msg.KeyValuePairs["DH"] = keyStr;
-            }
+            var stream = SharerdMemoryStreamPool.RentStreamStatic();
+
+            myData.ChannelInfo = null;
+
+            KnownTypeSerializer.SerializeClientPipeData(stream, myData);
+            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
 
             connection.SendAsyncMessage(msg);
+            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+
         }
 
         private async void HandlePipeTokenTcp(MessageEnvelope message)
         {
+            Log("Handling Tcp Token");
             try
             {
                 int off = message.PayloadOffset;
                 var pipeData = KnownTypeSerializer.DeserializePipeData(message.Payload, ref off);
 
-                if (ChannelInfo.RequiresKeyExchange())
-                    GenerateSharedSecret(message.KeyValuePairs["DH"]);
+                if (pipeData.DHPublic != null)
+                    GenerateSharedSecret(pipeData.DHPublic);
 
-                foreach (EndpointData endpoint in pipeData.PipeEndpoints)
+                EndpointData endpoint = pipeData.PipeEndpoint;
+
+                if (IPHelper.IsZero(endpoint.Ip))
+                    endpoint.Ip = serverEndpoint.Ip;
+
+                Socket connected = await TryConnectWithTimeout(endpoint).ConfigureAwait(false);
+                if (connected != null)
                 {
-                    if (IPHelper.IsZero(endpoint.Ip))
-                        endpoint.Ip = serverEndpoint.Ip;
-
-                    Socket connected = await TryConnectWithTimeout(endpoint);
-                    if (connected != null)
+                    bool success = await TokenExchange(connected, pipeData.Token);
+                    if (success)
                     {
-                        bool success = await TokenExchange(connected, pipeData.Token);
-                        if (success)
-                        {
-                            OnConnectionSuccessful(endpoint, connected);
-                            return;
-                        }
-                        else
-                        {
-                            try { connected.Close(); connected.Dispose(); } catch { }
-                        }
+                        OnConnectionSuccessful(endpoint, connected);
+                        return;
                     }
-                    // connect send token
-                    //wait a data to come
-                    //then send ack
+                    else
+                    {
+                        try { connected.Close(); connected.Dispose(); } catch { }
+                    }
                 }
+                // connect send token
+                //wait a data to come
+                //then send ack
 
+                Log($"Failed to exchange Tcp Token");
                 OnConnectionFail();
                 return;
             }
-            catch
+            catch (Exception e)
             {
+                Log($"An Error occured while handling Tcp Token{e.Message}\n{e.StackTrace}");
                 OnConnectionFail();
             }
-            
+
         }
 
-        private void GenerateSharedSecret(string otherPublic)
+        private void GenerateSharedSecret(byte[] otherPublic)
         {
-             sharedSecret = df.CalculateSharedSecret(Convert.FromBase64String(otherPublic));
+            sharedSecret = df.CalculateSharedSecret(otherPublic);
         }
 
         private async Task<Socket> TryConnectWithTimeout(EndpointData endpoint, int timeout = 5000)
         {
             var clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            
+
             var connectTask = ConnectAsync(clientSocket, endpoint.ToIpEndpoint());
             var timeoutTask = Task.Delay(timeout);
 
@@ -169,24 +183,26 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             if (completedTask == timeoutTask)
             {
+                Log("Connection Failed");
                 try { clientSocket.Close(); clientSocket.Dispose(); } catch { }
                 return null;
             }
 
-            bool res =  connectTask.Result;
-            if(res)
+            bool res = connectTask.Result;
+            if (res)
             {
                 return clientSocket;
             }
             else
             {
+                Log("Connection Failed");
                 try { clientSocket.Close(); clientSocket.Dispose(); } catch { }
                 return null;
             }
 
         }
 
-        private async Task<bool> ConnectAsync(Socket socket, IPEndPoint endPoint)
+        private Task<bool> ConnectAsync(Socket socket, IPEndPoint endPoint)
         {
             var tcs = new TaskCompletionSource<bool>();
 
@@ -207,21 +223,21 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             if (!socket.ConnectAsync(sa))
             {
-                return sa.SocketError == SocketError.Success;
+                if (sa.SocketError == SocketError.Success)
+                    tcs.TrySetResult(true);
             }
 
-            return await tcs.Task;
+            return tcs.Task;
         }
 
         private async Task<bool> TokenExchange(Socket connectedSocket, byte[] token, int timeoutMs = 5000)
         {
             try
             {
-                
-
                 int bytesSent = await connectedSocket.SendAsync(new ArraySegment<byte>(token), SocketFlags.None);
                 if (bytesSent != token.Length)
                 {
+                    Log("Tcp Token Send Failure");
                     return false;
                 }
 
@@ -233,17 +249,17 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 if (completedTask == timeoutTask)
                 {
+                    Log("Tcp Token Response Timeout");
                     return false;
                 }
 
                 int bytesReceived = receiveTask.Result;
-
-               
-
                 return bytesReceived == 1;
+
             }
-            catch
+            catch (Exception e)
             {
+                Log($"An Error occured while exchanging Tcp Token{e.Message}\n{e.StackTrace}");
                 return false;
             }
         }
@@ -252,25 +268,29 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private async void HandlePipeTokenUdp(MessageEnvelope message)
         {
-
-            if (ChannelInfo.RequiresKeyExchange())
-                GenerateSharedSecret(message.KeyValuePairs["DH"]);
-
-            int off = message.PayloadOffset;
-            var pipeData = KnownTypeSerializer.DeserializePipeData(message.Payload, ref off);
-
-            var connected = new Socket(SocketType.Dgram, ProtocolType.Udp);
-            connected.SendBufferSize = 12800000;
-            connected.ReceiveBufferSize = 12800000;
-
-            foreach (EndpointData endpoint in pipeData.PipeEndpoints)
+            try
             {
+                int off = message.PayloadOffset;
+                var pipeData = KnownTypeSerializer.DeserializePipeData(message.Payload, ref off);
+
+                if (pipeData.DHPublic != null)
+                    GenerateSharedSecret(pipeData.DHPublic);
+
+
+                var connected = new Socket(SocketType.Dgram, ProtocolType.Udp);
+                connected.SendBufferSize = 12800000;
+                connected.ReceiveBufferSize = 12800000;
+
+                EndpointData endpoint = pipeData.PipeEndpoint;
+
+
                 if (IPHelper.IsZero(endpoint.Ip))
                     endpoint.Ip = serverEndpoint.Ip;
 
                 bool success = await UdpTokenExchange(connected, pipeData.Token, endpoint.ToIpEndpoint());
                 if (success)
                 {
+                    Log($"Connected");
                     OnConnectionSuccessful(endpoint, connected);
                     return;
                 }
@@ -278,17 +298,25 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 {
                     try { connected.Close(); connected.Dispose(); } catch { }
                 }
-                
+
                 // connect send token
                 //wait a data to come
                 //then send ack
+
+
+                Log($"Failed to exchange Udp Token");
+                OnConnectionFail();
+                return;
+            }
+            catch (Exception e)
+            {
+                Log($"An Error occured while handling Udp Token{e.Message}\n{e.StackTrace}");
+                OnConnectionFail();
             }
 
-            OnConnectionFail();
-            return;
         }
 
-        private async Task<bool> UdpTokenExchange(Socket udpSocket, byte[] token, IPEndPoint remoteEndPoint, int timeoutMs = 500)
+        private async Task<bool> UdpTokenExchange(Socket udpSocket, byte[] token, IPEndPoint remoteEndPoint, int timeoutMs = 3000)
         {
             try
             {
@@ -300,6 +328,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 if (await Task.WhenAny(sendTask, sendTimeout) == sendTimeout ||
                     sendTask.Result != token.Length)
                 {
+                    Log("Udp Token Send Timeout");
                     return false;
                 }
 
@@ -309,16 +338,18 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 if (await Task.WhenAny(receiveTask, receiveTimeout) == receiveTimeout)
                 {
+                    Log("Udp Token Receive Timeout");
                     return false;
                 }
 
                 return receiveTask.Result == 1;
             }
-            catch
+            catch (Exception e)
             {
+                Log($"An Error occured while exchanging Udp Token{e.Message}\n{e.StackTrace}");
                 return false;
             }
-           
+
         }
 
 
@@ -329,6 +360,8 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             this.ConnectedSocket = socket;
             this.SuccesfullEndpoint = endpoint;
+
+            Log("Completed");
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.ConnectionAckGood;
@@ -341,17 +374,38 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.Header = InternalConstants.ConnectionAckBad;
             connection.SendAsyncMessage(msg);
 
+            Log("Failed");
+
             Completed(false);
         }
 
         private void HandleGoodAck(MessageEnvelope message)
         {
-           Completed(true);
+            Completed(true);
         }
 
         private void HandleBadAck(MessageEnvelope message)
         {
             Completed(false);
+        }
+
+        private ClientPipeData GetPipeData()
+        {
+            ClientPipeData hpd = new ClientPipeData();
+            hpd.ChannelInfo = ChannelInfo;
+
+            if (ChannelInfo.RequiresKeyExchange())
+            {
+                df = new DiffieHellman();
+                hpd.DHPublic = df.GetPublicKey();
+            }
+            return hpd;
+        }
+        protected override void Log(string log)
+        {
+            //return;
+            string prefix = isInitiator ? "A: " : "B: ";
+            base.Log(prefix + log);
         }
 
     }

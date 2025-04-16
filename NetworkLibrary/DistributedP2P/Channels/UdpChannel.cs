@@ -35,23 +35,23 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
             Info = info;
             innerchannel = new UdpChannelBase(udpSocket, receiveEp, info);
+            innerchannel.LogAvailable += Log;
+
             JumboUdp.SendToSocket = SendJumboSegment;
             JumboUdp.MessageReceived = HandleMessage;
 
             SenderModule sender = new SenderModule();
-            //sender.SoftwindowTrim = 1f;
             sender.MaxSegmentSize = 1280;
             sender.MinWindowSize = 1280 * 2;
 
             ReliableUdp = new ReliableModule(receiveEp, sender);
-
             ReliableUdp.OnReceived += (e, b, o, c) => HandleMessage(b, o, c);
             ReliableUdp.OnSend += SendRudpSegment;
 
             SenderModule sender2 = new SenderModule();
-
             sender.MaxSegmentSize = 1280;
             sender.MinWindowSize = 1280 * 2;
+
             internalReliableModule = new ReliableModule(receiveEp, sender2);
             internalReliableModule.OnReceived += (e, b, o, c) => HandleInternalReliableMessage(b, o, c);
             internalReliableModule.OnSend += SendInternalRudpSegment;
@@ -65,8 +65,6 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
 
         }
-
-
 
         public void Start()
         {
@@ -85,6 +83,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         protected virtual void HandleReivedMessage(byte[] buffer, int offset, int count, MessageFlags flag)
         {
+
             switch (flag)
             {
                 case MessageFlags.StandardMessage:
@@ -100,7 +99,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
                     break;
 
                 case MessageFlags.KeepAliveMessage:
-                    keepAlive.HandleMessage(flag, buffer, offset, count);
+                    HandleKeepAliveMessage(buffer, offset, count, flag);
                     break;
 
                 case MessageFlags.Kill:
@@ -113,7 +112,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
                 case MessageFlags.Ping:
                 case MessageFlags.Pong:
-                    pinger.HandleMessage(flag, buffer, offset, count);
+                    HandlePingMessage(buffer, offset, count, flag);
                     break;
 
             }
@@ -122,7 +121,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         }
 
 
-        protected virtual void HandleInternalReliableMessage(byte[] buffer, int offset, int count)
+        private void HandleInternalReliableMessage(byte[] buffer, int offset, int count)
         {
             var flag = (MessageFlags)buffer[offset++];
             count--;
@@ -130,38 +129,126 @@ namespace NetworkLibrary.DistributedP2P.Channels
             HandleReivedMessage(buffer, offset, count, flag);
         }
 
-        protected virtual void HandleMessage(byte[] buffer, int offset, int count)
+        private void HandleMessage(byte[] buffer, int offset, int count)
         {
-            OnBytesReceived?.Invoke(buffer, offset, count);
+            try
+            {
+                OnBytesReceived?.Invoke(buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+                throw;
+            }
         }
 
-        protected void HandleJumboSegment(byte[] buffer, int offset, int count)
+        private void HandleJumboSegment(byte[] buffer, int offset, int count)
         {
-            JumboUdp.HandleReceivedSegment(buffer, offset, count);
+            try
+            {
+                JumboUdp.HandleReceivedSegment(buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
         }
 
-        protected virtual void SendJumboSegment(byte[] arg1, int arg2, int arg3)
+        private void SendJumboSegment(byte[] arg1, int arg2, int arg3)
         {
-            SendWithFlag(MessageFlags.JumboMessage, arg1, arg2, arg3);
+            try
+            {
+                SendWithFlag(MessageFlags.JumboMessage, arg1, arg2, arg3);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
+
         }
 
-        protected void HandleRudpSegment(byte[] buffer, int offset, int count)
+        private void HandleRudpSegment(byte[] buffer, int offset, int count)
         {
-            ReliableUdp.HandleBytes(buffer, offset, count);
+            try
+            {
+                ReliableUdp.HandleBytes(buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
+
+        }
+        private void HandleKeepAliveMessage(byte[] buffer, int offset, int count, MessageFlags flag)
+        {
+            try 
+            { 
+                keepAlive.HandleMessage(flag, buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
         }
 
-        protected void HandleIncomingInternalRudpSegment(byte[] buffer, int offset, int count)
+        private void HandleIncomingInternalRudpSegment(byte[] buffer, int offset, int count)
         {
-            internalReliableModule.HandleBytes(buffer, offset, count);
-        }
-        internal virtual void SendRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
-        {
-            SendWithFlag(MessageFlags.ReliableMessage, buffer, offset, count);
+            try
+            {
+                internalReliableModule.HandleBytes(buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
         }
 
-        internal virtual void SendInternalRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
+        private void HandlePingMessage(byte[] buffer, int offset, int count, MessageFlags flag)
         {
-            SendWithFlag(MessageFlags.InternalReliableMessage, buffer, offset, count);
+            try
+            {
+                pinger.HandleMessage(flag, buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
+
+        }
+
+        private void SendRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
+        {
+            try
+            {
+                SendWithFlag(MessageFlags.ReliableMessage, buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
+        }
+       
+
+        private void SendInternalRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
+        {
+            try
+            {
+                SendWithFlag(MessageFlags.InternalReliableMessage, buffer, offset, count);
+            }
+            catch (Exception e)
+            {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+            }
+
         }
 
         public Task<double> Ping()
@@ -171,7 +258,6 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         public virtual void Send(byte[] buffer, int offset, int count)
         {
-
             if (count > 64000)
             {
                 JumboUdp.Send(buffer, offset, count);
@@ -208,6 +294,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
         }
 
+
         protected void SendInternal(byte[] bytes, int offset, int count)
         {
             try
@@ -216,8 +303,10 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
+                Log($"{e.Message}\n{e.StackTrace}");
+                CloseChannel();
+                throw;
             }
-
         }
 
 
@@ -226,6 +315,13 @@ namespace NetworkLibrary.DistributedP2P.Channels
             try
             {
                 SendWithFlag(MessageFlags.Kill, new byte[1], 0, 1);
+
+            }
+            catch { }
+
+            try
+            {
+                innerchannel.CloseChannel();
             }
             catch { }
 
@@ -237,6 +333,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             if (Interlocked.CompareExchange(ref isClosed, 1, 0) == 0)
             {
+                Log("Udp Channel disconnected");
                 OnDisconnected?.Invoke();
                 Dispose();
             }
@@ -264,6 +361,9 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         }
 
-
+        protected virtual void Log(string v)
+        {
+            Console.WriteLine(v);
+        }
     }
 }

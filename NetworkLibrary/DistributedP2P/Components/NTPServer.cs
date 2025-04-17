@@ -66,6 +66,7 @@ namespace NetworkLibrary.DistributedP2P.Components
                     var ep = (IPEndPoint)e.RemoteEndPoint;
                     ep.Address = IPAddress.Any;
                     ep.Port = 0;
+
                     if (udpListener.ReceiveFromAsync(e))
                     {
                         return; 

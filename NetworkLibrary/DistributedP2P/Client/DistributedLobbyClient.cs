@@ -352,6 +352,11 @@ namespace NetworkLibrary.DistributedP2P.Client
             }
         }
 
+        //public Task<RoomConnection> JoinRoom()
+        //{
+        //    return Task.FromResult(new RoomConnection());
+        //}
+
         public double GetTime()
         {
             return timeSync.GetTime();
@@ -361,6 +366,7 @@ namespace NetworkLibrary.DistributedP2P.Client
         {
             return timeSync.GetDateTime();
         }
+
         public Task<bool> SyncTime()
         {
            return timeSync.SyncTime();

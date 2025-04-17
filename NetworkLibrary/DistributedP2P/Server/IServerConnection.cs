@@ -5,11 +5,13 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using NetworkLibrary.DistributedP2P.SimpleRelay;
 
 namespace NetworkLibrary.DistributedP2P.Server
 {
     internal interface IServerConnection : IDistributedConnection
     {
         void GetPipeToken(bool isTcpPipe, Guid fromEphemeral, Guid toEphemeral, Action<PipeResult> onReady);
+        RoomResult CreateOrJoinRoom(string roomName, string roomPassword, Guid peerId, RoomProtocol protocol);
     }
 }

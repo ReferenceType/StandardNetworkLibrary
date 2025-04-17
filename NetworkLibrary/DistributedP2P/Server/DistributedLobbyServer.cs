@@ -266,16 +266,33 @@ namespace NetworkLibrary.DistributedP2P.Server
         }
 
 
-        private bool CreateRoom(string roomName, string roomPassword, RoomProtocol protocol)
+        RoomResult IServerConnection.CreateOrJoinRoom(string roomName, string roomPassword, Guid peerId, RoomProtocol protocol)
         {
-            if (roomManager.TryCreateRoom(roomName, roomPassword, out Guid RoomId))
+            var roomResult = roomManager.CreateOrJoinRoom(roomName, roomPassword,peerId, protocol);
+
+            if (roomResult.IsCreated)
             {
-                if (relayService.CreateRoom(RoomId, protocol))
+                if (relayService.CreateRoom(roomResult.RoomInfo.RoomId, protocol))
                 {
-                    return true;
+                    if(GetRoomToken(peerId, roomResult.RoomInfo.RoomId, out byte[] roomToken))
+                    {
+                        roomResult.RoomToken = roomToken;
+                        return roomResult;
+                    }
+                    return null;
+                }
+
+            }
+            else
+            {
+                if (GetRoomToken(peerId, roomResult.RoomInfo.RoomId, out byte[] roomToken))
+                {
+                    roomResult.RoomToken = roomToken;
+                    return roomResult;
                 }
             }
-            return false;
+
+            return null;
         }
 
         private bool GetRoomToken(Guid peerId, Guid roomId, out byte[] token)

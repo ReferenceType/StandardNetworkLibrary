@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Threading;
 
 namespace NetworkLibrary.DistributedP2P.Components
@@ -35,19 +32,13 @@ namespace NetworkLibrary.DistributedP2P.Components
         }
     }
 
-    /*
-     * Concurrent Persistent Logger
-     * Log are guarantied to spesify correct order
-     * Log are guarantied to be persisted to disk on unexpected app exit or crash
-     * (Except for hardcore exceptions like Access Violation, they are not catchable in .NetCore).
-     */
-    public class Logger:ILogger
+
+    public class Logger : ILogger
     {
         public event Action<LogData> LogAvailable;
 
         private LogType allowedLogTypes = LogType.Debug | LogType.Error | LogType.Warning | LogType.Info | LogType.Exception;
         private Dictionary<LogType, string> logTypeLookup;
-        private object logLocker = new object();
         private long logId = 0;
 
         public void Log(LogType logType, string log)
@@ -59,22 +50,21 @@ namespace NetworkLibrary.DistributedP2P.Components
 
 
             var id = Interlocked.Increment(ref logId);
-            lock (logLocker)
-            {
-                LogData data = new LogData(id: id,
-                                           timeStamp: DateTime.UtcNow,
-                                           logType: logType,
-                                           log: log);
 
-                try
-                {
-                    LogAvailable?.Invoke(data);
-                }
-                catch (Exception e)
-                {
-                    Trace.WriteLine($"#[Critical Error] Logger failed! : \n{e.ToString()}");
-                }
+            LogData data = new LogData(id: id,
+                                       timeStamp: DateTime.UtcNow,
+                                       logType: logType,
+                                       log: log);
+
+            try
+            {
+                LogAvailable?.Invoke(data);
             }
+            catch (Exception e)
+            {
+                Trace.WriteLine($"#[Critical Error] Logger failed! : \n{e.ToString()}");
+            }
+
         }
 
         public void Log(Exception ex)
@@ -86,22 +76,21 @@ namespace NetworkLibrary.DistributedP2P.Components
 
 
             var id = Interlocked.Increment(ref logId);
-            lock (logLocker)
-            {
-                LogData data = new LogData(id: id,
-                                           timeStamp: DateTime.UtcNow,
-                                           logType: LogType.Exception,
-                                           log: $"{ex.Message}\n{ex.StackTrace}");
 
-                try
-                {
-                    LogAvailable?.Invoke(data);
-                }
-                catch (Exception e)
-                {
-                    Trace.WriteLine($"#[Critical Error] Logger failed! : \n{e.ToString()}");
-                }
+            LogData data = new LogData(id: id,
+                                       timeStamp: DateTime.UtcNow,
+                                       logType: LogType.Exception,
+                                       log: $"{ex.Message}\n{ex.StackTrace}");
+
+            try
+            {
+                LogAvailable?.Invoke(data);
             }
+            catch (Exception e)
+            {
+                Trace.WriteLine($"#[Critical Error] Logger failed! : \n{e.ToString()}");
+            }
+
         }
 
         public string Stringify(LogData data)

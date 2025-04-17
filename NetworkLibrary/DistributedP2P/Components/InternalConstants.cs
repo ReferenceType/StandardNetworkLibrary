@@ -32,5 +32,9 @@ namespace NetworkLibrary.DistributedP2P.Components
         public const string PunchSwap = "m";
         public const string RequestSimultaneousHolepunchTcp = "n";
 
+        public const string RequestCreateOrJointRoom = "o";
+        public const string ResponseCreateOrJointRoom = "p";
+        public const string JoinedRoom = "r";
+
     }
 }

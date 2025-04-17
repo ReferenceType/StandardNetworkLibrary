@@ -25,7 +25,7 @@ namespace NetworkLibrary.DistributedP2P.Client
         IClientDbConnection clientDbConnector;
         IClientAuthenticationProvider clientAuthProvider;
         SecureMessageClient<S> sslClient;
-        StateManager stateManager = new StateManager();
+        StateManager stateManager;
         TimeSync timeSync;
 
         private ConcurrentDictionary<Guid, PeerStatus> onlinePeers = new ConcurrentDictionary<Guid, PeerStatus>();
@@ -50,13 +50,19 @@ namespace NetworkLibrary.DistributedP2P.Client
         private EndpointData serverEndpoint= new EndpointData();
 
         bool isDisposed = false;
+        ILogger logger;
 
         public DistributedLobbyClient(IClientDbConnection clientDbConnector,
                                       IClientAuthenticationProvider clientAuthProvider,
+                                      ILogger logger,
                                       X509Certificate2 certificate = null)
         {
             this.clientDbConnector = clientDbConnector;
             this.clientAuthProvider = clientAuthProvider;
+            this.logger=logger;
+
+            stateManager = new StateManager(logger);
+
             sslClient = new SecureMessageClient<S>(certificate);
             sslClient.OnMessageReceived += HandleServerMsg;
             sslClient.OnDisconnected += HandleDisconnected;
@@ -80,7 +86,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                 timeSync.SetEndpoint(serverEndpoint);
 
                 Guid conversationId = Guid.NewGuid();
-                var conState = new ClientConnectionState(conversationId, this, clientDbConnector, authToken);
+                var conState = new ClientConnectionState(conversationId, this, clientDbConnector, authToken, logger);
                 stateManager.RegisterState(conState);
                 conState.Start();
 
@@ -138,7 +144,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                     case InternalConstants.PipeRequestTcp:
                     case InternalConstants.PipeRequestUdp:
 
-                        var pipeState = new ClientPipeState(envelope, this, serverEndpoint);
+                        var pipeState = new ClientPipeState(envelope, this, serverEndpoint, logger);
                         pipeState.OnComplete += HandlePipeCreated;
                         stateManager.RegisterState(pipeState);
                         pipeState.HandleMessage(envelope);
@@ -212,7 +218,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public async Task<IChannel> OpenRelayChannel(Guid destinationPeer, ChannelInfo Info)
         {
-            var pipeState = new ClientPipeState(Guid.NewGuid(), this, serverEndpoint, Info);
+            var pipeState = new ClientPipeState(Guid.NewGuid(), this, serverEndpoint, Info, logger);
             stateManager.RegisterState(pipeState);
             pipeState.Start(destinationPeer);
 
@@ -220,7 +226,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
             if (pipeState.IsSuccesful)
             {
-                IChannel channel = ChannelFactory.CreateChannel(pipeState, true);
+                IChannel channel = ChannelFactory.CreateChannel(pipeState, true, logger);
                 return channel;
             }
             return null;
@@ -231,7 +237,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             if (state.IsSuccesful)
             {
                 var pipeState = (ClientPipeState)state;
-                IChannel channel = ChannelFactory.CreateChannel(pipeState, false);
+                IChannel channel = ChannelFactory.CreateChannel(pipeState, false, logger);
 
                 if (channel != null)
                     PeerConnected?.Invoke(channel);
@@ -246,7 +252,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             
             if(info.ChannelType == ChannelType.Udp || info.ChannelType == ChannelType.SecureUdp)
             {
-                var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
+                var state = new ClientUdpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info, logger);
                 stateManager.RegisterState(state);
                 state.Start();
 
@@ -254,7 +260,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                 if (state.IsSuccesful)
                 {
-                    return ChannelFactory.CreateChannel(state, true);
+                    return ChannelFactory.CreateChannel(state, true, logger);
                 }
                 return null;
             }
@@ -262,7 +268,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (strategy == TcpHolePunchStrategy.Sequential)
                 {
-                    var state = new ClientSequentialTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
+                    var state = new ClientSequentialTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info, logger);
                     stateManager.RegisterState(state);
                     state.Start();
 
@@ -270,13 +276,13 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                     if (state.IsSuccesful)
                     {
-                        return ChannelFactory.CreateChannel(state, true);
+                        return ChannelFactory.CreateChannel(state, true, logger);
                     }
                     return null;
                 }
                 else
                 {
-                    var state = new ClientSimultaneousTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info);
+                    var state = new ClientSimultaneousTcpHolepunchState(Guid.NewGuid(), destination, this, serverEndpoint, DiscoveryServerEndpoint, info, logger);
                     stateManager.RegisterState(state);
                     state.Start();
 
@@ -284,7 +290,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                     if (state.IsSuccesful)
                     {
-                        return ChannelFactory.CreateChannel(state, true);
+                        return ChannelFactory.CreateChannel(state, true, logger);
                     }
                     return null;
                 }
@@ -295,7 +301,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void ManageUdpHolepunchRequest(MessageEnvelope envelope)
         {
-            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,serverEndpoint,DiscoveryServerEndpoint, null);
+            var state = new ClientUdpHolepunchState(envelope.MessageId, envelope.From, this,serverEndpoint,DiscoveryServerEndpoint, null, logger);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);
@@ -304,7 +310,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (obj.IsSuccesful)
                 {
-                    var ch = ChannelFactory.CreateChannel(state, false);
+                    var ch = ChannelFactory.CreateChannel(state, false, logger);
                     PeerConnected?.Invoke(ch);
                 }
               
@@ -314,7 +320,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void ManageSimyltaneousTcpHolepunchReq(MessageEnvelope envelope)
         {
-            var state = new ClientSimultaneousTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null);
+            var state = new ClientSimultaneousTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null, logger);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);
@@ -323,7 +329,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (obj.IsSuccesful)
                 {
-                    var ch = ChannelFactory.CreateChannel(state, false);
+                    var ch = ChannelFactory.CreateChannel(state, false, logger);
                     PeerConnected?.Invoke(ch);
                 }   
             }
@@ -331,7 +337,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void ManageSequentialTcpHolepunchReq(MessageEnvelope envelope)
         {
-            var state = new ClientSequentialTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null);
+            var state = new ClientSequentialTcpHolepunchState(envelope.MessageId, envelope.From, this, serverEndpoint, DiscoveryServerEndpoint, null, logger);
             stateManager.RegisterState(state);
             state.OnComplete += State_OnComplete;
             state.HandleMessage(envelope);
@@ -340,7 +346,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             {
                 if (obj.IsSuccesful)
                 {
-                    var ch = ChannelFactory.CreateChannel(state, false);
+                    var ch = ChannelFactory.CreateChannel(state, false, logger);
                     PeerConnected?.Invoke(ch);
                 }
             }

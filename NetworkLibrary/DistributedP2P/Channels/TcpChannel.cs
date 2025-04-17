@@ -1,6 +1,7 @@
 ﻿using NetworkLibrary.Components;
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
 using System;
 using System.Net.Sockets;
 using System.Threading;
@@ -17,6 +18,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         public event Action OnDisconnected;
 
         private readonly Socket connectedSocket;
+        private readonly ILogger logger;
         private int totalBytesReceived;
         private SocketAsyncEventArgs receiveArgs;
         private int Closing = 0;
@@ -35,11 +37,11 @@ namespace NetworkLibrary.DistributedP2P.Channels
         private KeepAlive keepAlive;
         private Pinger pinger;
 
-        public TcpChannel(ChannelInfo info, Socket connectedSocket)
+        public TcpChannel(ChannelInfo info, Socket connectedSocket, ILogger logger)
         {
             Info = info;
             this.connectedSocket = connectedSocket;
-
+            this.logger = logger;
             InitializeReceiver();
 
             sendArgs = new SocketAsyncEventArgs();
@@ -166,7 +168,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
                 }
                 else if (e.BytesTransferred == 0)
                 {
-                    Log("0 bytes Sent");
+                    Log(LogType.Error, "0 bytes Sent");
                     CloseChannel();
                     return;
                 }
@@ -212,7 +214,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception ex)
             {
-                Log(ex.StackTrace);
+                Log(ex);
                 CloseChannel();
             }
 
@@ -351,13 +353,19 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         protected void ErrorAndEnd(string errMsg)
         {
-            Log(errMsg);
+            Log(LogType.Debug,errMsg);
             CloseChannel();
         }
 
-        private void Log(string v)
+
+        protected virtual void Log(LogType logType, string v)
         {
-            Console.WriteLine(v);
+            logger?.Log(logType, v);
+        }
+
+        protected virtual void Log(Exception e)
+        {
+            logger?.Log(e);
         }
 
 

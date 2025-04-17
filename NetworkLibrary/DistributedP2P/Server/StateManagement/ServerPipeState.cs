@@ -34,7 +34,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         private byte[] destinationsDhPublicKey;
 
         private ChannelInfo chInfo = new ChannelInfo();
-        public ServerPipeState(Guid stateId, IServerConnection connection) : base(stateId, 20000)
+        public ServerPipeState(Guid stateId, IServerConnection connection, ILogger logger) : base(stateId, 20000, logger)
         {
             this.connection = connection;
         }
@@ -79,7 +79,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
             catch (Exception ex)
             {
-                Log($"Exception occured on server pipe state: {ex.Message}\n{ex.StackTrace}");
+                Log(LogType.Exception, $"Exception occured on server pipe state: {ex.Message}\n{ex.StackTrace}");
                 HandleBadAck();
             }
 
@@ -125,7 +125,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             }
             else
             {
-                Log("Unable to obtain pipe token");
+                Log(LogType.Error, "Unable to obtain pipe token");
                 HandleBadAck();
             }
         

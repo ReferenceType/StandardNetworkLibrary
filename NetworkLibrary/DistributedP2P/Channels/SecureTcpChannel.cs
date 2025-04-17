@@ -9,7 +9,9 @@ using NetworkLibrary.Components.Crypto;
 using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.TCP.AES;
+using NetworkLibrary.Utils;
 
 namespace NetworkLibrary.DistributedP2P.Channels
 {
@@ -25,7 +27,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         /// </summary>
         public int KeyRotationPeriodMs { get; private set; } = 1000;
 
-        public SecureTcpChannel(IAesAlgorithm algo,ChannelInfo info, Socket connectedSocket, bool isInitiator) : base(info, connectedSocket)
+        public SecureTcpChannel(IAesAlgorithm algo,ChannelInfo info, Socket connectedSocket, bool isInitiator, ILogger logger) : base(info, connectedSocket, logger)
         {
             this.isInitiator = isInitiator;
             encBuff = BufferPool.RentBuffer(128000);
@@ -78,12 +80,24 @@ namespace NetworkLibrary.DistributedP2P.Channels
             keyManager.GetAlgorithm(keyNo, out var algo);
 
             EnsureCapacityDec(count);
-            count = algo.DecryptInto(buffer, offset, count, decBuff, 0); // not sure if try catch this.
+            try
+            {
+                count = algo.DecryptInto(buffer, offset, count, decBuff, 0); // not sure if try catch this.
+            }
+            catch(Exception e)
+            {
+                Log(e);
+                CloseChannel();
+                return;
+            }
+        
             buffer = decBuff;
             offset = 0;
 
             HandleReceivedMessage(buffer, offset, count, flag);
         }
+
+       
 
         protected override void HandleReceivedMessage(byte[] buffer, int offset, int count, MessageFlags flag)
         {

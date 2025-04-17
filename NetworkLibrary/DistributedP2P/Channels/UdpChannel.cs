@@ -1,5 +1,6 @@
 ﻿using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.UDP.Jumbo;
 using NetworkLibrary.UDP.Reliable.Components;
 using NetworkLibrary.Utils;
@@ -28,14 +29,14 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         private int isClosed = 0;
         private int isDisposed = 0;
+        private readonly ILogger logger;
 
-
-        public UdpChannel(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
+        public UdpChannel(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info, ILogger logger)
         {
 
             Info = info;
-            innerchannel = new UdpChannelBase(udpSocket, receiveEp, info);
-            innerchannel.LogAvailable += Log;
+            this.logger = logger;
+            innerchannel = new UdpChannelBase(udpSocket, receiveEp, info, logger);
 
             JumboUdp.SendToSocket = SendJumboSegment;
             JumboUdp.MessageReceived = HandleMessage;
@@ -137,7 +138,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
                 throw;
             }
@@ -151,7 +152,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
         }
@@ -164,7 +165,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
 
@@ -178,20 +179,20 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
 
         }
         private void HandleKeepAliveMessage(byte[] buffer, int offset, int count, MessageFlags flag)
         {
-            try 
-            { 
+            try
+            {
                 keepAlive.HandleMessage(flag, buffer, offset, count);
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
         }
@@ -204,7 +205,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
         }
@@ -217,7 +218,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
 
@@ -231,11 +232,11 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
         }
-       
+
 
         private void SendInternalRudpSegment(ReliableModule module, byte[] buffer, int offset, int count)
         {
@@ -245,7 +246,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
 
@@ -303,7 +304,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
                 throw;
             }
@@ -333,7 +334,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
         {
             if (Interlocked.CompareExchange(ref isClosed, 1, 0) == 0)
             {
-                Log("Udp Channel disconnected");
+                Log(LogType.Debug,"Udp Channel disconnected");
                 OnDisconnected?.Invoke();
                 Dispose();
             }
@@ -361,9 +362,14 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         }
 
-        protected virtual void Log(string v)
+        protected virtual void Log(LogType logType, string v)
         {
-            Console.WriteLine(v);
+            logger?.Log(logType, v);
+        }
+
+        protected virtual void Log(Exception e)
+        {
+            logger?.Log(e);
         }
     }
 }

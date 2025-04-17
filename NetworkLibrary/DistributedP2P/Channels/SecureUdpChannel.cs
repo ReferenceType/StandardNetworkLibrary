@@ -2,6 +2,7 @@
 using NetworkLibrary.Components.Crypto.Algorithms;
 using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.UDP.Reliable.Components;
 using NetworkLibrary.Utils;
 using System;
@@ -18,7 +19,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
 
         public int KeyRotationPeriodMs { get; private set; } = 1000;//every minute
 
-        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, IAesAlgorithm algo, ChannelInfo info, bool isInitiator) : base(udpSocket, receiveEp, info)
+        public SecureUdpChannel(Socket udpSocket, IPEndPoint receiveEp, IAesAlgorithm algo, ChannelInfo info, bool isInitiator, ILogger logger) : base(udpSocket, receiveEp, info, logger)
         {
             keyManager = new EphemeralKeyManager(algo, isInitiator ? KeyRotationPeriodMs : -1);
             keyManager.SendData += SendKeyMsg;
@@ -62,7 +63,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch
             { 
-                Log("Decryption failed");
+                Log(LogType.Error, "Decryption failed");
                 return;
             }
            
@@ -94,7 +95,7 @@ namespace NetworkLibrary.DistributedP2P.Channels
             }
             catch (Exception e)
             {
-                Log($"{e.Message}\n{e.StackTrace}");
+                Log(e);
                 CloseChannel();
             }
 

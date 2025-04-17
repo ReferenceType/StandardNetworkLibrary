@@ -143,6 +143,14 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         internal void SetKeyRotationTime(int timeMs)
         {
             TimerService.CancelTimeout(timerGuid);
+            if (timeMs < 0)
+            {
+                keyRotationPeriod = timeMs;
+                return;
+            }
+            if (timeMs < 1000)
+                timeMs = 1000;
+
             keyRotationPeriod = timeMs;
             TimedKeyExchange();
         }

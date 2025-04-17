@@ -23,7 +23,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         int timeSynced;
         int handShakeComplete;
 
-        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector, int EDSPort) : base(stateId, 20000)
+        public ServerConnectionState(Guid stateId, Guid clientId, IDistributedConnection connection, IAuthenticator authenticator, IServerDbConnector dbConnector, int EDSPort, ILogger logger) : base(stateId, 20000, logger)
         {
             this.EphemeralClientId = clientId;
             this.connection = connection;

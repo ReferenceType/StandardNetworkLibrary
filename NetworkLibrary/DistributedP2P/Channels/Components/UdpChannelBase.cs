@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.DistributedP2P.Client;
+using NetworkLibrary.DistributedP2P.Components;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -11,19 +12,20 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         private Socket udpSocket;
         private SocketAsyncEventArgs receiveArgs;
         private readonly IPEndPoint associatedEndpoint;
+        private readonly ILogger logger;
         int disposed = 0;
 
 
         public ChannelInfo Info { get; private set; }
 
         public event Action<byte[], int, int> OnBytesReceived;
-        public Action<string> LogAvailable;
         public event Action OnDisconnected;
-        public UdpChannelBase(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info)
+        public UdpChannelBase(Socket udpSocket, IPEndPoint receiveEp, ChannelInfo info, ILogger logger)
         {
             this.udpSocket = udpSocket;
             associatedEndpoint = receiveEp;
             Info = info;
+            this.logger = logger;
         }
 
         public void Start()
@@ -73,7 +75,7 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                     }
                     catch (Exception ex)
                     {
-                        Log($"{ex.Message}\n{ex.StackTrace}");
+                        Log(LogType.Debug,$"{ex.Message}\n{ex.StackTrace}");
                         CloseChannel();
                         throw;
                     }
@@ -105,14 +107,14 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
         private void HandleSocketError(SocketError error)
         {
             if (error != SocketError.Shutdown)
-                Log($"Socket error occurred: {error}");
+                Log(LogType.Debug,$"Socket error occurred: {error}");
 
             CloseChannel();
         }
 
-        private void Log(string err)
+        private void Log(LogType type,string err)
         {
-            LogAvailable?.Invoke(err);
+            logger?.Log(type, err);
         }
 
         public virtual void CloseChannel()
@@ -145,7 +147,6 @@ namespace NetworkLibrary.DistributedP2P.Channels.Components
                     }
                 }
                 catch { }
-                LogAvailable = null;
                 OnBytesReceived = null;
                 OnDisconnected = null;
             }

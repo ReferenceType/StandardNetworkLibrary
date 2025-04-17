@@ -81,7 +81,6 @@ namespace NetworkLibrary.DistributedP2P.Components
 
         public void StopAutoTimeSync()
         {
-            Console.WriteLine("SyncStopped");
             cancel = true;
             ClearData();
         }

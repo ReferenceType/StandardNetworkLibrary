@@ -26,7 +26,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         ChannelInfo info;
         private int succesCount;
 
-        public ServerSimultaneousTcpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
+        public ServerSimultaneousTcpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager, ILogger logger) : base(stateId, 20000, logger)
         {
             this.connection = connection;
             this.sessionManager = sessionManager;

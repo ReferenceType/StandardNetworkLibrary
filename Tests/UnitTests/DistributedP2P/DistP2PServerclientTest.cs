@@ -10,14 +10,13 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Tracing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace UnitTests.DistributedP2P
 {
-    
+
     class ClientAuthToken : IClientAuthenticationToken
     {
         public string Token { get; } = "1234";
@@ -94,8 +93,11 @@ namespace UnitTests.DistributedP2P
             var dep = new Dependencies()
             {
                 Authenticator = new ServerAuth(),
-                DbConnector = new ServerDb()
+                DbConnector = new ServerDb(),
+                logger = new Logger()
+
             };
+            dep.logger.LogAvailable += (data) => { Console.WriteLine(dep.logger.Stringify(data)); };
             var param = new ServerParameters()
             {
                 certificate = null,
@@ -103,17 +105,27 @@ namespace UnitTests.DistributedP2P
                 TcpPort = 20011,
                 UdpPort = 20012,
                 DiscoveryServerPort = 20013,
-                
+
             };
             var server = new DistributedLobbyServerBase(dep, param);
             server.StartServer();
             return server;
         }
 
+        private static DistributedLobbyClient<ProtoSerializer> GetClient()
+        {
+            var logger = new Logger();
+            logger.LogAvailable += (data) => { Console.WriteLine(logger.Stringify(data)); };
+            return new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth(), logger);
+        }
+
+
         [TestMethod]
         public void ConnectTest()
         {
-            DistributedLobbyClient<ProtoSerializer> distributedLobbyClient = new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
+          
+
+            var distributedLobbyClient = GetClient();
             using var server = ArrangeServer();
             var res = distributedLobbyClient.ConnectAsync(ServerIp, 20010).Result;
         }
@@ -122,8 +134,8 @@ namespace UnitTests.DistributedP2P
         [TestMethod]
         public void PipeTest()
         {
-            DistributedLobbyClient<ProtoSerializer> cl = GetClient();
-            DistributedLobbyClient<ProtoSerializer> cl2 = GetClient();
+            var cl = GetClient();
+            var cl2 = GetClient();
 
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
             ManualResetEvent mre = new ManualResetEvent(false);
@@ -185,8 +197,8 @@ namespace UnitTests.DistributedP2P
         [TestMethod]
         public void SecurePipeTest()
         {
-            DistributedLobbyClient<ProtoSerializer> distributedLobbyClient = new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
-            DistributedLobbyClient<ProtoSerializer> distributedLobbyClient2 = new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
+            var cl = GetClient();
+            var cl2 = GetClient();
 
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
 
@@ -201,15 +213,15 @@ namespace UnitTests.DistributedP2P
 
             using var server = ArrangeServer();
 
-            var res = distributedLobbyClient.ConnectAsync(ServerIp, 20010).Result;
-            var res2 = distributedLobbyClient2.ConnectAsync(ServerIp, 20010).Result;
+            var res = cl.ConnectAsync(ServerIp, 20010).Result;
+            var res2 = cl2.ConnectAsync(ServerIp, 20010).Result;
 
-            distributedLobbyClient2.PeerConnected += PeerConnected;
+            cl2.PeerConnected += PeerConnected;
 
             var info = new ChannelInfo();
             info.ChannelName = "Test";
             info.ChannelType = ChannelType.SecureTcp;
-            var channel1 = (SecureTcpChannel)distributedLobbyClient.OpenRelayChannel(distributedLobbyClient2.SessionId, info).Result;
+            var channel1 = (SecureTcpChannel)cl.OpenRelayChannel(cl2.SessionId, info).Result;
 
             Assert.IsNotNull(channel1);
 
@@ -217,21 +229,21 @@ namespace UnitTests.DistributedP2P
 
             channel1.Start();
 
-           
+
             var ping = channel1.Ping().Result;
 
             for (int i = 0; i < iter; i++)
             {
                 data[0] = (byte)i;
                 channel1.Send(data, 0, data.Length);
-                if(i%2 ==0)
+                if (i % 2 == 0)
                     Thread.Sleep(1000);
             }
 
 
             void PeerConnected(IChannel channel_)
             {
-               // mre.WaitOne();//emulate bad syncronisation
+                // mre.WaitOne();//emulate bad syncronisation
                 var channel = (SecureTcpChannel)channel_;
                 channel.OnBytesReceived += Channel_BytesReceived;
                 channel.OnDisconnected += Disconnected;
@@ -253,7 +265,7 @@ namespace UnitTests.DistributedP2P
             }
 
 
-           
+
 
             var ss = tcs.Task.Result;
             Assert.IsTrue(received.Count == iter);
@@ -290,13 +302,13 @@ namespace UnitTests.DistributedP2P
             channel1.Start();
 
             byte[] data = new byte[12800];
-            channel1.Send(data,0,data.Length);
+            channel1.Send(data, 0, data.Length);
             Thread.Sleep(100);
 
             void Cl2_PeerConnected(IChannel obj)
             {
                 var udpChannel = (UdpChannel)obj;
-                udpChannel.OnBytesReceived += (b,o,c) => 
+                udpChannel.OnBytesReceived += (b, o, c) =>
                 {
                     received = c;
                     tcs.SetResult(true);
@@ -349,8 +361,8 @@ namespace UnitTests.DistributedP2P
                 var udpChannel = (SecureUdpChannel)obj;
                 udpChannel.OnBytesReceived += (b, o, c) =>
                 {
-                    received = c; 
-                    if(++cnt == 2)
+                    received = c;
+                    if (++cnt == 2)
                     {
                         tcs.SetResult(true);
 
@@ -370,23 +382,23 @@ namespace UnitTests.DistributedP2P
         [TestMethod]
         public void MessageTest()
         {
-            DistributedLobbyClient<ProtoSerializer> distributedLobbyClient = new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
-            DistributedLobbyClient<ProtoSerializer> distributedLobbyClient2 = new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
+            var cl = GetClient();
+            var cl2 = GetClient();
 
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
             int received = 0;
 
             using var server = ArrangeServer();
 
-            var res = distributedLobbyClient.ConnectAsync(ServerIp, 20010).Result;
-            var res2 = distributedLobbyClient2.ConnectAsync(ServerIp, 20010).Result;
+            var res = cl.ConnectAsync(ServerIp, 20010).Result;
+            var res2 = cl2.ConnectAsync(ServerIp, 20010).Result;
 
-            distributedLobbyClient2.MessageReceived += MsgRec;
+            cl2.MessageReceived += MsgRec;
             MessageEnvelope msg = new MessageEnvelope();
             msg.Header = "Greetings";
             msg.Payload = new byte[1280000];
-            msg.To = distributedLobbyClient2.SessionId;
-            distributedLobbyClient.SendAsyncMessage(msg);
+            msg.To = cl2.SessionId;
+            cl.SendAsyncMessage(msg);
 
             void MsgRec(NetworkLibrary.MessageEnvelope msg)
             {
@@ -403,11 +415,6 @@ namespace UnitTests.DistributedP2P
         }
 
 
-        private static DistributedLobbyClient<ProtoSerializer> GetClient()
-        {
-            return new DistributedLobbyClient<ProtoSerializer>(new ClientDB(), new ClientAuth());
-        }
-
         [TestMethod]
         public void StatusPublishTest()
         {
@@ -419,7 +426,7 @@ namespace UnitTests.DistributedP2P
             for (int i = 0; i < 20; i++)
             {
                 var cl = GetClient();
-                Task task = cl.ConnectAsync(ServerIp, 20010).ContinueWith(t => 
+                Task task = cl.ConnectAsync(ServerIp, 20010).ContinueWith(t =>
                 {
                     clients.Add(cl);
                     ids.Add(cl.SessionId);
@@ -427,12 +434,12 @@ namespace UnitTests.DistributedP2P
                 task.ConfigureAwait(false);
 
                 pending.Add(task);
-              
+
             }
 
             Task.WhenAll(pending).Wait();
             pending.Clear();
-          
+
             Thread.Sleep(2000);
             VerifyPeerList(clients, ids);
 
@@ -510,13 +517,13 @@ namespace UnitTests.DistributedP2P
             var res = cl1.ConnectAsync(ServerIp, 20010).Result;
             var res2 = cl2.ConnectAsync(ServerIp, 20010).Result;
 
-           
+
 
             cl1.MessageReceived += Cl1_MessageReceived;
             void Cl1_MessageReceived(MessageEnvelope obj)
             {
                 obj.To = cl2.SessionId;
-               cl1.SendAsyncMessage(obj);
+                cl1.SendAsyncMessage(obj);
             }
 
             var msg = new MessageEnvelope();
@@ -524,7 +531,7 @@ namespace UnitTests.DistributedP2P
             msg.To = cl1.SessionId;
             var response = cl2.SendMessageAndWaitResponse(msg).Result;
 
-            Assert.IsTrue (response.Header != MessageEnvelope.RequestTimeout);
+            Assert.IsTrue(response.Header != MessageEnvelope.RequestTimeout);
         }
 
         [TestMethod]
@@ -543,7 +550,7 @@ namespace UnitTests.DistributedP2P
             double time1 = cl1.GetTime();
             double time2 = cl2.GetTime();
             double time3 = server.GetTime();
-          
+
 
             Console.WriteLine(time1);
             Console.WriteLine(time2);
@@ -628,7 +635,7 @@ namespace UnitTests.DistributedP2P
 
             var data = new byte[1280000];
             data[0] = 1;
-            channel1.SendReliable(data,0,data.Length);
+            channel1.SendReliable(data, 0, data.Length);
             Thread.Sleep(100);
 
             void Cl2_PeerConnected(IChannel obj)
@@ -693,7 +700,7 @@ namespace UnitTests.DistributedP2P
 
             var ss = tcs.Task.Result;
             Assert.AreEqual(data.Length, received);
-             
+
 
 
         }
@@ -795,7 +802,7 @@ namespace UnitTests.DistributedP2P
                 if (arg3 != data.Length)
                     throw new Exception();
 
-                if(Interlocked.Increment(ref numReceived) == iter)
+                if (Interlocked.Increment(ref numReceived) == iter)
                     tcs.TrySetResult(true);
             }
 
@@ -842,7 +849,7 @@ namespace UnitTests.DistributedP2P
             {
                 data[0] = (byte)i;
                 channel1.Send(data, 0, data.Length);
-                if(i%10 == 0)
+                if (i % 10 == 0)
                     Thread.Sleep(1);
             };
 
@@ -890,12 +897,12 @@ namespace UnitTests.DistributedP2P
             {
                 _ = cl.GetServerTime(2000);
             });
-            
-            
+
+
             var timeResult = cl.GetServerTime(2000).Result;
 
             Assert.IsTrue(timeResult.Succes);
-            Assert.IsTrue(timeResult.PreciseTime >1000);
+            Assert.IsTrue(timeResult.PreciseTime > 1000);
 
         }
 

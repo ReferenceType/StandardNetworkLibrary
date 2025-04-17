@@ -18,13 +18,15 @@ namespace NetworkLibrary.DistributedP2P.Components
 
         protected readonly object cancellationMutex = new object();
         protected readonly int timeout;
+        private readonly ILogger logger;
         private TaskCompletionSource<IConversationState> Completion;
         private int isComplete = 0;
 
-        public ConversationStateBase(Guid stateId, int timeout = -1)
+        public ConversationStateBase(Guid stateId, int timeout, ILogger logger)
         {
             this.StateId = stateId;
             this.timeout = timeout;
+            this.logger = logger;
             Completion = new TaskCompletionSource<IConversationState>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             if (timeout > 0)
@@ -92,9 +94,9 @@ namespace NetworkLibrary.DistributedP2P.Components
             }
         }
 
-        protected virtual void Log(string log)
+        protected virtual void Log(LogType logType,string log)
         {
-            Console.WriteLine(log);
+            logger?.Log(logType,log);
         }
 
        

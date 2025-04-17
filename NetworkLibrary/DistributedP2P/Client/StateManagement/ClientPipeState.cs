@@ -28,7 +28,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private DiffieHellman df;
         private bool isInitiator;
 
-        public ClientPipeState(Guid stateId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info) : base(stateId, 20000)
+        public ClientPipeState(Guid stateId, IDistributedConnection connection, EndpointData serverEndpoint, ChannelInfo info, ILogger logger) : base(stateId, 20000, logger)
         {
             this.connection = connection;
             this.serverEndpoint = serverEndpoint;
@@ -36,11 +36,10 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             isInitiator = true;
         }
 
-        public ClientPipeState(MessageEnvelope message, IDistributedConnection connection, EndpointData serverEndpoint) : base(message.MessageId)
+        public ClientPipeState(MessageEnvelope message, IDistributedConnection connection, EndpointData serverEndpoint, ILogger logger) : base(message.MessageId, 20000, logger)
         {
             this.connection = connection;
             this.serverEndpoint = serverEndpoint;
-
         }
 
         public void Start(Guid destinationPeer)
@@ -61,7 +60,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             connection.SendAsyncMessage(msg);
             SharerdMemoryStreamPool.ReturnStreamStatic(stream);
 
-            Log("Requested Pipe");
+            Log(LogType.Debug, "Requested Pipe");
         }
 
         public override void HandleMessage(MessageEnvelope message)
@@ -94,7 +93,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleConnectionRequest(MessageEnvelope message)
         {
-            Log("Connection Request Received");
+            Log(LogType.Debug, "Connection Request Received");
             int offs = message.PayloadOffset;
             var pipeData = KnownTypeSerializer.DeserializeClientPipeData(message.Payload, ref offs);
             ChannelInfo = pipeData.ChannelInfo;
@@ -123,7 +122,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private async void HandlePipeTokenTcp(MessageEnvelope message)
         {
-            Log("Handling Tcp Token");
+            Log(LogType.Debug, "Handling Tcp Token");
             try
             {
                 int off = message.PayloadOffset;
@@ -155,13 +154,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 //wait a data to come
                 //then send ack
 
-                Log($"Failed to exchange Tcp Token");
+                Log(LogType.Warning, $"Failed to exchange Tcp Token");
                 OnConnectionFail();
                 return;
             }
             catch (Exception e)
             {
-                Log($"An Error occured while handling Tcp Token{e.Message}\n{e.StackTrace}");
+                Log(LogType.Exception, $"An Error occured while handling Tcp Token{e.Message}\n{e.StackTrace}");
                 OnConnectionFail();
             }
 
@@ -183,7 +182,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
             if (completedTask == timeoutTask)
             {
-                Log("Connection Failed");
+                Log(LogType.Warning, "Connection Failed");
                 try { clientSocket.Close(); clientSocket.Dispose(); } catch { }
                 return null;
             }
@@ -195,7 +194,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
             else
             {
-                Log("Connection Failed");
+                Log(LogType.Warning, "Connection Failed");
                 try { clientSocket.Close(); clientSocket.Dispose(); } catch { }
                 return null;
             }
@@ -237,7 +236,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 int bytesSent = await connectedSocket.SendAsync(new ArraySegment<byte>(token), SocketFlags.None);
                 if (bytesSent != token.Length)
                 {
-                    Log("Tcp Token Send Failure");
+                    Log(LogType.Warning, "Tcp Token Send Failure");
                     return false;
                 }
 
@@ -249,7 +248,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 if (completedTask == timeoutTask)
                 {
-                    Log("Tcp Token Response Timeout");
+                    Log(LogType.Warning, "Tcp Token Response Timeout");
                     return false;
                 }
 
@@ -259,7 +258,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
             catch (Exception e)
             {
-                Log($"An Error occured while exchanging Tcp Token{e.Message}\n{e.StackTrace}");
+                Log(LogType.Exception, $"An Error occured while exchanging Tcp Token{e.Message}\n{e.StackTrace}");
                 return false;
             }
         }
@@ -290,7 +289,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 bool success = await UdpTokenExchange(connected, pipeData.Token, endpoint.ToIpEndpoint());
                 if (success)
                 {
-                    Log($"Connected");
+                    Log(LogType.Debug, $"Connected");
                     OnConnectionSuccessful(endpoint, connected);
                     return;
                 }
@@ -304,13 +303,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 //then send ack
 
 
-                Log($"Failed to exchange Udp Token");
+                Log(LogType.Warning, $"Failed to exchange Udp Token");
                 OnConnectionFail();
                 return;
             }
             catch (Exception e)
             {
-                Log($"An Error occured while handling Udp Token{e.Message}\n{e.StackTrace}");
+                Log(LogType.Exception, $"An Error occured while handling Udp Token{e.Message}\n{e.StackTrace}");
                 OnConnectionFail();
             }
 
@@ -328,7 +327,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 if (await Task.WhenAny(sendTask, sendTimeout) == sendTimeout ||
                     sendTask.Result != token.Length)
                 {
-                    Log("Udp Token Send Timeout");
+                    Log(LogType.Warning, "Udp Token Send Timeout");
                     return false;
                 }
 
@@ -338,7 +337,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 if (await Task.WhenAny(receiveTask, receiveTimeout) == receiveTimeout)
                 {
-                    Log("Udp Token Receive Timeout");
+                    Log(LogType.Exception,"Udp Token Receive Timeout");
                     return false;
                 }
 
@@ -346,7 +345,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
             catch (Exception e)
             {
-                Log($"An Error occured while exchanging Udp Token{e.Message}\n{e.StackTrace}");
+                Log(LogType.Exception,$"An Error occured while exchanging Udp Token{e.Message}\n{e.StackTrace}");
                 return false;
             }
 
@@ -361,7 +360,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             this.ConnectedSocket = socket;
             this.SuccesfullEndpoint = endpoint;
 
-            Log("Completed");
+            Log(LogType.Debug, "Completed");
 
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.ConnectionAckGood;
@@ -374,7 +373,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             msg.Header = InternalConstants.ConnectionAckBad;
             connection.SendAsyncMessage(msg);
 
-            Log("Failed");
+            Log(LogType.Debug,"Failed");
 
             Completed(false);
         }
@@ -401,11 +400,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
             return hpd;
         }
-        protected override void Log(string log)
+        protected override void Log(LogType type,string log)
         {
-            //return;
-            string prefix = isInitiator ? "A: " : "B: ";
-            base.Log(prefix + log);
+            string prefix = $"[PipeState]: ";
+            prefix += isInitiator ? "A: " : "B: ";
+            base.Log(type,prefix + log);
         }
 
     }

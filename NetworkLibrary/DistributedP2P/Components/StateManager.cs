@@ -7,6 +7,13 @@ namespace NetworkLibrary.DistributedP2P.Components
     internal class StateManager
     {
         ConcurrentDictionary<Guid, IConversationState> states = new ConcurrentDictionary<Guid, IConversationState>();
+        private readonly ILogger logger;
+
+        public StateManager(ILogger logger)
+        {
+            this.logger = logger;
+        }
+
         public void RegisterState(IConversationState state)
         {
             state.OnComplete += HandleComplete;
@@ -41,8 +48,8 @@ namespace NetworkLibrary.DistributedP2P.Components
                     state.HandleMessage(message);
                 }
                 catch (Exception e)
-                {
-                    Console.WriteLine($"State Management failed{e.Message}\n{e.StackTrace}");
+                { 
+                    logger?.Log(LogType.Exception,$"State Management failed : {e.Message}\n{e.StackTrace}");
                     state.Cancel();
                     UnregisterState(stateId);
                 }

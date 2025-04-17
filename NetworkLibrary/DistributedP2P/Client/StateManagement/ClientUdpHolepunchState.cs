@@ -28,13 +28,12 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private byte[] otherPublicKey;
         public byte[] SharedSecret;
         public ChannelInfo ChannelInfo;
-
         private IPEndPoint selfRemoteEp;
         private IPEndPoint selfLocalEp;
 
         private int conditionCount = 0;
 
-        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerendPoint, ChannelInfo info) : base(stateId, 20000)
+        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerendPoint, ChannelInfo info, ILogger logger) : base(stateId, 20000, logger)
         {
             this.destId = destId;
             this.connection = connection;
@@ -47,7 +46,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         public async void Start()
         {
             isInitiator = true;
-            Log(StateId.ToString());
+            Log(LogType.Debug, StateId.ToString());
 
             await StartUdpSocket();
 
@@ -99,7 +98,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         // the destination peer of hp
         private async void HandleRemoteHpRequest(MessageEnvelope message)
         {
-            Log(StateId.ToString());
+            Log(LogType.Debug, StateId.ToString());
 
             int offs = message.PayloadOffset;
             var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
@@ -166,7 +165,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             if (delay > 500)
                 delay = 0;
 
-            Log("Delay: " + delay.ToString() + "ms");
+            Log(LogType.Debug, "Delay: " + delay.ToString() + "ms");
             PreciseTimeAwaiter.Wait(delay);
             if (IsCompleted()) return;
 
@@ -192,7 +191,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             lock (m)
             {
 
-                Log($"Sending {flag.ToString()}To " + ep.ToString());
+                Log(LogType.Debug, $"Sending {flag.ToString()}To " + ep.ToString());
 
                 stream.Position = 0;
                 stream.WriteByte((byte)flag);
@@ -219,7 +218,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             var remoteEp = await EndpointDiscoveryClient.GetUdpPublicEndpoint(Socket, discoveryServerendPoint.ToIpEndpoint(), 3000);
             if (remoteEp == null)
             {
-                Log("Failed to get public endpoint");
+                Log(LogType.Warning, "Failed to get public endpoint");
                 remoteEp = new EndpointData("0.0.0.0", selfLocalEp.Port);
             }
             selfRemoteEp = remoteEp.ToIpEndpoint();
@@ -251,14 +250,14 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                             if (Interlocked.CompareExchange(ref receivedOnce, 1, 0) == 0)
                             {
                                 var ipep = (IPEndPoint)received.RemoteEndPoint;
-                                Log("[-]Received 0xFF from " + ipep.ToString());
+                                Log(LogType.Debug, "[-]Received 0xFF from " + ipep.ToString());
                                 TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
                             }
 
                         }
                         else if (buffer[0] == (byte)MessageFlags.HPAck)
                         {
-                            Log("[+]Received 0x0F From " + ((IPEndPoint)received.RemoteEndPoint).ToString());
+                            Log(LogType.Debug, "[+]Received 0x0F From " + ((IPEndPoint)received.RemoteEndPoint).ToString());
 
                             if (Interlocked.CompareExchange(ref receivedAck, 1, 0) == 0)
                             {
@@ -269,7 +268,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                         }
                         else
                         {
-                            Log("Cancel1");
+                            Log(LogType.Debug, "Cancel1");
                             Cancel();
                             return;
                         }
@@ -282,7 +281,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 }
                 catch (Exception e)
                 {
-                    Log("ERROR" + e.Message);
+                    Log(LogType.Debug, "ERROR" + e.Message);
                     Cancel();
                     return;
                 }
@@ -314,7 +313,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void TimedOut()
         {
-            Log("Timed out");
+            Log(LogType.Debug, "Timed out");
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchFail;
             connection.SendAsyncMessage(msg);
@@ -323,7 +322,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void OnError(string error)
         {
-            Log("Exception :" + error);
+            Log(LogType.Debug, "Exception :" + error);
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchFail;
             connection.SendAsyncMessage(msg);
@@ -333,7 +332,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleFailure()
         {
-            Log("Failed Punch");
+            Log(LogType.Debug, "Failed Punch");
 
             Completed(false);
         }
@@ -353,7 +352,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 if (SuccesfulEndpoint == null)
                     throw new Exception("Endpont is null");
 
-                Log("Punched");
+                Log(LogType.Debug, "Punched");
                 Completed(true);
             }
 
@@ -373,11 +372,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             }
         }
 
-        protected override void Log(string log)
+        protected override void Log(LogType type, string log)
         {
-            //return;
-            string prefix = isInitiator ? "A: " : "B: ";
-            base.Log(prefix + log);
+            string prefix = $"[UdpHolepunchState]: ";
+            prefix += isInitiator ? "A: " : "B: ";
+            base.Log(type, prefix + log);
         }
 
 

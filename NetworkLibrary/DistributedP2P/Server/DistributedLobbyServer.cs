@@ -21,6 +21,7 @@ namespace NetworkLibrary.DistributedP2P.Server
     {
         public IAuthenticator Authenticator;
         public IServerDbConnector DbConnector;
+        public ILogger logger;
     }
     public class ServerParameters
     {
@@ -44,9 +45,10 @@ namespace NetworkLibrary.DistributedP2P.Server
 
         IAuthenticator authenticator;
         IServerDbConnector dbConnector;
+        ILogger logger;
 
         SessionManager sessionManager;
-        Components.StateManager stateManager = new Components.StateManager();
+        StateManager stateManager;
         RelayService piper;
         Stopwatch serverClock = new Stopwatch();
 
@@ -60,11 +62,12 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
             authenticator = dependencies.Authenticator;
             dbConnector = dependencies.DbConnector;
+            logger = dependencies.logger;
             SSlPort = parameters.SSlPort;
             TcpPort = parameters.TcpPort;
             UdpPort = parameters.UdpPort;
             DiscoveryServerPort = parameters.DiscoveryServerPort;
-
+            stateManager = new StateManager(logger);
             serverCertificate = parameters.certificate ?? CertificateGenerator.GenerateSelfSignedCertificate();
         }
 
@@ -118,7 +121,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
 
             Guid stateId = msg.MessageId;
-            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector, DiscoveryServerPort);
+            var state = new ServerConnectionState(stateId, msg.From, this, authenticator, dbConnector, DiscoveryServerPort, logger);
             stateManager.RegisterState(state);
             state.HandleMessage(msg);
 
@@ -191,7 +194,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 case InternalConstants.PipeRequestTcp:
 
-                    var pipeState = new ServerPipeState(message.MessageId, this);
+                    var pipeState = new ServerPipeState(message.MessageId, this, logger);
                     stateManager.RegisterState(pipeState);
                     pipeState.HandleMessage(message);
 
@@ -200,26 +203,26 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 case InternalConstants.PipeRequestUdp:
 
-                    var pipeState1 = new ServerPipeState(message.MessageId, this);
+                    var pipeState1 = new ServerPipeState(message.MessageId, this, logger);
                     stateManager.RegisterState(pipeState1);
                     pipeState1.HandleMessage(message);
 
                     break;
 
                 case InternalConstants.RequestHolepunchUdp:
-                    var state = new ServerUdpHolepunchState(message.MessageId, this, sessionManager);
+                    var state = new ServerUdpHolepunchState(message.MessageId, this, sessionManager, logger);
                     stateManager.RegisterState(state);
                     state.HandleMessage(message);
                     break;
 
                 case InternalConstants.RequestSimultaneousHolepunchTcp:
-                    var state2 = new ServerSimultaneousTcpHolepunchState(message.MessageId, this, sessionManager);
+                    var state2 = new ServerSimultaneousTcpHolepunchState(message.MessageId, this, sessionManager, logger);
                     stateManager.RegisterState(state2);
                     state2.HandleMessage(message);
                     break;
 
                 case InternalConstants.RequestSequentialHolepunchTcp:
-                    var state3 = new ServerSequentialTcpHolepunchState(message.MessageId, this, sessionManager);
+                    var state3 = new ServerSequentialTcpHolepunchState(message.MessageId, this, sessionManager, logger);
                     stateManager.RegisterState(state3);
                     state3.HandleMessage(message);
                     break;

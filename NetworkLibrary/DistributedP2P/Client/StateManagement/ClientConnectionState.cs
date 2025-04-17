@@ -11,12 +11,11 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private readonly IDistributedConnection connection;
         private readonly IClientDbConnection clientDbConnector;
         private readonly IClientAuthenticationToken authToken;
-
         private TaskCompletionSource<bool> timeSyncComplete = new TaskCompletionSource<bool>();
 
         public Guid SessionId { get; private set; }
         public int EDSPort { get; private set; }
-        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken) : base(stateId, 20000)
+        public ClientConnectionState(Guid stateId, IDistributedConnection connection, IClientDbConnection clientDbConnector, IClientAuthenticationToken authToken, ILogger logger) : base(stateId, 20000, logger)
         {
             this.connection = connection;
             this.clientDbConnector = clientDbConnector;

@@ -25,7 +25,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
         ChannelInfo info;
         private int succesCount;
 
-        public ServerSequentialTcpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager) : base(stateId, 20000)
+        public ServerSequentialTcpHolepunchState(Guid stateId, IDistributedConnection connection, SessionManager sessionManager, ILogger logger) : base(stateId, 20000, logger)
         {
             this.connection = connection;
             this.sessionManager = sessionManager;
@@ -149,7 +149,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
 
         protected override void Completed(bool succes)
         {
-            Console.WriteLine("Server Finalized");
+            Log(LogType.Debug, "Server Tcp Holepunch Finalized");
             base.Completed(succes);
         }
 

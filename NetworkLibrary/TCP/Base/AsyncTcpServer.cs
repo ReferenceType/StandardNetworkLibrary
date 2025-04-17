@@ -188,7 +188,11 @@ namespace NetworkLibrary.TCP.Base
             if (Sessions.TryGetValue(id, out var session))
                 session.SendAsync(bytes, offset, count);
         }
-
+        internal void SendBytesToClientDirect(Guid id, byte[] bytes, int offset, int count)
+        {
+            if (Sessions.TryGetValue(id, out var session))
+                ((TcpSession)session).SendDirect(bytes, offset, count);
+        }
         protected virtual void HandleBytesReceived(Guid guid, byte[] bytes, int offset, int count)
         {
             OnBytesReceived?.Invoke(guid, bytes, offset, count);

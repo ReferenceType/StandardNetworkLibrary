@@ -79,7 +79,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
             IClientAuthenticationToken authToken = clientAuthProvider.Authenticate();
 
-            bool res = await sslClient.ConnectAsync(ip, port);
+            bool res = await sslClient.ConnectAsync(ip, port).ConfigureAwait(false);
             if (res)
             {
                 serverEndpoint = new EndpointData(ip, port);
@@ -90,7 +90,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                 stateManager.RegisterState(conState);
                 conState.Start();
 
-                await conState.WaitCompletion();
+                await conState.WaitCompletion().ConfigureAwait(false);
 
                 if (conState.IsSuccesful)
                 {
@@ -133,7 +133,6 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         private void HandleServerMsg(MessageEnvelope envelope)
         {
-
             if (envelope.IsInternal)
             {
                 if (stateManager.HandleMessage(envelope))
@@ -222,7 +221,7 @@ namespace NetworkLibrary.DistributedP2P.Client
             stateManager.RegisterState(pipeState);
             pipeState.Start(destinationPeer);
 
-            await pipeState.WaitCompletion();
+            await pipeState.WaitCompletion().ConfigureAwait(false);
 
             if (pipeState.IsSuccesful)
             {
@@ -256,7 +255,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                 stateManager.RegisterState(state);
                 state.Start();
 
-                await state.WaitCompletion();
+                await state.WaitCompletion().ConfigureAwait(false);
 
                 if (state.IsSuccesful)
                 {
@@ -272,7 +271,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                     stateManager.RegisterState(state);
                     state.Start();
 
-                    await state.WaitCompletion();
+                    await state.WaitCompletion().ConfigureAwait(false);
 
                     if (state.IsSuccesful)
                     {
@@ -286,7 +285,7 @@ namespace NetworkLibrary.DistributedP2P.Client
                     stateManager.RegisterState(state);
                     state.Start();
 
-                    await state.WaitCompletion();
+                    await state.WaitCompletion().ConfigureAwait(false);
 
                     if (state.IsSuccesful)
                     {

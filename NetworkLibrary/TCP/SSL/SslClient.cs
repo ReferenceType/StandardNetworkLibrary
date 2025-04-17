@@ -102,7 +102,7 @@ namespace NetworkLibrary.TCP.SSL.Base
 
                         }
                         catch { }
-                        tcs.SetResult(false);
+                        tcs.TrySetResult(false);
                     }
                 }, TaskScheduler.Default);
 

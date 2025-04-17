@@ -204,7 +204,21 @@ namespace NetworkLibrary.TCP.Base
         #endregion Recieve
 
         #region Send
-
+        internal void SendDirect(byte[] b, int o, int c)
+        {
+            if (IsSessionClosing())
+                return;
+            try
+            {
+                sessionSocket.Send(b, o, c, SocketFlags.None);
+            }
+            catch (Exception e)
+            {
+                if (!IsSessionClosing())
+                    MiniLogger.Log(MiniLogger.LogLevel.Error,
+                        "Unexpected error while sending async with tcp session" + e.Message + "Trace " + e.StackTrace);
+            }
+        }
         public void SendAsync(List<ArraySegment<byte>> batch)
         {
             if (IsSessionClosing())

@@ -159,47 +159,59 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
-
-            if (IsCompleted()) return;
-            int offs = message.PayloadOffset;
-
-            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
-
-            var epMsg = hpData.Endpoints;
-            otherPublicKey = hpData.DHPublic;
-            localEndpoints = epMsg.LocalEndpoints;
-
-            bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
-            publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
-            var time = double.Parse(message.KeyValuePairs["Time"]);
-
-          
-            // if there are local endpoints to test
-            if (epMsg.LocalEndpoints.Count > 0)
+            try
             {
-                foreach (EndpointData localEp in epMsg.LocalEndpoints)
+
+
+                if (IsCompleted()) return;
+                int offs = message.PayloadOffset;
+
+                var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+
+                var epMsg = hpData.Endpoints;
+                otherPublicKey = hpData.DHPublic;
+                localEndpoints = epMsg.LocalEndpoints;
+
+                bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
+                publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
+                var time = double.Parse(message.KeyValuePairs["Time"]);
+
+
+                // if there are local endpoints to test
+                if (epMsg.LocalEndpoints.Count > 0)
                 {
-                    if (TryConnect(localEp, 500))
+                    foreach (EndpointData localEp in epMsg.LocalEndpoints)
+                    {
+                        if (TryConnect(localEp, 500))
+                            return;
+                        if (IsEstablished) return;
+                    }
+                }
+
+                if (IsEstablished) return;
+
+                var now = connection.GetTime();
+                var delay = time - now;
+
+                Log(LogType.Debug, "Delay: " + delay.ToString() + "ms");
+
+                PreciseTimeAwaiter.Wait(delay);
+                if (IsEstablished) return;
+
+                for (int i = 0; i < 4; i++)
+                {
+                    if (TryConnect(publicEndpointToConnect, (2000)))
                         return;
                     if (IsEstablished) return;
                 }
             }
-
-            if (IsEstablished) return;
-
-            var now = connection.GetTime();
-            var delay = time - now;
-           
-            Log(LogType.Debug, "Delay: " + delay.ToString() + "ms");
-
-            PreciseTimeAwaiter.Wait(delay);
-            if (IsEstablished) return;
-
-            for (int i = 0; i < 4; i++)
+            catch (Exception e)
             {
-                if (TryConnect(publicEndpointToConnect, (2000)))
-                    return;
-                if (IsEstablished) return;
+                if (!IsCompleted())
+                {
+                    Log(LogType.Exception, e.Message + "\n" + e.StackTrace);
+                    TimedOut();
+                }
             }
 
         }

@@ -135,8 +135,8 @@ namespace NetworkLibrary.DistributedP2P.Server
             {
                 var sessionEp = sslServer.GetSessionEndpoint(state.EphemeralClientId);
                 var statusList = sessionManager.CreateSession(state.clientDbInfo, state.EphemeralClientId, sessionEp, state.clientLocalIps);
-                if (statusList != null)
-                    PublishPeerList(new List<PeerStatusList>() { statusList });
+                //if (statusList != null)
+                //    PublishPeerList(new List<PeerStatusList>() { statusList });
             }
         }
 

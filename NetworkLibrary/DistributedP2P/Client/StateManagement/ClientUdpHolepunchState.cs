@@ -33,7 +33,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private int conditionCount = 0;
 
-        public ClientUdpHolepunchState(Guid stateId, Guid destId, IDistributedConnection connection, EndpointData serverEndpoint, EndpointData discoveryServerendPoint, ChannelInfo info, ILogger logger) : base(stateId, 20000, logger)
+        public ClientUdpHolepunchState(Guid stateId,
+                                       Guid destId,
+                                       IDistributedConnection connection,
+                                       EndpointData serverEndpoint,
+                                       EndpointData discoveryServerendPoint,
+                                       ChannelInfo info,
+                                       ILogger logger) : base(stateId, 20000, logger)
         {
             this.destId = destId;
             this.connection = connection;
@@ -45,22 +51,29 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         //the initiator
         public async void Start()
         {
-            isInitiator = true;
-            Log(LogType.Debug, StateId.ToString());
+            try
+            {
+                isInitiator = true;
+                Log(LogType.Debug, StateId.ToString());
 
-            await StartUdpSocket();
+                await StartUdpSocket().ConfigureAwait(false);
 
-            var msg = CreateEnvelope();
-            msg.Header = InternalConstants.RequestHolepunchUdp;
-            msg.To = destId;
+                var msg = CreateEnvelope();
+                msg.Header = InternalConstants.RequestHolepunchUdp;
+                msg.To = destId;
 
-            var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            KnownTypeSerializer.SerializeHolepunchData(stream, GetHpData());
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                KnownTypeSerializer.SerializeHolepunchData(stream, GetHpData());
 
-            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-            connection.SendAsyncMessage(msg);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+                connection.SendAsyncMessage(msg);
 
-            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+            }
+            catch(Exception ex)
+            {
+                OnError(ex.Message + "\n" + ex.StackTrace);
+            }
         }
 
 
@@ -98,83 +111,135 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         // the destination peer of hp
         private async void HandleRemoteHpRequest(MessageEnvelope message)
         {
-            Log(LogType.Debug, StateId.ToString());
+            try
+            {
+                Log(LogType.Debug, StateId.ToString());
 
-            int offs = message.PayloadOffset;
-            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+                int offs = message.PayloadOffset;
+                var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
 
-            ChannelInfo = hpData.ChannelInfo;
+                ChannelInfo = hpData.ChannelInfo;
 
-            await StartUdpSocket();
+                await StartUdpSocket().ConfigureAwait(false);
 
-            var msg = CreateEnvelope();
-            msg.Header = InternalConstants.AckRequestHolepunchUdp;
-            msg.To = destId;
+                var msg = CreateEnvelope();
+                msg.Header = InternalConstants.AckRequestHolepunchUdp;
+                msg.To = destId;
 
-            var hpd = GetHpData();
-            hpd.ChannelInfo = null;
+                var hpd = GetHpData();
+                hpd.ChannelInfo = null;
 
-            var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            KnownTypeSerializer.SerializeHolepunchData(stream, hpd);
-            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                KnownTypeSerializer.SerializeHolepunchData(stream, hpd);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
 
-            connection.SendAsyncMessage(msg);
-            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+                connection.SendAsyncMessage(msg);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+            }
+            catch (Exception ex)
+            {
+                OnError(ex.Message + "\n" + ex.StackTrace);
+            }
+
+        }
+
+        private async Task StartUdpSocket()
+        {
+
+            Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            Socket.SendBufferSize = 12800000;
+            Socket.ReceiveBufferSize = 12800000;
+            Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
+
+            Socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+            selfLocalEp = (IPEndPoint)Socket.LocalEndPoint;
+
+            var remoteEp = new EndpointData("0.0.0.0", selfLocalEp.Port);
+
+            int retryCount = 0;
+            while (true)
+            {
+                remoteEp = await EndpointDiscoveryClient.GetUdpPublicEndpoint(Socket, discoveryServerendPoint.ToIpEndpoint(), 2000).ConfigureAwait(false);
+                if (remoteEp == null)
+                {
+                    if (retryCount++ < 2)
+                        continue;
+                    Log(LogType.Warning, "Failed to get public endpoint");
+                    remoteEp = new EndpointData("0.0.0.0", selfLocalEp.Port);
+                }
+                break;
+            }
+
+            selfRemoteEp = remoteEp.ToIpEndpoint();
+
+            Receive();
+
 
         }
 
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
-
-            int offs = message.PayloadOffset;
-            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
-
-            var epMsg = hpData.Endpoints;
-            otherPublicKey = hpData.DHPublic;
-
-            var time = double.Parse(message.KeyValuePairs["Time"]);
-            SignalCompletionCondition();
-
-            if (epMsg.LocalEndpoints.Count > 0)
+            try
             {
-                //var now0 = connection.GetTime();
-                //var delay0 = (time - now0) / 4;
-                Thread.Sleep(50);
+                int offs = message.PayloadOffset;
+                var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
 
-                foreach (EndpointData localEp in epMsg.LocalEndpoints)
+                var epMsg = hpData.Endpoints;
+                otherPublicKey = hpData.DHPublic;
+
+                var time = double.Parse(message.KeyValuePairs["Time"]);
+                SignalCompletionCondition();
+
+                if (epMsg.LocalEndpoints.Count > 0)
                 {
-                    for (int i = 0; i < 2; i++)
+                    //var now0 = connection.GetTime();
+                    //var delay0 = (time - now0) / 4;
+                    Thread.Sleep(50);
+
+                    foreach (EndpointData localEp in epMsg.LocalEndpoints)
                     {
-                        TryPunch(localEp, MessageFlags.HP);
-                        Thread.Sleep(100);
-                        if (IsCompleted()) return;
+                        for (int i = 0; i < 2; i++)
+                        {
+                            TryPunch(localEp, MessageFlags.HP);
+                            Thread.Sleep(100);
+                            if (IsCompleted()) return;
+                        }
                     }
+                }
+
+
+                if (IsCompleted()) return;
+
+                // use server ip, peer is on same network as server
+                bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
+                EndpointData publicEp = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
+
+
+                var now = connection.GetTime();
+                var delay = time - now;
+                if (delay > 500)
+                    delay = 0;
+
+                Log(LogType.Debug, "Delay: " + delay.ToString() + "ms");
+                PreciseTimeAwaiter.Wait(delay);
+                if (IsCompleted()) return;
+
+                for (int i = 0; i < 8; i++)
+                {
+                    TryPunch(publicEp, MessageFlags.HP);
+                    PreciseTimeAwaiter.Wait(20 + (20 * i * i));
+                    if (IsCompleted()) return;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!IsCompleted())
+                {
+                    OnError(ex.Message + "\n" + ex.StackTrace);
                 }
             }
 
-
-            if (IsCompleted()) return;
-
-            // use server ip, peer is on same network as server
-            bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
-            EndpointData publicEp = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
-
-
-            var now = connection.GetTime();
-            var delay = time - now;
-            if (delay > 500)
-                delay = 0;
-
-            Log(LogType.Debug, "Delay: " + delay.ToString() + "ms");
-            PreciseTimeAwaiter.Wait(delay);
-            if (IsCompleted()) return;
-
-            for (int i = 0; i < 8; i++)
-            {
-                TryPunch(publicEp, MessageFlags.HP);
-                PreciseTimeAwaiter.Wait(20 + (20 * i * i));
-                if (IsCompleted()) return;
-            }
 
         }
 
@@ -203,30 +268,6 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         }
 
-        private async Task StartUdpSocket()
-        {
-
-            Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            Socket.SendBufferSize = 12800000;
-            Socket.ReceiveBufferSize = 12800000;
-            Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, true);
-
-            Socket.Bind(new IPEndPoint(IPAddress.Any, 0));
-
-            selfLocalEp = (IPEndPoint)Socket.LocalEndPoint;
-
-            var remoteEp = await EndpointDiscoveryClient.GetUdpPublicEndpoint(Socket, discoveryServerendPoint.ToIpEndpoint(), 3000);
-            if (remoteEp == null)
-            {
-                Log(LogType.Warning, "Failed to get public endpoint");
-                remoteEp = new EndpointData("0.0.0.0", selfLocalEp.Port);
-            }
-            selfRemoteEp = remoteEp.ToIpEndpoint();
-
-            Receive();
-
-
-        }
         private async void Receive()
         {
             var buffer = BufferPool.RentBuffer(64000);
@@ -239,7 +280,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     var remoteEP = (EndPoint)new IPEndPoint(IPAddress.Any, 0);
                     var receiveTask = Socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, remoteEP);
 
-                    var completedTask = await Task.WhenAny(receiveTask, Task.Delay(5000));
+                    var completedTask = await Task.WhenAny(receiveTask, Task.Delay(base.timeout));
                     if (completedTask == receiveTask)
                     {
                         SocketReceiveFromResult received = await receiveTask;
@@ -252,6 +293,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                                 var ipep = (IPEndPoint)received.RemoteEndPoint;
                                 Log(LogType.Debug, "[-]Received 0xFF from " + ipep.ToString());
                                 TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
+                                await Task.Delay(500);
+                                if (IsCompleted()) return;
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
+                                await Task.Delay(500);
+                                if (IsCompleted()) return;
+                                TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
+
                             }
 
                         }
@@ -322,7 +370,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void OnError(string error)
         {
-            Log(LogType.Debug, "Exception :" + error);
+            Log(LogType.Error, "Exception :" + error);
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchFail;
             connection.SendAsyncMessage(msg);

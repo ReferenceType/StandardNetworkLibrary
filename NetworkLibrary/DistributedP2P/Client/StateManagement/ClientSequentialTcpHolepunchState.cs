@@ -141,24 +141,36 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void StartHolepunchRoutine(MessageEnvelope message)
         {
-            if (IsCompleted()) return;
-            int offs = message.PayloadOffset;
-
-            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
-
-            var epMsg = hpData.Endpoints;
-            othersPublicKey = hpData.DHPublic;
-            localEndpoints = epMsg.LocalEndpoints;
-
-            bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
-            publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
-
-            SignalCompletionCondition();
-            if (IsCompleted()) return;
-
-            if (!isListening)
+            try
             {
-                TryPunch();
+
+                if (IsCompleted()) return;
+                int offs = message.PayloadOffset;
+
+                var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+
+                var epMsg = hpData.Endpoints;
+                othersPublicKey = hpData.DHPublic;
+                localEndpoints = epMsg.LocalEndpoints;
+
+                bool useServerIp = IPHelper.IsZero(epMsg.IpRemote);
+                publicEndpointToConnect = new EndpointData() { Ip = useServerIp ? serverEndpoint.Ip : epMsg.IpRemote, Port = epMsg.PortRemote };
+
+                SignalCompletionCondition();
+                if (IsCompleted()) return;
+
+                if (!isListening)
+                {
+                    TryPunch();
+                }
+            }
+            catch (Exception e)
+            {
+                if (!IsCompleted())
+                {
+                    Log(LogType.Exception, e.Message + "\n" + e.StackTrace);
+                    Cancel();
+                }
             }
 
         }

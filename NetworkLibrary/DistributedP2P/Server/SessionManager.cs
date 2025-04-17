@@ -70,7 +70,7 @@ namespace NetworkLibrary.DistributedP2P.Server
                 }
                 // for instant sync of new peer
                 var pubInfo =  newSession.GetPublishInfo();
-                newSession.ResetPublishInfo();
+                //newSession.ResetPublishInfo();
 
                 publishTrigger.TrySetResult(true);
                 return pubInfo;

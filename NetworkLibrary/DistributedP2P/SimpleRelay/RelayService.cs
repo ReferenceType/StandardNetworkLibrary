@@ -7,7 +7,10 @@ using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NetworkLibrary.DistributedP2P.SimpleRelay
 {
@@ -96,9 +99,19 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
 
             UdpServer.StartServer();
             TcpServer.StartServer();
+            //print();
 
         }
 
+        //private async Task print()
+        //{
+        //    while (true)
+        //    {
+        //        await Task.Delay(1000);
+        //        long s = Interlocked.Exchange(ref sent, 0);
+        //        Console.WriteLine(s.ToString("N1"));
+        //    }
+        //}
 
         private void TcpClientAccepted(Guid guid)
         {
@@ -141,13 +154,14 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             }
         }
 
-
+        long sent;
         private bool RouteTcp(Guid guid, byte[] bytes, int offset, int count)
         {
             // we should look for room stuff here
             if (pipeMapTcp.TryGetValue(guid, out var to))
             {
-                TcpServer.SendBytesToClient(to, bytes, offset, count);
+               // Interlocked.Add(ref sent, count);
+                TcpServer.SendBytesToClientDirect(to, bytes, offset, count);
                 return true;
             }
             else if (roomMapTcp.TryGetValue(guid, out var room))
@@ -210,7 +224,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                                 TcpPipeCreated(pipeState.Clients[0], pipeState.Clients[1]);
                             }
 
-                            TcpServer.SendBytesToClient(ephemeralId, new byte[1] { 0x01 });
+                            TcpServer.SendBytesToClientDirect(ephemeralId, new byte[1] { 0x01 },0,1);
                         }
                         else
                         {
@@ -227,7 +241,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                                 if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
                                 {
                                     room.Add(token.Token, roomState);
-                                    TcpServer.SendBytesToClient(ephemeralId, new byte[1] { 0x01 });
+                                    TcpServer.SendBytesToClientDirect(ephemeralId, new byte[1] { 0x01 }, 0, 1);
                                 }
                             }
                         }
@@ -317,12 +331,13 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             var calculatedSignature = signer.Sign(Token, 0, 24);
             if (SignatureMatch(calculatedSignature, Token))
             {
-                if (DateTime.UtcNow < expiration)
+                if (DateTime.UtcNow <= expiration)
                     return true;
                 return false;
             }
             else
             {
+                Console.WriteLine("Signature did not match");
                 return false;
             }
         }
@@ -494,7 +509,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
         {
             if (to.isTcp)
             {
-                TcpServer.SendBytesToClient(to.EphemeralId, b, o, c);
+                TcpServer.SendBytesToClientDirect(to.EphemeralId, b, o, c);
             }
             else
             {

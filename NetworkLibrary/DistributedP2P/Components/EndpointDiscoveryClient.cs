@@ -33,7 +33,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             if (result == retrieveTask)
             {
                 if (!retrieveTask.IsFaulted)
-                    return await retrieveTask;
+                    return retrieveTask.Result;
                 return null;
             }
             else

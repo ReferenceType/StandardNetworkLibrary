@@ -45,21 +45,21 @@ namespace NetworkLibrary.DistributedP2P.Components
 
         private static async Task<EndpointData> GetPublicEndpointTcp(Socket socket, IPEndPoint whereToAsk)
         {
-         
-                await socket.ConnectAsync(whereToAsk).ConfigureAwait(false);
-                var buff = BufferPool.RentBuffer(1024);
-                int received = await socket.ReceiveAsync(new ArraySegment<byte>(buff), SocketFlags.None).ConfigureAwait(false);
+
+            await socket.ConnectAsync(whereToAsk).ConfigureAwait(false);
+            var buff = BufferPool.RentBuffer(1024);
+            int received = await socket.ReceiveAsync(new ArraySegment<byte>(buff), SocketFlags.None).ConfigureAwait(false);
 
 
-                if (received == 0)
-                {
-                    throw new Exception("No data received");
-                }
+            if (received == 0)
+            {
+                return null;
+            }
 
-                BufferPool.ReturnBuffer(buff);
+            var data = KnownTypeSerializer.DeserializeEndpointData(buff, 0);
+            BufferPool.ReturnBuffer(buff);
+            return data;
 
-                return KnownTypeSerializer.DeserializeEndpointData(buff, 0);
-            
         }
 
         private static async Task<EndpointData> GetPublicEndpointUdp(Socket socket, IPEndPoint whereToAsk)
@@ -68,10 +68,11 @@ namespace NetworkLibrary.DistributedP2P.Components
             var buff = BufferPool.RentBuffer(1024);
 
             await socket.ReceiveFromAsync(new ArraySegment<byte>(buff), SocketFlags.None, whereToAsk).ConfigureAwait(false);
-            BufferPool.ReturnBuffer(buff);
 
-            return KnownTypeSerializer.DeserializeEndpointData(buff, 0);
-            
+            var data = KnownTypeSerializer.DeserializeEndpointData(buff, 0);
+            BufferPool.ReturnBuffer(buff);
+            return data;
+
         }
     }
 }

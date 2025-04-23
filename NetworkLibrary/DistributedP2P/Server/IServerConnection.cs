@@ -13,5 +13,6 @@ namespace NetworkLibrary.DistributedP2P.Server
     {
         void GetPipeToken(bool isTcpPipe, Guid fromEphemeral, Guid toEphemeral, Action<PipeResult> onReady);
         RoomResult CreateOrJoinRoom(string roomName, string roomPassword, Guid peerId, RoomProtocol protocol);
+        void EndSession(Guid ephemeralId);
     }
 }

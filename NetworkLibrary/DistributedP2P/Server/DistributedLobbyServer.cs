@@ -1,4 +1,5 @@
 ﻿using NetworkLibrary.Components.Crypto.Certificate;
+using NetworkLibrary.DistributedP2P.Channels.Components;
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using NetworkLibrary.DistributedP2P.SimpleRelay;
@@ -34,8 +35,8 @@ namespace NetworkLibrary.DistributedP2P.Server
     public class DistributedLobbyServerBase : IServerConnection, IDisposable
     {
         public readonly int SSlPort;
-        public readonly int TcpPort;
-        public readonly int UdpPort;
+        public readonly int TcpRelayPort;
+        public readonly int UdpRelayPort;
         public readonly int DiscoveryServerPort;
 
         private X509Certificate2 serverCertificate;
@@ -55,8 +56,6 @@ namespace NetworkLibrary.DistributedP2P.Server
         RelayService relayService;
         RoomManager roomManager = new RoomManager();
         NTPServer ntpServer;
-        private byte[] serverKey = new byte[16];
-
         EndpointDiscoveryServer discoveryServer;
         public DistributedLobbyServerBase(Dependencies dependencies, ServerParameters parameters)
         {
@@ -64,8 +63,8 @@ namespace NetworkLibrary.DistributedP2P.Server
             dbConnector = dependencies.DbConnector;
             logger = dependencies.logger;
             SSlPort = parameters.SSlPort;
-            TcpPort = parameters.TcpPort;
-            UdpPort = parameters.UdpPort;
+            TcpRelayPort = parameters.TcpPort;
+            UdpRelayPort = parameters.UdpPort;
             DiscoveryServerPort = parameters.DiscoveryServerPort;
             stateManager = new StateManager(logger);
             serverCertificate = parameters.certificate ?? CertificateGenerator.GenerateSelfSignedCertificate();
@@ -81,7 +80,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             ntpServer = new NTPServer(SSlPort, serverClock);
             ntpServer.Start();
 
-            relayService = new RelayService(TcpPort, UdpPort);
+            relayService = new RelayService(TcpRelayPort, UdpRelayPort);
 
             sslServer.OnClientRequestedConnection += ValidateSslConnection;
             sslServer.OnClientAccepted += SslClientAccepted;
@@ -168,17 +167,13 @@ namespace NetworkLibrary.DistributedP2P.Server
             }
             else
             {
-                sessionManager.HandleMessage(guid, envelope);
+                sessionManager.RouteMessage(guid, envelope);
             }
         }
 
         private void HandleInternalMessage(Guid clientId, MessageEnvelope message)
         {
-            //server messages.
-            // time sync
-            // holepunching
-            // ping
-
+            
             message.From = clientId;
 
             if (stateManager.HandleMessage(message))
@@ -230,6 +225,10 @@ namespace NetworkLibrary.DistributedP2P.Server
                 case Constants.TimeSync:
                     HandleTimeSync(clientId, message);
 
+                    break;
+
+                    case InternalConstants.KeepAlive:
+                    sessionManager.HandleMessage(clientId,message); 
                     break;
             }
         }
@@ -325,11 +324,14 @@ namespace NetworkLibrary.DistributedP2P.Server
             return sslServer.SendMessageAndWaitResponse(envelope.To, envelope);
         }
 
-        private void SslClientDisconnected(Guid guid)
+        private void SslClientDisconnected(Guid ephemeralId)
         {
-            sessionManager.DestroySession(guid);
+            sessionManager.DestroySession(ephemeralId);
         }
-
+        public void EndSession (Guid ephemeralId)
+        {
+            sslServer.CloseSession(ephemeralId);
+        }
         public void ShutDownServer()
         {
             sslServer.ShutdownServer();

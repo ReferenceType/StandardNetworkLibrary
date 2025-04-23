@@ -2,8 +2,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
-using System.Text;
-using static System.Collections.Specialized.BitVector32;
 
 namespace NetworkLibrary.DistributedP2P.Server
 {
@@ -36,13 +34,14 @@ namespace NetworkLibrary.DistributedP2P.Server
         public List<string> ClientLocalIps { get; }
         public DateTime OnlineSince { get; internal set; }
 
+        public DateTime lastKeepAlive= DateTime.Now;
 
         private PeerStatusList statusList = new PeerStatusList();
-        private ConcurrentDictionary<Guid,PeerStatus> onlinePeers = new ConcurrentDictionary<Guid,PeerStatus>();
-        private PeerStatus status =  new PeerStatus();
+        private ConcurrentDictionary<Guid, PeerStatus> onlinePeers = new ConcurrentDictionary<Guid, PeerStatus>();
+        private PeerStatus status = new PeerStatus();
 
 
-        public ServerSession(IClientDbInfo clientInfo,Guid ephemeralId, System.Net.IPEndPoint clientPublicIp, List<string> clientLocalIps)
+        public ServerSession(IClientDbInfo clientInfo, Guid ephemeralId, System.Net.IPEndPoint clientPublicIp, List<string> clientLocalIps)
         {
             ClientInfo = clientInfo;
             EphemeralId = ephemeralId;
@@ -63,7 +62,7 @@ namespace NetworkLibrary.DistributedP2P.Server
             return true;
         }
 
-        internal void AddNewPeer(Guid ephemeralId,PeerStatus status)
+        internal void AddNewPeer(Guid ephemeralId, PeerStatus status)
         {
             if (onlinePeers.TryAdd(ephemeralId, status))
             {
@@ -92,7 +91,7 @@ namespace NetworkLibrary.DistributedP2P.Server
                 return null;
             // must be hard copy
             // either hard copy or lock until all published over network.
-            PeerStatusList list =  new PeerStatusList();
+            PeerStatusList list = new PeerStatusList();
             list.WentOffline = new ConcurrentDictionary<Guid, PeerStatus>(statusList.WentOffline);
             list.NewOnline = new ConcurrentDictionary<Guid, PeerStatus>(statusList.NewOnline);
             list.WhoNeedsToKnow = EphemeralId;
@@ -104,6 +103,11 @@ namespace NetworkLibrary.DistributedP2P.Server
         {
             statusList.WentOffline.Clear();
             statusList.NewOnline.Clear();
+        }
+
+        internal void KeepAliveMark()
+        {
+            lastKeepAlive = DateTime.Now;
         }
     }
 }

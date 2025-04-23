@@ -315,7 +315,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         }
 
-        private async Task<bool> UdpTokenExchange(Socket udpSocket, byte[] token, IPEndPoint remoteEndPoint, int timeoutMs = 3000)
+        private async Task<bool> UdpTokenExchange(Socket udpSocket, byte[] token, IPEndPoint remoteEndPoint, int timeoutMs = 5000)
         {
             try
             {
@@ -324,7 +324,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 var sendTask = udpSocket.SendAsync(new ArraySegment<byte>(token), SocketFlags.None);
                 var sendTimeout = Task.Delay(timeoutMs);
 
-                if (await Task.WhenAny(sendTask, sendTimeout) == sendTimeout ||
+                if (await Task.WhenAny(sendTask, sendTimeout).ConfigureAwait(false) == sendTimeout ||
                     sendTask.Result != token.Length)
                 {
                     Log(LogType.Warning, "Udp Token Send Timeout");
@@ -335,7 +335,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 var receiveTask = udpSocket.ReceiveAsync(new ArraySegment<byte>(responseBuffer), SocketFlags.None);
                 var receiveTimeout = Task.Delay(timeoutMs);
 
-                if (await Task.WhenAny(receiveTask, receiveTimeout) == receiveTimeout)
+                if (await Task.WhenAny(receiveTask, receiveTimeout).ConfigureAwait(false) == receiveTimeout)
                 {
                     Log(LogType.Exception,"Udp Token Receive Timeout");
                     return false;

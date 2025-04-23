@@ -53,28 +53,36 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         //the initiator
         public async void Start()
         {
+            try
+            {
 
-            isInitiator = true;
-            Log(LogType.Debug, StateId.ToString());
+                isInitiator = true;
+                Log(LogType.Debug, StateId.ToString());
 
-            await BindPort();
-            Log(LogType.Debug, $"Local port {selfLocalEp.Port} Remote port {selfRemoteEp.Port}");
+                await BindPort().ConfigureAwait(false);
+                Log(LogType.Debug, $"Local port {selfLocalEp.Port} Remote port {selfRemoteEp.Port}");
 
-            StartListening();
-            Log(LogType.Debug, "listening");
+                StartListening();
+                Log(LogType.Debug, "listening");
 
-            var msg = CreateEnvelope();
-            msg.To = destId;
-            msg.Header = InternalConstants.RequestSimultaneousHolepunchTcp;
+                var msg = CreateEnvelope();
+                msg.To = destId;
+                msg.Header = InternalConstants.RequestSimultaneousHolepunchTcp;
 
-            var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            KnownTypeSerializer.SerializeHolepunchData(stream, GetHpData());
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                KnownTypeSerializer.SerializeHolepunchData(stream, GetHpData());
 
-            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
-            connection.SendAsyncMessage(msg);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+                connection.SendAsyncMessage(msg);
 
-            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
-           
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+            }
+            catch (Exception e)
+            {
+                Log(LogType.Exception, e.Message + "\n" + e.StackTrace);
+                Cancel();
+            }
+
         }
 
 
@@ -104,32 +112,42 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         // the destination peer of hp
         private async void HandleRemoteHpRequest(MessageEnvelope message)
         {
-            Log(LogType.Debug, StateId.ToString());
-            int offs = message.PayloadOffset;
-            var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
+            try
+            {
 
-            ChannelInfo = hpData.ChannelInfo;
-            await BindPort();
-            Log(LogType.Debug, $"Local port {selfLocalEp.Port} Remote port {selfRemoteEp.Port}");
 
-            StartListening();
-            Log(LogType.Debug, "listening");
+                Log(LogType.Debug, StateId.ToString());
+                int offs = message.PayloadOffset;
+                var hpData = KnownTypeSerializer.DeserializeHolepunchData(message.Payload, ref offs);
 
-            var msg = CreateEnvelope();
-            msg.To = destId;
-            msg.Header = InternalConstants.AckRequestHolepunchTcp;
+                ChannelInfo = hpData.ChannelInfo;
+                await BindPort();
+                Log(LogType.Debug, $"Local port {selfLocalEp.Port} Remote port {selfRemoteEp.Port}");
 
-            var hpd = GetHpData();
-            hpd.ChannelInfo = null;
+                StartListening();
+                Log(LogType.Debug, "listening");
 
-            var stream = SharerdMemoryStreamPool.RentStreamStatic();
-            KnownTypeSerializer.SerializeHolepunchData(stream, hpd);
-            msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+                var msg = CreateEnvelope();
+                msg.To = destId;
+                msg.Header = InternalConstants.AckRequestHolepunchTcp;
 
-            connection.SendAsyncMessage(msg);
-            SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+                var hpd = GetHpData();
+                hpd.ChannelInfo = null;
 
-           
+                var stream = SharerdMemoryStreamPool.RentStreamStatic();
+                KnownTypeSerializer.SerializeHolepunchData(stream, hpd);
+                msg.SetPayload(stream.GetBuffer(), 0, stream.Position32);
+
+                connection.SendAsyncMessage(msg);
+                SharerdMemoryStreamPool.ReturnStreamStatic(stream);
+            }
+            catch (Exception e)
+            {
+                Log(LogType.Exception, e.Message + "\n" + e.StackTrace);
+                Cancel();
+            }
+
+
         }
 
         private async Task BindPort()
@@ -138,7 +156,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
             clientSocket.Bind(selfLocalEp);
             selfLocalEp = (IPEndPoint)clientSocket.LocalEndPoint;
 
-            var remoteEp = await EndpointDiscoveryClient.GetTcpPublicEndpoint(clientSocket, discoveryServerEp.ToIpEndpoint(), 5000);
+            var remoteEp = await EndpointDiscoveryClient.GetTcpPublicEndpoint(clientSocket, discoveryServerEp.ToIpEndpoint(), 5000).ConfigureAwait(false);
             if (remoteEp == null)
             {
                 Log(LogType.Warning, "Failed to get public endpoint");

@@ -183,7 +183,7 @@ namespace NetworkLibrary.DistributedP2P.Server.StateManagement
             msg.Header = InternalConstants.ConnectionAckGood;
             msg.To = EphemeralClientId;
             msg.KeyValuePairs = new Dictionary<string, string>();
-            msg.KeyValuePairs["EDSPort"] = endpointDiscoveryServerPort.ToString();
+            msg.KeyValuePairs["EDPort"] = endpointDiscoveryServerPort.ToString();
             lock (cancellationMutex)
             {
                 if (IsCompleted())

@@ -1,19 +1,8 @@
-﻿using NetworkLibrary.Components;
-using NetworkLibrary.Components.Crypto.DigitalSignature;
-using NetworkLibrary.DistributedP2P.Components;
-using NetworkLibrary.MessageProtocol;
-using NetworkLibrary.MessageProtocol.Serialization;
-using NetworkLibrary.P2P.Components.HolePunch;
-using NetworkLibrary.TCP.Base;
-using NetworkLibrary.UDP;
-using NetworkLibrary.Utils;
+﻿using NetworkLibrary.DistributedP2P.Components;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,29 +16,69 @@ namespace NetworkLibrary.DistributedP2P.Server
         internal ConcurrentDictionary<Guid, ServerSession> serverSessions = new ConcurrentDictionary<Guid, ServerSession>();
 
         internal HashSet<Guid> lastSnapshot = new HashSet<Guid>();
-        private TaskCompletionSource<bool> publishTrigger =  new TaskCompletionSource<bool>();
+        private TaskCompletionSource<bool> publishTrigger = new TaskCompletionSource<bool>();
 
         public event Action<List<PeerStatusList>> PeerListPublish;
 
-        IDistributedConnection serverConnection;
+        IServerConnection serverConnection;
         private bool shutdown;
         private object publishMutex = new object();
-        public SessionManager(IDistributedConnection serverConnection)
+        public SessionManager(IServerConnection serverConnection)
         {
             this.serverConnection = serverConnection;
             PublishRoutine();
+            KeepAliveRoutine();
         }
 
-        internal bool HandleMessage(Guid from, MessageEnvelope envelope)
+        private async void KeepAliveRoutine()
+        {
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(10000).ConfigureAwait(false);
+                    var now = DateTime.Now;
+                    foreach (var ses in serverSessions)
+                    {
+                        if ((now - ses.Value.lastKeepAlive).TotalMilliseconds > 10000)
+                        {
+                            serverConnection.EndSession(ses.Key);
+                            DestroySession(ses.Key);
+                        }
+                    }
+                }
+               
+            }
+            catch { }
+        }
+
+        internal bool RouteMessage(Guid from, MessageEnvelope envelope)
         {
             Guid to = envelope.To;
             envelope.To = Guid.Empty;
             envelope.From = from;
             serverConnection.SendAsyncMessage(to, envelope);
 
-            return true;    
+            return true;
         }
-      
+        internal bool HandleMessage(Guid from, MessageEnvelope envelope)
+        {
+            switch (envelope.Header)
+            {
+                case InternalConstants.KeepAlive:
+                    if (serverSessions.TryGetValue(from, out var session))
+                    {
+                        session.KeepAliveMark();
+                        var msg = new MessageEnvelope();
+                        msg.Header = InternalConstants.KeepAlive;
+                        msg.IsInternal = true;
+                        serverConnection.SendAsyncMessage(from,msg);
+                    }
+                    break;
+            }
+            return true;
+        }
+
         public PeerStatusList CreateSession(IClientDbInfo clientInfo, Guid ephemeralClientId, IPEndPoint clientPublicIp, List<string> clientLocalIps)
         {
             var newSession = new ServerSession(clientInfo, ephemeralClientId, clientPublicIp, clientLocalIps);
@@ -66,16 +95,16 @@ namespace NetworkLibrary.DistributedP2P.Server
                         }
                     }
                     serverSessions.TryAdd(ephemeralClientId, newSession);
-                    
+
                 }
                 // for instant sync of new peer
-                var pubInfo =  newSession.GetPublishInfo();
+                var pubInfo = newSession.GetPublishInfo();
                 //newSession.ResetPublishInfo();
 
                 publishTrigger.TrySetResult(true);
                 return pubInfo;
             }
-           
+
         }
 
         internal void DestroySession(Guid ephemeralClientId)
@@ -102,7 +131,7 @@ namespace NetworkLibrary.DistributedP2P.Server
         internal bool GetSessionData(Guid guid, out ServerSession sesData)
         {
             return serverSessions.TryGetValue(guid, out sesData);
-           
+
         }
 
         internal async void PublishRoutine()
@@ -115,7 +144,7 @@ namespace NetworkLibrary.DistributedP2P.Server
 
                 PubList.Clear();
 
-                lock (publishMutex) 
+                lock (publishMutex)
                 {
                     foreach (var sessionKV in serverSessions)
                     {
@@ -128,7 +157,7 @@ namespace NetworkLibrary.DistributedP2P.Server
                     }
                 }
 
-                
+
                 PeerListPublish?.Invoke(PubList);
                 await Task.Delay(1000);
             }

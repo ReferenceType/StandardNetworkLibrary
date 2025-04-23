@@ -71,6 +71,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 connection.SendAsyncMessage(msg);
 
             }, TaskScheduler.Default);
+            task.ConfigureAwait(false);
 
         }
 
@@ -87,7 +88,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
         private void HandleConnectionSucces(MessageEnvelope message)
         {
             SessionId = message.To;
-            EDSPort = int.Parse(message.KeyValuePairs["EDSPort"]);
+            EDSPort = int.Parse(message.KeyValuePairs["EDPort"]);
             Completed(succes: true);
         }
 

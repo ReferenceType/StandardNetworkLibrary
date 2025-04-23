@@ -50,7 +50,7 @@ namespace NetworkLibrary.DistributedP2P.Components
             {
                 try
                 {
-                    await Task.Delay(PeriodLocal);
+                    await Task.Delay(PeriodLocal).ConfigureAwait(false);
                     if (cancel)
                         return;
                     

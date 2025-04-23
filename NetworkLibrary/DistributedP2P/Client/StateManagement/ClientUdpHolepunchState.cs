@@ -70,7 +70,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
                 SharerdMemoryStreamPool.ReturnStreamStatic(stream);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 OnError(ex.Message + "\n" + ex.StackTrace);
             }
@@ -89,8 +89,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                         break;
 
                     case InternalConstants.StartHP:
-                        message.LockBytes();
-                        ThreadPool.UnsafeQueueUserWorkItem((s) => StartHolepunchRoutine(message), null);
+                        StartHolepunchRoutine(message);
                         break;
 
                     case InternalConstants.PunchSuccesAck:
@@ -178,7 +177,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         }
 
-        private void StartHolepunchRoutine(MessageEnvelope message)
+        private async void StartHolepunchRoutine(MessageEnvelope message)
         {
             try
             {
@@ -195,14 +194,13 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 {
                     //var now0 = connection.GetTime();
                     //var delay0 = (time - now0) / 4;
-                    Thread.Sleep(50);
 
                     foreach (EndpointData localEp in epMsg.LocalEndpoints)
                     {
                         for (int i = 0; i < 2; i++)
                         {
                             TryPunch(localEp, MessageFlags.HP);
-                            Thread.Sleep(100);
+                            await Task.Delay(100).ConfigureAwait(false);
                             if (IsCompleted()) return;
                         }
                     }
@@ -222,13 +220,14 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     delay = 0;
 
                 Log(LogType.Debug, "Delay: " + delay.ToString() + "ms");
-                PreciseTimeAwaiter.Wait(delay);
+                if (delay > 0)
+                    await Task.Delay((int)delay).ConfigureAwait(false);
                 if (IsCompleted()) return;
 
                 for (int i = 0; i < 8; i++)
                 {
                     TryPunch(publicEp, MessageFlags.HP);
-                    PreciseTimeAwaiter.Wait(20 + (20 * i * i));
+                    await Task.Delay(20 + (20 * i * i)).ConfigureAwait(false);
                     if (IsCompleted()) return;
                 }
             }
@@ -280,7 +279,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                     var remoteEP = (EndPoint)new IPEndPoint(IPAddress.Any, 0);
                     var receiveTask = Socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, remoteEP);
 
-                    var completedTask = await Task.WhenAny(receiveTask, Task.Delay(base.timeout));
+                    var completedTask = await Task.WhenAny(receiveTask, Task.Delay(base.timeout)).ConfigureAwait(false);
                     if (completedTask == receiveTask)
                     {
                         SocketReceiveFromResult received = await receiveTask;
@@ -293,10 +292,10 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                                 var ipep = (IPEndPoint)received.RemoteEndPoint;
                                 Log(LogType.Debug, "[-]Received 0xFF from " + ipep.ToString());
                                 TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
-                                await Task.Delay(500);
+                                await Task.Delay(500).ConfigureAwait(false);
                                 if (IsCompleted()) return;
                                 TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
-                                await Task.Delay(500);
+                                await Task.Delay(500).ConfigureAwait(false);
                                 if (IsCompleted()) return;
                                 TryPunch((IPEndPoint)received.RemoteEndPoint, MessageFlags.HPAck);
 
@@ -316,7 +315,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                         }
                         else
                         {
-                            Log(LogType.Debug, "Cancel1");
+                            Log(LogType.Warning, "Cancel1");
                             Cancel();
                             return;
                         }
@@ -329,7 +328,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
                 }
                 catch (Exception e)
                 {
-                    Log(LogType.Debug, "ERROR" + e.Message);
+                    Log(LogType.Error, "ERROR" + e.Message);
                     Cancel();
                     return;
                 }
@@ -361,7 +360,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void TimedOut()
         {
-            Log(LogType.Debug, "Timed out");
+            Log(LogType.Warning, "Timed out");
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchFail;
             connection.SendAsyncMessage(msg);
@@ -370,7 +369,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void OnError(string error)
         {
-            Log(LogType.Error, "Exception :" + error);
+            Log(LogType.Warning, "Exception :" + error);
             var msg = CreateEnvelope();
             msg.Header = InternalConstants.PunchFail;
             connection.SendAsyncMessage(msg);
@@ -380,7 +379,7 @@ namespace NetworkLibrary.DistributedP2P.Client.StateManagement
 
         private void HandleFailure()
         {
-            Log(LogType.Debug, "Failed Punch");
+            Log(LogType.Warning, "Failed Punch");
 
             Completed(false);
         }

@@ -51,6 +51,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         bool isDisposed = false;
         ILogger logger;
+        DateTime lastKeepAlive = DateTime.Now;
 
         public DistributedLobbyClient(IClientDbConnection clientDbConnector,
                                       IClientAuthenticationProvider clientAuthProvider,
@@ -88,24 +89,55 @@ namespace NetworkLibrary.DistributedP2P.Client
                 Guid conversationId = Guid.NewGuid();
                 var conState = new ClientConnectionState(conversationId, this, clientDbConnector, authToken, logger);
                 stateManager.RegisterState(conState);
+
+                conState.OnComplete += (_) =>
+                {
+                    if (conState.IsSuccesful)
+                    {
+                        SessionId = conState.SessionId;
+                        DiscoveryServerEndpoint = new EndpointData(ip, conState.EDSPort);
+                        Console.WriteLine($"Connected to server {ip}:{port} with session {SessionId} and discovery port {conState.EDSPort}");
+                        IsConnected = true;
+                        timeSync.StartAutoTimeSync();
+                        StartKeepAlive();
+                    }
+                };
+              
                 conState.Start();
 
                 await conState.WaitCompletion().ConfigureAwait(false);
-
-                if (conState.IsSuccesful)
-                {
-                    SessionId = conState.SessionId;
-                    DiscoveryServerEndpoint = new EndpointData(ip, conState.EDSPort);
-                    Console.WriteLine($"Connected to server {ip}:{port} with session {SessionId} and discovery port {conState.EDSPort}");
-                    IsConnected = true;
-                    timeSync.StartAutoTimeSync();
-                    return true;
-                }
-
-                return false;
+                return conState.IsSuccesful;
 
             }
             else return false;
+        }
+
+        private async void StartKeepAlive()
+        {
+            try
+            {
+                lastKeepAlive = DateTime.Now;
+                while (IsConnected)
+                {
+                    await Task.Delay(4000).ConfigureAwait(false);
+
+                    MessageEnvelope envelope = new MessageEnvelope();
+                    envelope.Header = InternalConstants.KeepAlive;
+                    envelope.IsInternal = true;
+                    SendAsyncMessage(envelope);
+
+                    if((DateTime.Now- lastKeepAlive).TotalMilliseconds > 10000)
+                    {
+                        Disconnect();
+                        return;
+                    }
+                }
+            }
+            catch
+            {
+                Disconnect();
+            }
+            
         }
 
         #region Send
@@ -170,7 +202,10 @@ namespace NetworkLibrary.DistributedP2P.Client
 
                     case InternalConstants.RequestSimultaneousHolepunchTcp:
                         ManageSimyltaneousTcpHolepunchReq(envelope);
-                      
+                        break;
+
+                    case InternalConstants.KeepAlive:
+                        lastKeepAlive= DateTime.Now;
                         break;
 
                 }
@@ -373,6 +408,7 @@ namespace NetworkLibrary.DistributedP2P.Client
 
         public void Disconnect()
         {
+            IsConnected= false;
             sslClient.Disconnect();
         }
 

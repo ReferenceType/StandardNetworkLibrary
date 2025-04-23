@@ -1,4 +1,6 @@
-﻿using NetworkLibrary.Components.Crypto.DigitalSignature;
+﻿//#define PRINT
+
+using NetworkLibrary.Components.Crypto.DigitalSignature;
 using NetworkLibrary.DistributedP2P.Components;
 using NetworkLibrary.DistributedP2P.Server.StateManagement;
 using NetworkLibrary.TCP.Base;
@@ -7,11 +9,9 @@ using NetworkLibrary.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-
 namespace NetworkLibrary.DistributedP2P.SimpleRelay
 {
     internal class PipeToken
@@ -30,7 +30,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
     }
     internal class TcpTokenStorage
     {
-        internal byte[] Token = new byte[PipeData.TokenLength];
+        internal byte[] TokenBytes = new byte[PipeData.TokenLength];
         int tokenOffset = 0;
 
         internal int StoreTokenFragment(byte[] tokenFragment, int offset, int count)
@@ -41,7 +41,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             }
             else
             {
-                Buffer.BlockCopy(tokenFragment, offset, Token, tokenOffset, count);
+                Buffer.BlockCopy(tokenFragment, offset, TokenBytes, tokenOffset, count);
                 tokenOffset += count;
                 if (tokenOffset == PipeData.TokenLength)
                 {
@@ -76,7 +76,8 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
         private readonly ConcurrentDictionary<Guid, TcpTokenStorage> tokenStorage = new ConcurrentDictionary<Guid, TcpTokenStorage>();
 
         byte[] cryptoKey = new byte[32];
-        PrivateKeySign signer;
+
+        ThreadLocal<PrivateKeySign> signer = new ThreadLocal<PrivateKeySign>();
         readonly object tokenMtex = new object();
 
         public RelayService(int TcpPort, int UdpPort)
@@ -94,30 +95,37 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
 
             TcpServer.OnBytesReceived += HandleTcpBytes;
             UdpServer.OnBytesRecieved += HandleUdpBytes;
-            signer = new PrivateKeySign(cryptoKey);
-
 
             UdpServer.StartServer();
             TcpServer.StartServer();
-            //print();
+#if PRINT
+            print();
+#endif
 
         }
 
-        //private async Task print()
-        //{
-        //    while (true)
-        //    {
-        //        await Task.Delay(1000);
-        //        long s = Interlocked.Exchange(ref sent, 0);
-        //        Console.WriteLine(s.ToString("N1"));
-        //    }
-        //}
+        private PrivateKeySign GetSigner()
+        {
+            if (signer.Value == null)
+            {
+                signer.Value = new PrivateKeySign(cryptoKey);
+            }
+            return signer.Value;
+        }
+
+        private async Task print()
+        {
+            while (true)
+            {
+                await Task.Delay(1000);
+                long s = Interlocked.Exchange(ref sent, 0);
+                Console.WriteLine($"Num clint {TcpServer.SessionCount} - Transfer rate:"+s.ToString("N1"));
+            }
+        }
 
         private void TcpClientAccepted(Guid guid)
         {
-            tokenStorage.TryAdd(guid, new TcpTokenStorage());
             TimerService.RegisterTimer(guid, tokenLifetimeMs, () => HandleTcpClientTimeout(guid));
-
         }
 
         private void HandleTcpClientTimeout(Guid guid)
@@ -160,7 +168,10 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             // we should look for room stuff here
             if (pipeMapTcp.TryGetValue(guid, out var to))
             {
-               // Interlocked.Add(ref sent, count);
+#if PRINT
+                Interlocked.Add(ref sent, count);
+#endif
+
                 TcpServer.SendBytesToClientDirect(to, bytes, offset, count);
                 return true;
             }
@@ -176,6 +187,9 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
         {
             if (pipeMapUdp.TryGetValue(endpoint, out var to))
             {
+#if PRINT
+                Interlocked.Add(ref sent, count);
+#endif
                 UdpServer.SendBytesToClient(to, bytes, offset, count);
                 return true;
             }
@@ -194,72 +208,86 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             // state object etc
             lock (tokenMtex)
             {
-                tokenStorage.TryGetValue(ephemeralId, out var storage);
-
-                int result = storage.StoreTokenFragment(bytes, offset, count);
-
-                if (result == 0)//incomplete
-                    return;
-
-                if (result == -1)// nonsense
+                PipeToken token = null;
+                byte[] tokenBytes = null;
+                if (count == PipeData.TokenLength)
                 {
-                    RemoveTcpClient(ephemeralId);
-                    return;
+                     token = DeserializePipeToken(bytes, offset);
+                     tokenBytes = ByteCopy.ToArray(bytes, offset, count);
                 }
-
-                if (result == 1)// tokenComplete
+                else
                 {
-                    PipeToken token = DeserializePipeToken(storage.Token, 0);
 
-                    if (activeTcpPipeStates.TryGetValue(token.Token, out var pipeState))
+                    if (!tokenStorage.TryGetValue(ephemeralId, out var storage))
                     {
-                        if (VerifyToken(storage.Token, token.Expiration))
-                        {
-                            Console.WriteLine("TokenVerified");
-                            pipeState.RegisterClient(ephemeralId);
+                        storage = new TcpTokenStorage();
+                        tokenStorage.TryAdd(ephemeralId,storage);
 
-                            if (pipeState.IsComplete())
-                            {
-                                activeTcpPipeStates.TryRemove(token.Token, out _);
-                                TcpPipeCreated(pipeState.Clients[0], pipeState.Clients[1]);
-                            }
-
-                            TcpServer.SendBytesToClientDirect(ephemeralId, new byte[1] { 0x01 },0,1);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Token Rejected");
-                            RemoveTcpClient(ephemeralId);
-                        }
                     }
-                    else if (activeRoomStates.TryRemove(token.Token, out var roomState))//token is peerId
+
+                    int result = storage.StoreTokenFragment(bytes, offset, count);
+
+                    if (result == 0)//incomplete
+                        return;
+
+                    if (result == -1)// nonsense
                     {
-                        if (VerifyToken(storage.Token, token.Expiration))
+                        RemoveTcpClient(ephemeralId);
+                        return;
+                    }
+                    if (result == 1)// tokenComplete
+                    {
+                        token = DeserializePipeToken(storage.TokenBytes, 0);
+                        tokenBytes = storage.TokenBytes;
+                    }
+                }
+                
+                if (activeTcpPipeStates.TryGetValue(token.Token, out var pipeState))
+                {
+                    if (VerifyToken(tokenBytes, token.Expiration))
+                    {
+                        Console.WriteLine("TokenVerified");
+                        pipeState.RegisterClient(ephemeralId);
+
+                        if (pipeState.IsComplete())
                         {
-                            if (roomState.Verify(token, ephemeralId))
-                            {
-                                if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
-                                {
-                                    room.Add(token.Token, roomState);
-                                    TcpServer.SendBytesToClientDirect(ephemeralId, new byte[1] { 0x01 }, 0, 1);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            RemoveTcpClient(ephemeralId);
+                            activeTcpPipeStates.TryRemove(token.Token, out _);
+                            TcpPipeCreated(pipeState.Clients[0], pipeState.Clients[1]);
                         }
 
+                        TcpServer.SendBytesToClientDirect(ephemeralId, new byte[1] { 0x01 }, 0, 1);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Token Rejected");
+                        RemoveTcpClient(ephemeralId);
+                    }
+                }
+                else if (activeRoomStates.TryRemove(token.Token, out var roomState))//token is peerId
+                {
+                    if (VerifyToken(tokenBytes, token.Expiration))
+                    {
+                        if (roomState.Verify(token, ephemeralId))
+                        {
+                            if (activeRooms.TryGetValue(roomState.RoomId, out Room room))
+                            {
+                                room.Add(token.Token, roomState);
+                                TcpServer.SendBytesToClientDirect(ephemeralId, new byte[1] { 0x01 }, 0, 1);
+                            }
+                        }
                     }
                     else
                     {
                         RemoveTcpClient(ephemeralId);
                     }
+
                 }
                 else
                 {
                     RemoveTcpClient(ephemeralId);
                 }
+                
+              
             }
         }
 
@@ -282,6 +310,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                 {
                     if (VerifyToken(tokenBytes, token.Expiration))
                     {
+                        Console.WriteLine("Token verified");
                         pipeState.RegisterClient(clientEp);
 
                         if (pipeState.IsComplete())
@@ -294,6 +323,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                     }
                     else
                     {
+                        Console.WriteLine("Token rejected");
                         // ddos here.
                         UdpServer.RemoveClient(clientEp);
                     }
@@ -328,7 +358,9 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
 
         private bool VerifyToken(byte[] Token, DateTime expiration)
         {
-            var calculatedSignature = signer.Sign(Token, 0, 24);
+
+            var calculatedSignature = GetSigner().Sign(Token, 0, 24);
+
             if (SignatureMatch(calculatedSignature, Token))
             {
                 if (DateTime.UtcNow <= expiration)
@@ -387,7 +419,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
             {
                 pipeMapUdp.TryRemove(to, out _);
             }
-            else if(roomMapUdp.TryRemove(from, out Room room))
+            else if (roomMapUdp.TryRemove(from, out Room room))
             {
                 room.HandleDisconnect(from);
             }
@@ -409,37 +441,6 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
         }
 
 
-        private void RegisterTcpToken(PipeToken pipeData)
-        {
-            activeTcpPipeStates.TryAdd(pipeData.Token, new PipeState<Guid>(pipeData));
-            TimerService.RegisterTimer(pipeData.Token, tokenLifetimeMs, () => activeTcpPipeStates.TryRemove(pipeData.Token, out _));
-        }
-
-        private void RegisterUdpToken(PipeToken pipeData)
-        {
-            activeUdpPipeStates.TryAdd(pipeData.Token, new PipeState<IPEndPoint>(pipeData));
-            TimerService.RegisterTimer(pipeData.Token, tokenLifetimeMs, () => activeUdpPipeStates.TryRemove(pipeData.Token, out _));
-
-        }
-        private void Createtoken(Guid tokenId, out byte[] data, out PipeToken pipeData)
-        {
-            data = new byte[PipeData.TokenLength];
-            int offset = 0;
-            pipeData = new PipeToken();
-            pipeData.Token = tokenId;
-            pipeData.Expiration = DateTime.UtcNow.AddMilliseconds(tokenLifetimeMs);
-
-            PrimitiveEncoder.WriteGuid(data, ref offset, pipeData.Token);//16
-
-            long Time = pipeData.Expiration.ToBinary();
-            PrimitiveEncoder.WriteFixedInt64(data, ref offset, Time); //8
-
-            byte[] signature = signer.Sign(data, 0, 24);
-            Buffer.BlockCopy(signature, 0, data, offset, 32);//32
-        }
-
-
-
 
         // for direct p2p
         public byte[] GetPipeToken(bool tcp)
@@ -455,6 +456,37 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
 
             return data;
         }
+        private void Createtoken(Guid tokenId, out byte[] data, out PipeToken pipeData)
+        {
+            data = new byte[PipeData.TokenLength];
+            int offset = 0;
+            pipeData = new PipeToken();
+            pipeData.Token = tokenId;
+            pipeData.Expiration = DateTime.UtcNow.AddMilliseconds(tokenLifetimeMs);
+
+            PrimitiveEncoder.WriteGuid(data, ref offset, pipeData.Token);//16
+
+            long Time = pipeData.Expiration.ToBinary();
+            PrimitiveEncoder.WriteFixedInt64(data, ref offset, Time); //8
+            var signature = GetSigner().Sign(data, 0, 24);
+            Buffer.BlockCopy(signature, 0, data, offset, 32);//32
+        }
+
+
+        private void RegisterTcpToken(PipeToken pipeData)
+        {
+            if (!activeTcpPipeStates.TryAdd(pipeData.Token, new PipeState<Guid>(pipeData)))
+                Console.WriteLine("GuidDupe");
+            TimerService.RegisterTimer(pipeData.Token, tokenLifetimeMs, () => activeTcpPipeStates.TryRemove(pipeData.Token, out _));
+        }
+
+        private void RegisterUdpToken(PipeToken pipeData)
+        {
+            activeUdpPipeStates.TryAdd(pipeData.Token, new PipeState<IPEndPoint>(pipeData));
+            TimerService.RegisterTimer(pipeData.Token, tokenLifetimeMs, () => activeUdpPipeStates.TryRemove(pipeData.Token, out _));
+
+        }
+
 
         //for broadcast
         public bool CreateRoom(Guid roomId, RoomProtocol protocol)
@@ -476,6 +508,7 @@ namespace NetworkLibrary.DistributedP2P.SimpleRelay
                 return false;
             }
         }
+
 
         // get token for spesific peer, who wants to join a room
         public byte[] GetRoomToken(Guid roomId, Guid peerId)
